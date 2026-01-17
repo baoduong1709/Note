@@ -1,0 +1,6 @@
+pyperclip
+Pillow
+pywin32
+customtkinter
+PySide6
+watchdog
