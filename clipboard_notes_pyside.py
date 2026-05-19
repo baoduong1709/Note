@@ -324,13 +324,15 @@ class FloatingBubble(QWidget):
         
         # Cấu hình Animation Frames (Ưu tiên cao nhất)
         if getattr(sys, 'frozen', False):
-            # Nếu chạy từ file .exe, thư mục nằm cạnh file .exe
+            # Khi chay tu .exe, uu tien thu muc canh exe, sau do fallback ve data nhung boi PyInstaller.
             base_path = os.path.dirname(sys.executable)
+            bundled_base = getattr(sys, '_MEIPASS', base_path)
         else:
-            # Nếu chạy script python
             base_path = os.path.dirname(os.path.abspath(__file__))
-            
+            bundled_base = base_path
+
         self.frames_folder = os.path.join(base_path, "bubble_frames")
+        self.bundled_frames_folder = os.path.join(bundled_base, "bubble_frames")
         self.frames = []
         self.current_frame_index = 0
         self.anim_timer = QTimer(self)
@@ -347,24 +349,47 @@ class FloatingBubble(QWidget):
         self.move(screen.width() - size - 20, screen.height() // 2)
 
     def load_frames(self):
-        """Tải các frame ảnh từ thư mục bubble_frames"""
-        if not os.path.exists(self.frames_folder):
-            os.makedirs(self.frames_folder)
+        """Tai frame mac dinh hoac custom folder cho bubble animation."""
+
+        custom_path = getattr(self.main_window, 'custom_bubble_icon', None)
+
+        if custom_path and os.path.isfile(custom_path):
+            self.frames = []
+            self.anim_timer.stop()
             return
 
-        files = os.listdir(self.frames_folder)
-        image_files = [f for f in files if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))]
-        image_files.sort() # Sắp xếp Alpha-Beta (A-Z)
-        
-        self.frames = []
-        for f in image_files:
-            pix = QPixmap(os.path.join(self.frames_folder, f))
-            if not pix.isNull():
-                self.frames.append(pix)
-        
-        if self.frames:
-            self.current_frame_index = 0
-            print(f"Loaded {len(self.frames)} frames for animation.")
+        candidate_dirs = []
+        if custom_path and os.path.isdir(custom_path):
+            candidate_dirs.append(custom_path)
+        else:
+            candidate_dirs.extend([self.frames_folder, self.bundled_frames_folder])
+
+        frames = []
+        for source_dir in candidate_dirs:
+            if not source_dir or not os.path.isdir(source_dir):
+                continue
+
+            try:
+                image_files = [
+                    f for f in os.listdir(source_dir)
+                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+                ]
+                image_files.sort()
+
+                for f in image_files:
+                    pix = QPixmap(os.path.join(source_dir, f))
+                    if not pix.isNull():
+                        frames.append(pix)
+            except Exception as e:
+                print(f"Error loading frames: {e}")
+
+            if frames:
+                break
+
+        self.frames = frames
+        self.current_frame_index = 0
+        if not self.frames:
+            self.anim_timer.stop()
 
     def next_frame(self):
         """Chuyển sang frame tiếp theo hoặc quay lại"""
@@ -412,6 +437,10 @@ class FloatingBubble(QWidget):
         """Cập nhật giao diện (kích thước, icon) khi cài đặt thay đổi"""
         size = getattr(self.main_window, 'bubble_size', 60)
         self.setFixedSize(size, size)
+        
+        # Load lại frames nếu đường dẫn thay đổi (File <-> Folder <-> Default)
+        self.load_frames()
+        
         self.update() # Yêu cầu vẽ lại
         
     def paintEvent(self, event):
@@ -1099,9 +1128,27 @@ class MainWindow(QMainWindow):
         self.groups = []            # Danh sách nhóm
         self.group_colors = {}      # Lưu màu của từng nhóm {tên_nhóm: màu_hex}
         self.clipboard_history = [] # Lịch sử clipboard
+    
+        # --- CẤU HÌNH ĐƯỜNG DẪN LƯU DỮ LIỆU (QUAN TRỌNG CHO FILE EXE) ---
+        # Lấy đường dẫn AppData của người dùng (nơi được phép ghi dữ liệu)
+        app_data = os.getenv('APPDATA')
+        if not app_data:
+            app_data = os.path.expanduser('~') # Fallback nếu không có APPDATA
+            
+        self.app_data_dir = os.path.join(app_data, 'ClipboardNotesManager')
         
-        # Đường dẫn file dữ liệu
-        self.data_file = "notes_data.json"
+        # Tạo thư mục nếu chưa tồn tại
+        if not os.path.exists(self.app_data_dir):
+            try:
+                os.makedirs(self.app_data_dir)
+            except Exception as e:
+                print(f"Error creating data dir: {e}")
+                self.app_data_dir = os.getcwd() # Fallback về thư mục hiện tại
+                
+        # Định nghĩa đường dẫn file
+        self.data_file = os.path.join(self.app_data_dir, "notes_data.json")
+        self.settings_file = os.path.join(self.app_data_dir, "settings.json")
+        
         # Sử dụng thư mục Screenshots mặc định của người dùng
         self.images_folder = os.path.join(os.path.expanduser('~'), 'Pictures', 'Screenshots')
         
@@ -2736,8 +2783,8 @@ class MainWindow(QMainWindow):
 
     def load_theme_setting(self):
         try:
-            if os.path.exists("settings.json"):
-                with open("settings.json", "r") as f:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, "r") as f:
                     settings = json.load(f)
                     return settings.get("theme", "light")
         except:
@@ -2747,20 +2794,20 @@ class MainWindow(QMainWindow):
     def save_theme_setting(self):
         try:
             settings = {}
-            if os.path.exists("settings.json"):
-                with open("settings.json", "r") as f:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, "r") as f:
                     settings = json.load(f)
             
             settings["theme"] = self.current_theme_mode
-            with open("settings.json", "w") as f:
+            with open(self.settings_file, "w") as f:
                 json.dump(settings, f)
         except:
             pass
     
     def load_language_setting(self):
         try:
-            if os.path.exists("settings.json"):
-                with open("settings.json", "r") as f:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, "r") as f:
                     settings = json.load(f)
                     return settings.get("language", "vi")  # Default Vietnamese
         except:
@@ -2770,20 +2817,20 @@ class MainWindow(QMainWindow):
     def save_language_setting(self):
         try:
             settings = {}
-            if os.path.exists("settings.json"):
-                with open("settings.json", "r") as f:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, "r") as f:
                     settings = json.load(f)
             
             settings["language"] = self.current_language
-            with open("settings.json", "w") as f:
+            with open(self.settings_file, "w") as f:
                 json.dump(settings, f)
         except:
             pass
     
     def load_bubble_settings(self):
         try:
-            if os.path.exists("settings.json"):
-                with open("settings.json", "r") as f:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, "r") as f:
                     settings = json.load(f)
                     self.custom_bubble_icon = settings.get("bubble_icon", None)
                     self.bubble_size = settings.get("bubble_size", 60)
@@ -2797,14 +2844,14 @@ class MainWindow(QMainWindow):
     def save_bubble_settings(self):
         try:
             settings = {}
-            if os.path.exists("settings.json"):
-                with open("settings.json", "r") as f:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, "r") as f:
                     settings = json.load(f)
             
             settings["bubble_icon"] = self.custom_bubble_icon
             settings["bubble_size"] = getattr(self, 'bubble_size', 60)
             
-            with open("settings.json", "w") as f:
+            with open(self.settings_file, "w") as f:
                 json.dump(settings, f)
         except:
             pass
@@ -3064,25 +3111,41 @@ class MainWindow(QMainWindow):
         
         def upload_custom_icon():
             from PySide6.QtWidgets import QFileDialog
-            file_path, _ = QFileDialog.getOpenFileName(dialog, "Select Icon", "", "PNG Images (*.png)")
+            file_path, _ = QFileDialog.getOpenFileName(dialog, "Chọn ảnh tĩnh", "", "Images (*.png *.jpg *.jpeg *.bmp)")
             if file_path:
                 self.custom_bubble_icon = file_path
                 self.save_bubble_settings()
                 if hasattr(self, 'bubble'): self.bubble.update_appearance()
+                
+        def upload_custom_folder():
+            from PySide6.QtWidgets import QFileDialog
+            folder_path = QFileDialog.getExistingDirectory(dialog, "Chọn thư mục hoạt ảnh")
+            if folder_path:
+                self.custom_bubble_icon = folder_path
+                self.save_bubble_settings()
                 if hasattr(self, 'bubble'): self.bubble.update_appearance()
-                # dialog.accept() # Đã bỏ để không đóng dialog
                 
         def reset_icon():
             self.custom_bubble_icon = None
             self.save_bubble_settings()
             if hasattr(self, 'bubble'): self.bubble.update_appearance()
-            if hasattr(self, 'bubble'): self.bubble.update_appearance()
-            # dialog.accept() # Đã bỏ để không đóng dialog
 
+        # Update Layout to include new button
+        upload_btn.setText("Chọn Ảnh")
+        upload_btn.setToolTip("Chọn 1 ảnh tĩnh")
         upload_btn.clicked.connect(upload_custom_icon)
+        
+        folder_btn = QPushButton("Chọn Folder")
+        folder_btn.setFixedSize(90, 32)
+        folder_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        folder_btn.setStyleSheet(upload_btn.styleSheet()) # Copy style from upload button
+        folder_btn.setToolTip("Chọn thư mục chứa nhiều ảnh để tạo hình động")
+        folder_btn.clicked.connect(upload_custom_folder)
+        
         reset_btn.clicked.connect(reset_icon)
         
         icon_row.addWidget(upload_btn)
+        icon_row.addWidget(folder_btn)
         icon_row.addWidget(reset_btn)
         bubble_group_layout.addLayout(icon_row)
         

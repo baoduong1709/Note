@@ -37,6 +37,7 @@ def main():
         # Data files
         '--add-data=styles.py;.',
         '--add-data=app_icon.ico;.',
+        '--add-data=bubble_frames;bubble_frames',
         
         # Clean và không confirm
         '--clean',
@@ -100,7 +101,11 @@ def main():
         print(f"\n✗ Lỗi: {e}")
         return False
     
-    input("\nNhấn Enter để thoát...")
+    if sys.stdin.isatty():
+        try:
+            input("\nNhấn Enter để thoát...")
+        except EOFError:
+            pass
     return True
 
 if __name__ == "__main__":
