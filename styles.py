@@ -1,46 +1,47 @@
-
 # =================================================================================
 # CẤU HÌNH GIAO DIỆN (THEME CONFIGURATION)
 # =================================================================================
 
 class ThemeColors:
     """
-    Định nghĩa bảng màu cho giao diện Sáng (Light) và Tối (Dark).
-    Tất cả các mã màu (Hex) được quản lý tập trung tại đây.
+    Speed-First Theme: Tối ưu cho tốc độ và ít mỏi mắt.
+    Bảng màu Dark Navy + Vibrant Purple.
     """
     
-    # Bảng màu cho Chế độ Tối (Dark Mode)
+    # Bảng màu duy nhất (Speed-First Dark)
     DARK = {
-        "bg_main": "#0a0a0a",       # Màu nền chính của ứng dụng (Đen thuần túy)
-        "bg_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0a0a0a, stop:1 #1a1a1a)", # Hiệu ứng chuyển màu nền đen sang xám đen
-        "bg_panel": "rgba(30, 30, 30, 0.5)", # Nền các khung chứa (Panel), xám đen bán trong suốt
-        "bg_card": "rgba(37, 37, 37, 0.6)",  # Nền của thẻ ghi chú, xám than
-        "bg_input": "rgba(20, 20, 20, 0.6)", # Nền của ô nhập liệu, đen xám
-        "text_primary": "#f5f5f5",  # Màu chữ chính (Trắng xám sáng)
-        "text_secondary": "#a0a0a0", # Màu chữ phụ (Xám trung bình)
-        "border": "rgba(160, 160, 160, 0.1)", # Màu viền mờ, xám thuần
-        "accent": "#8b5cf6",        # Màu nhấn chủ đạo (Tím - Violet 500)
-        "accent_hover": "#7c3aed",  # Màu nhấn khi di chuột vào (Tím đậm hơn)
-        "success": "#10b981",       # Màu thông báo thành công (Xanh lá - Emerald 500)
-        "danger": "#ef4444",        # Màu cảnh báo/xóa (Đỏ - Red 500)
-        "badge_bg": "rgba(139, 92, 246, 0.2)", # Nền của các nhãn (Badge)
+        "bg_main": "#0b0f19",       # Deep Navy (Rất tối, gần đen) cho background chính
+        "bg_sidebar": "#111827",    # Navy nhạt hơn chút cho sidebar
+        "bg_panel": "rgba(17, 24, 39, 0.9)", # Hơi trong suốt cho phần content chính
+        "bg_card": "#1f2937",       # Màu card cơ bản
+        "bg_card_hover": "#374151", # Hover cho card
+        "bg_input": "#111827",      # Màu nền input tìm kiếm
+        "text_primary": "#f3f4f6",  # Trắng xám
+        "text_secondary": "#9ca3af", # Xám nhạt
+        "border": "rgba(255, 255, 255, 0.05)", # Viền cực mỏng
+        "accent": "#8b5cf6",        # Tím hiện đại
+        "accent_hover": "#a855f7",  # Tím sáng
+        "accent_transparent": "rgba(139, 92, 246, 0.15)",
+        "success": "#10b981",       
+        "danger": "#ef4444",        
     }
 
-    # Bảng màu cho Chế độ Sáng (Light Mode)
+    # Giữ Light mode tạm thời để không lỗi code cũ, nhưng màu sắc cũng tối ưu hóa
     LIGHT = {
-        "bg_main": "#f1f5f9",       # Màu nền chính (Xám rất nhạt - Slate 100)
-        "bg_gradient": "#f1f5f9",   # Màu nền (đồng nhất, không gradient)
-        "bg_panel": "#ffffff",      # Nền panel (Trắng tinh)
-        "bg_card": "#ffffff",       # Nền thẻ ghi chú
-        "bg_input": "#f8fafc",      # Nền ô nhập liệu
-        "text_primary": "#0f172a",  # Màu chữ chính (Đen xanh - Slate 900)
-        "text_secondary": "#475569", # Màu chữ phụ (Xám đậm - Slate 600)
-        "border": "#cbd5e1",        # Màu viền (Xám - Slate 300)
-        "accent": "#7c3aed",        # Màu nhấn chủ đạo (Tím - Violet 600)
-        "accent_hover": "#6d28d9",  # Màu nhấn khi hover
-        "success": "#2563eb",       # Màu thành công (Xanh dương đậm - Blue 600)
-        "danger": "#dc2626",        # Màu cảnh báo (Đỏ đậm)
-        "badge_bg": "rgba(124, 58, 237, 0.1)", # Nền badge nhạt
+        "bg_main": "#f8fafc",
+        "bg_sidebar": "#f1f5f9",
+        "bg_panel": "#ffffff",
+        "bg_card": "#ffffff",
+        "bg_card_hover": "#f1f5f9",
+        "bg_input": "#ffffff",
+        "text_primary": "#0f172a",
+        "text_secondary": "#64748b",
+        "border": "rgba(0, 0, 0, 0.05)",
+        "accent": "#8b5cf6",
+        "accent_hover": "#7c3aed",
+        "accent_transparent": "rgba(139, 92, 246, 0.1)",
+        "success": "#059669",
+        "danger": "#dc2626",
     }
 
 # =================================================================================
@@ -48,60 +49,146 @@ class ThemeColors:
 # =================================================================================
 
 class AppTheme:
-    """
-    Lớp này chịu trách nhiệm tạo ra các đoạn mã CSS (Qt Style Sheets)
-    dựa trên chế độ màu (Sáng/Tối) được chọn.
-    """
+    """Tạo CSS (Qt Style Sheets) cho ứng dụng Speed-First."""
     
     @staticmethod
-    def get_styles(mode="light"):
-        """
-        Trả về một từ điển chứa các đoạn CSS cho từng thành phần giao diện.
-        Tham số:
-            mode (str): "light" hoặc "dark"
-        """
-        # Chọn bảng màu tương ứng
+    def get_styles(mode="dark"):
         colors = ThemeColors.LIGHT if mode == "light" else ThemeColors.DARK
         
+        # Font family (tùy chọn modern monospace / sans)
+        font_family = "'Inter', 'Segoe UI', sans-serif"
+        
         return {
-            # 1. Style cho Cửa sổ chính
             "MAIN": f"""
-                QMainWindow {{ background: {colors['bg_gradient']}; }}
+                QMainWindow {{ background: {colors['bg_main']}; }}
+                * {{ font-family: {font_family}; outline: none; }}
             """,
             
-            # 2. Style cho Thanh cuộn (Custom Scrollbar) - Tạo cảm giác hiện đại, mỏng nhẹ
             "SCROLL": f"""
                 QScrollArea {{ border: none; background: transparent; }}
-                QScrollBar:vertical {{
-                    border: none; background: transparent; width: 6px; margin: 0;
-                }}
-                QScrollBar::handle:vertical {{
-                    background: rgba(128, 128, 128, 0.2); border-radius: 3px; min-height: 40px;
-                }}
-                QScrollBar::handle:vertical:hover {{ background: rgba(128, 128, 128, 0.4); }}
+                QScrollBar:vertical {{ border: none; background: transparent; width: 4px; margin: 0; }}
+                QScrollBar::handle:vertical {{ background: {colors['text_secondary']}40; border-radius: 2px; min-height: 20px; }}
+                QScrollBar::handle:vertical:hover {{ background: {colors['accent']}; }}
                 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
                 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
             """,
             
-            # 3. Style cho Header (Phần đầu ứng dụng)
-            "HEADER": f"""
-                QFrame {{
-                    background: {colors['bg_panel']};
+            "SIDEBAR": f"""
+                QFrame#sidebar {{
+                    background: {colors['bg_sidebar']};
+                    border-right: 1px solid {colors['border']};
+                }}
+            """,
+            
+            "SIDEBAR_BTN": f"""
+                QPushButton {{
+                    background: transparent;
+                    color: {colors['text_secondary']};
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px;
+                }}
+                QPushButton:hover {{
+                    background: {colors['border']};
+                    color: {colors['text_primary']};
+                }}
+                QPushButton:checked {{
+                    background: {colors['accent_transparent']};
+                    color: {colors['accent']};
+                }}
+            """,
+
+            "SEARCH_INPUT": f"""
+                QLineEdit {{
+                    background: {colors['bg_input']};
+                    color: {colors['text_primary']};
+                    border: 1px solid {colors['border']};
+                    border-radius: 12px;
+                    padding: 10px 14px 10px 36px; /* Space for search icon */
+                    font-size: 16px;
+                    font-weight: 500;
+                }}
+                QLineEdit:focus {{
+                    border: 1px solid {colors['accent']};
+                    background: {colors['bg_card']};
+                }}
+            """,
+
+            "GLOBAL_SEARCH_CONTAINER": f"""
+                QFrame#searchContainer {{
+                    background: transparent;
                     border-bottom: 1px solid {colors['border']};
                 }}
             """,
             
-            # 4. Style cho các Panel chính (Notes, Clipboard)
-            "PANEL": f"""
-                QFrame#notesPanel, QFrame#clipboardPanel {{
-                    background: {colors['bg_panel']};
-                    border-radius: 16px; /* Bo tròn góc mạnh */
+            "PILL_GROUP": f"""
+                QPushButton {{
+                    background: {colors['bg_card']};
+                    color: {colors['text_secondary']};
                     border: 1px solid {colors['border']};
-                    border-bottom: 3px solid {colors['border']}; /* Tạo hiệu ứng đổ bóng/nổi 3D nhẹ */
+                    border-radius: 12px;
+                    padding: 4px 12px;
+                    font-size: 12px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    background: {colors['bg_card_hover']};
+                    color: {colors['text_primary']};
+                }}
+                QPushButton:checked {{
+                    background: {colors['accent_transparent']};
+                    color: {colors['accent']};
+                    border: 1px solid {colors['accent']};
                 }}
             """,
             
-            # 5. Style cho Ô nhập liệu (Input Area)
+            "CARD_LIST": f"""
+                QFrame {{
+                    background: transparent;
+                    border-radius: 6px;
+                    border: 1px solid transparent;
+                    padding: 2px;
+                }}
+                QFrame:hover {{
+                    background: {colors['bg_card_hover']};
+                    border: 1px solid {colors['border']};
+                }}
+                QFrame[selected="true"] {{
+                    background: {colors['accent_transparent']};
+                    border: 1px solid {colors['accent']};
+                }}
+            """,
+            
+            "CARD_TITLE": f"""
+                color: {colors['text_primary']}; 
+                font-size: 13px; 
+            """,
+            
+            "CARD_SUBTITLE": f"""
+                color: {colors['text_secondary']}; 
+                font-size: 11px; 
+                font-weight: 500;
+            """,
+
+            "CARD_ACTION_BTN": f"""
+                QPushButton {{
+                    background: transparent;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px;
+                }}
+                QPushButton:hover {{
+                    background: {colors['border']};
+                }}
+            """,
+            
+            "PANEL": f"""
+                QFrame#notesPanel, QFrame#clipboardPanel {{
+                    background: transparent;
+                    border: none;
+                }}
+            """,
+
             "INPUT": f"""
                 QTextEdit {{
                     background: {colors['bg_input']};
@@ -112,42 +199,42 @@ class AppTheme:
                     font-size: 14px;
                 }}
                 QTextEdit:focus {{
-                    border: 1px solid {colors['accent']}; /* Viền đổi màu Tím khi focus */
-                    background: {colors['bg_panel']};
+                    border: 1px solid {colors['accent']};
                 }}
             """,
             
-            # 6. Style cho Nút Thêm mới (Add Button)
             "ADD_BTN": f"""
                 QPushButton {{
                     background: {colors['accent']};
                     color: white;
                     border-radius: 12px;
                     border: none;
-                    font-size: 18px;
-                    font-weight: bold;
+                    font-size: 14px;
+                    font-weight: 600;
+                    padding: 8px;
                 }}
                 QPushButton:hover {{ background: {colors['accent_hover']}; }}
             """,
-            
-            # 7. Style cho Thẻ ghi chú (Note Card)
-            "CARD": f"""
-                NoteCard {{
-                    background: {colors['bg_card']};
+
+            "DIALOG": f"""
+                QDialog {{ 
+                    background: {colors['bg_main']}; 
                     border-radius: 12px;
                     border: 1px solid {colors['border']};
                 }}
-                NoteCard:hover {{
-                    border: 1px solid {colors['accent']}80; /* Viền sáng lên khi di chuột */
-                }}
+                QLabel {{ color: {colors['text_primary']}; }}
             """,
             
-            # Text style cho thẻ
-            "CARD_LABEL": f"color: {colors['text_primary']}; font-size: 13px;",
-            "CARD_TIME": f"color: {colors['text_secondary']}; font-size: 11px;",
-            
-            # 8. Style cho Nút Sửa (Edit Button) - Nhẹ nhàng, tinh tế
-            # 8. Style cho Nút Sửa/Hủy (Edit/Cancel Button) - Dạng Outline sạch sẽ
+            "TOAST": f"""
+                QLabel {{
+                    background-color: {colors['accent']};
+                    color: #ffffff;
+                    padding: 8px 16px;
+                    border-radius: 16px;
+                    font-weight: 600;
+                    font-size: 13px;
+                }}
+            """,
             "BTN_EDIT": f"""
                 QPushButton {{
                     background: transparent;
@@ -155,83 +242,27 @@ class AppTheme:
                     border: 1px solid {colors['border']}; 
                     border-radius: 8px; 
                     font-weight: 600;
-                    padding: 8px 16px;
-                    font-size: 14px;
-                }}
-                QPushButton:hover {{ 
-                    background: {('#e2e8f0' if mode == 'light' else '#262626')}; 
-                    color: {colors['text_primary']};
-                    border: 1px solid {colors['text_secondary']};
-                }}
-                QPushButton:pressed {{
-                    background: {colors['text_primary']}20;
-                }}
-            """,
-            
-            # 9. Style cho Nút Xóa (Delete Button) - Màu đỏ cảnh báo
-            "BTN_DELETE": f"""
-                QPushButton {{
-                    background: rgba(239, 68, 68, 0.08);
-                    color: #ef4444;
-                    border: 1px solid rgba(239, 68, 68, 0.25);
-                    border-radius: 8px; 
-                    font-weight: 600;
-                    padding: 8px 16px;
+                    padding: 6px 12px;
                     font-size: 13px;
                 }}
                 QPushButton:hover {{ 
-                    background: rgba(239, 68, 68, 0.15);
-                    border: 1px solid rgba(239, 68, 68, 0.5);
-                }}
-                QPushButton:pressed {{
-                    background: rgba(239, 68, 68, 0.25);
-                    border: 1px solid #ef4444;
+                    background: {colors['bg_input']}; 
+                    color: {colors['text_primary']};
                 }}
             """,
-            
-            # 10. Style cho Tab ĐANG CHỌN (Active) - Nổi bật với màu Tím
-            "TAB_ACTIVE": f"""
+            "BTN_DELETE": f"""
                 QPushButton {{
-                    background: {colors['accent']};
-                    color: white;
-                    border: 1px solid {colors['accent']};
-                    border-radius: 8px;
-                    font-weight: 700;
-                    padding: 8px 16px;
-                }}
-            """,
-            
-            # 11. Style cho Tab KHÔNG CHỌN (Inactive) - Chìm xuống nền
-            "TAB_INACTIVE": f"""
-                QPushButton {{
-                    background: transparent;
-                    color: {colors['text_secondary']};
-                    border: none;
-                    border-radius: 8px;
+                    background: rgba(239, 68, 68, 0.1);
+                    color: {colors['danger']};
+                    border: 1px solid rgba(239, 68, 68, 0.3);
+                    border-radius: 8px; 
                     font-weight: 600;
-                    padding: 8px 16px;
+                    padding: 6px 12px;
+                    font-size: 13px;
                 }}
-                QPushButton:hover {{ color: {colors['text_primary']}; background: rgba(128, 128, 128, 0.08); }}
-            """,
-            
-            # 12. Style chung cho các hộp thoại (Dialog)
-            "DIALOG": f"""
-                QDialog {{ 
-                    background: {colors['bg_main']}; 
-                    border-radius: 16px;
-                    border: 1px solid {colors['border']};
-                }}
-                QLabel {{ color: {colors['text_primary']}; }}
-            """,
-            
-             # 13. Style cho thông báo nhanh (Toast Notification)
-             "TOAST": f"""
-                QLabel {{
-                    background-color: {colors['text_primary']};
-                    color: {colors['bg_main']};
-                    padding: 10px 20px;
-                    border-radius: 20px;
-                    font-weight: 600;
+                QPushButton:hover {{ 
+                    background: rgba(239, 68, 68, 0.2);
+                    border: 1px solid rgba(239, 68, 68, 0.6);
                 }}
             """
         }

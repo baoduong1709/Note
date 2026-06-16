@@ -16,7 +16,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QTextEdit, QScrollArea, QFrame, QMessageBox,
-    QDialog, QSystemTrayIcon, QMenu, QStackedWidget
+    QDialog, QSystemTrayIcon, QMenu, QStackedWidget, QSizePolicy
 )
 # Import các thành phần xử lý lõi (Core)
 from PySide6.QtCore import Qt, QTimer, QPoint, QSize, QThread, Signal, QByteArray, QBuffer
@@ -117,6 +117,14 @@ TRANSLATIONS = {
         "clear_history_confirm": "Clear all history?",
         "yes": "Yes",
         "no": "No",
+        "bubble_character": "Bubble Character",
+        "preset_default": "Default (Panda)",
+        "preset_cat": "Cute Cat",
+        "preset_shiba": "Cute Shiba Dog",
+        "preset_ghost": "Little Ghost",
+        "preset_penguin": "Playful Penguin",
+        "preset_custom": "Custom (Selected)",
+        "custom_upload": "Custom Upload",
     },
     "vi": {
         "app_title": "Quản lý Ghi chú & Bộ nhớ tạm",
@@ -175,6 +183,14 @@ TRANSLATIONS = {
         "clear_history_confirm": "Xóa toàn bộ lịch sử?",
         "yes": "Có",
         "no": "Không",
+        "bubble_character": "Nhân vật bong bóng",
+        "preset_default": "Mặc định (Gấu trúc)",
+        "preset_cat": "Mèo con dễ thương",
+        "preset_shiba": "Chó Shiba đáng yêu",
+        "preset_ghost": "Ma nhỏ vui nhộn",
+        "preset_penguin": "Chim cánh cụt tinh nghịch",
+        "preset_custom": "Tự chọn (Đã tải)",
+        "custom_upload": "Tải ảnh lên",
     }
 }
 
@@ -352,6 +368,15 @@ class FloatingBubble(QWidget):
         """Tai frame mac dinh hoac custom folder cho bubble animation."""
 
         custom_path = getattr(self.main_window, 'custom_bubble_icon', None)
+
+        # Convert relative path to absolute if necessary
+        if custom_path and not os.path.isabs(custom_path):
+            import sys
+            if getattr(sys, 'frozen', False):
+                base_path = os.path.dirname(sys.executable)
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            custom_path = os.path.join(base_path, custom_path)
 
         if custom_path and os.path.isfile(custom_path):
             self.frames = []
@@ -542,19 +567,24 @@ class FloatingBubble(QWidget):
     
     def toggle_main_window(self):
         """Ẩn/Hiện cửa sổ chính"""
-        if self.main_window.isVisible() and not self.main_window.isMinimized():
-            # Nếu đang hiện -> Ẩn đi (Minimize để giữ icon taskbar)
-            self.main_window._was_maximized = self.main_window.isMaximized()
-            self.main_window.showMinimized()
+        if getattr(self.main_window, 'always_on_top', False) or self.main_window.isActiveWindow():
+            if not self.main_window.isMinimized():
+                self.main_window._was_maximized = self.main_window.isMaximized()
+                self.main_window.showMinimized()
+            else:
+                if hasattr(self.main_window, '_was_maximized') and self.main_window._was_maximized:
+                    self.main_window.showMaximized()
+                else:
+                    self.main_window.showNormal()
+                self.main_window.activateWindow()
+                self.main_window.raise_()
         else:
-            # Nếu đang ẩn -> Hiện lên
             if hasattr(self.main_window, '_was_maximized') and self.main_window._was_maximized:
                 self.main_window.showMaximized()
             else:
                 self.main_window.showNormal()
-            self.main_window.activateWindow() # Đưa lên trên cùng
-            self.main_window.raise_()
-    
+            self.main_window.activateWindow() # Cấp focus
+            self.main_window.raise_()         # Đưa lên trên cùng
     def show_context_menu(self, pos):
         """Hiện menu khi click chuột phải vào bong bóng"""
         menu = QMenu(self)
@@ -625,95 +655,87 @@ class FloatingBubble(QWidget):
 
 class NoteCard(QFrame):
     """
-    Thẻ widget để hiển thị một ghi chú hoặc một mục clipboard.
-    Cung cấp giao diện sạch sẽ với nút menu 3 chấm để Sửa/Xóa.
+    Thẻ widget để hiển thị một ghi chú hoặc một mục clipboard - Speed First Redesign.
     """
     def __init__(self, parent, app, data, index, is_note=False, group_name=None):
         super().__init__(parent)
         self.app = app
-        self.data = data # Dữ liệu (content, timestamp, type...)
+        self.data = data
         self.index = index
         self.is_note = is_note
         self.group_name = group_name
+        self.is_selected = False
         
-        # Áp dụng style cho thẻ (background, border)
-        self.setStyleSheet(self.app.styles["CARD"])
-        self.setCursor(QCursor(Qt.PointingHandCursor)) # Con trỏ tay khi di chuột vào
+        self.setStyleSheet(self.app.styles.get("CARD_LIST", ""))
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         
-        # LAYOUT CHÍNH: Ngang (Trái: Nội dung, Phải: Nút Menu)
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(15, 10, 5, 10) # Căn lề
-        main_layout.setSpacing(5)
+        main_layout.setContentsMargins(12, 10, 12, 10)
+        main_layout.setSpacing(10)
         
-        # 1. Phần bên trái (Nội dung + Thời gian)
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
+        left_layout = QVBoxLayout()
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
         
-        # Hiển thị thời gian (chỉ cho clipboard item)
-        if not is_note and "timestamp" in data:
-            time_label = QLabel(data['timestamp'])
-            time_label.setStyleSheet(self.app.styles["CARD_TIME"]) # Style chữ nhỏ màu xám
-            left_layout.addWidget(time_label)
-            
-        # Hiển thị Nội dung
-        if is_note:
-            # Nếu là note: Cắt ngắn nếu quá dài
-            text = self.data["content"][:200] + "..." if len(self.data["content"]) > 200 else self.data["content"]
-            self.content_label = QLabel(text)
-            self.content_label.setStyleSheet(self.app.styles["CARD_LABEL"]) # Style nội dung
-        else:
-            # Nếu là clipboard (text hoặc image)
-            if self.data["type"] == "text":
-                text = self.data["content"][:150] + "..." if len(self.data["content"]) > 150 else self.data["content"]
-                self.content_label = QLabel(text)
-                self.content_label.setStyleSheet(self.app.styles["CARD_LABEL"])
-            else:
-                # Nếu là ảnh: Load ảnh thumbnail
-                self.content_label = QLabel()
-                self.load_image(self.data["content"])
+        # Nội dung
+        text = self.data["content"]
+        is_image = self.data.get("type") == "image"
         
-        self.content_label.setWordWrap(True) # Tự động xuống dòng
-        self.content_label.setAlignment(Qt.AlignTop | Qt.AlignLeft) 
+        self.content_label = QLabel()
+        if is_image:
+            self.load_image(text)
+        else:
+            text = text.replace('\n', ' ')
+            text = text[:100] + "..." if len(text) > 100 else text
+            self.content_label.setText(text)
+            self.content_label.setStyleSheet(self.app.styles.get("CARD_TITLE", ""))
+            
         left_layout.addWidget(self.content_label)
         
-        # Thêm phần bên trái vào layout chính (chiếm hết không gian còn lại - stretch=1)
-        main_layout.addWidget(left_widget, 1)
+        # Meta info
+        meta_text = ""
+        if self.is_note:
+            meta_text = f"Note • {self.group_name}"
+        elif "timestamp" in data:
+            meta_text = f"Clipboard • {data['timestamp']}"
+            
+        self.meta_label = QLabel(meta_text)
+        self.meta_label.setStyleSheet(self.app.styles.get("CARD_SUBTITLE", ""))
+        left_layout.addWidget(self.meta_label)
         
-        # 2. Nút Menu (Bên phải, căn trên cùng)
+        main_layout.addLayout(left_layout, 1)
+        
+        # Nút copy nhanh hoặc menu
         self.menu_btn = QPushButton()
-        is_light = self.app.current_theme_mode == "light"
-        icon_color = "#9ca3af" if is_light else "#64748b" # Màu xám cho icon
-        
-        self.menu_btn.setIcon(create_icon('fa5s.ellipsis-v', color=icon_color)) # Icon 3 chấm dọc
-        self.menu_btn.setFixedSize(20, 24)
+        self.menu_btn.setIcon(create_icon('fa5s.ellipsis-v', color='#6b7280'))
+        self.menu_btn.setFixedSize(24, 24)
         self.menu_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        
-        # Style cho nút menu trong suốt
-        self.menu_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border-radius: 4px;
-                border: none;
-            }
-            QPushButton:hover {
-                background: rgba(0, 0, 0, 0.05); /* Hover nhẹ nhàng */
-            }
-        """)
+        self.menu_btn.setStyleSheet(self.app.styles.get("CARD_ACTION_BTN", ""))
         self.menu_btn.clicked.connect(self.show_options_menu)
+        main_layout.addWidget(self.menu_btn, 0, Qt.AlignVCenter)
         
-        # Thêm nút vào layout chính, căn trên cùng (AlignTop) để thẳng hàng với dòng đầu
-        main_layout.addWidget(self.menu_btn, 0, Qt.AlignTop)
-    
+    def set_selected(self, selected):
+        self.is_selected = selected
+        self.setProperty("selected", "true" if selected else "false")
+        self.style().unpolish(self)
+        self.style().polish(self)
+        
     def load_image(self, filename):
         """Tải và hiển thị thumbnail cho ảnh"""
         path = os.path.join(self.app.images_folder, filename)
         if os.path.exists(path):
             pixmap = QPixmap(path)
-            # Scale ảnh nhỏ lại để vừa thẻ
-            pixmap = pixmap.scaled(150, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.content_label.setPixmap(pixmap)
+            if not pixmap.isNull():
+                # Scale ảnh nhỏ lại để vừa thẻ
+                pixmap = pixmap.scaled(150, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.content_label.setPixmap(pixmap)
+                self.content_label.setStyleSheet("border: 1px solid #4b5563; border-radius: 4px; background: #1f2937;")
+                return
+                
+        # Fallback if file doesn't exist or is invalid
+        self.content_label.setText(f"🖼️ [Image] {filename}")
+        self.content_label.setStyleSheet(self.app.styles.get("CARD_TITLE", ""))
             
     def show_options_menu(self):
         """Hiển thị menu ngữ cảnh (Sửa/Xóa)"""
@@ -1275,280 +1297,380 @@ class MainWindow(QMainWindow):
         super().mousePressEvent(event)
     
     def setup_ui(self):
-        """Thiết lập giao diện chính của ứng dụng"""
+        """Thiết lập giao diện chính của ứng dụng - Speed First Redesign"""
+        from PySide6.QtWidgets import QLineEdit, QStackedWidget
+        from PySide6.QtGui import QShortcut, QKeySequence
+        
         # Áp dụng màu nền chính
         self.setStyleSheet(self.styles["MAIN"])
         
         # Widget trung tâm
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0) # Không căn lề
+        main_layout = QHBoxLayout(central) # Chuyển sang ngang
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # 1. HEADER (Phần đầu trang)
-        self.header_frame = QFrame()
-        self.header_frame.setFixedHeight(70)
-        self.header_frame.setStyleSheet(self.styles["HEADER"])
-        header_layout = QHBoxLayout(self.header_frame)
-        header_layout.setContentsMargins(25, 0, 25, 0)
+        # 1. SIDEBAR (Thanh điều hướng bên trái)
+        self.sidebar = QFrame()
+        self.sidebar.setFixedWidth(64)
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setStyleSheet(self.styles.get("SIDEBAR", ""))
+        sidebar_layout = QVBoxLayout(self.sidebar)
+        sidebar_layout.setContentsMargins(0, 20, 0, 20)
+        sidebar_layout.setSpacing(12)
+        sidebar_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         
-        # Tiêu đề ứng dụng
-        title_text = QWidget()
-        title_text_layout = QVBoxLayout(title_text)
-        title_text_layout.setContentsMargins(0, 0, 0, 0)
-        title_text_layout.setSpacing(2)
+        # Hàm tạo nút sidebar
+        def create_sidebar_btn(icon_name, tooltip, callback, is_checkable=True):
+            btn = QPushButton()
+            btn.setFixedSize(40, 40)
+            btn.setIcon(create_icon(icon_name, color=self.styles.get('text_secondary', '#9ca3af')))
+            btn.setIconSize(QSize(20, 20))
+            btn.setToolTip(tooltip)
+            btn.setCursor(QCursor(Qt.PointingHandCursor))
+            btn.setStyleSheet(self.styles.get("SIDEBAR_BTN", ""))
+            if is_checkable:
+                btn.setCheckable(True)
+            btn.clicked.connect(callback)
+            return btn
+            
+        self.sidebar_btns = []
         
-        self.title_label = QLabel(self.t("app_title").replace(" & ", " \u0026 "))
-        # Màu chữ tiêu đề theo theme
-        title_color = "#1f2937" if self.current_theme_mode == "light" else "#f0f0ff"
-        self.title_label.setStyleSheet(f"color: {title_color}; font-size: 22px; font-weight: 700; background: transparent;")
-        title_text_layout.addWidget(self.title_label)
+        self.btn_notes = create_sidebar_btn('fa5s.sticky-note', self.t("notes_tab"), lambda: self.switch_tab("notes"))
+        self.btn_clipboard = create_sidebar_btn('fa5s.clipboard', self.t("clipboard_tab"), lambda: self.switch_tab("clipboard"))
         
-        # Phụ đề
-        self.subtitle = QLabel(self.t("app_subtitle"))
-        self.subtitle.setStyleSheet("color: #8b5cf6; font-size: 10px; font-weight: 800; letter-spacing: 2px; background: transparent;")
-        title_text_layout.addWidget(self.subtitle)
+        self.sidebar_btns.extend([self.btn_notes, self.btn_clipboard])
         
-        header_layout.addWidget(title_text)
+        sidebar_layout.addWidget(self.btn_notes)
+        sidebar_layout.addWidget(self.btn_clipboard)
         
-        header_layout.addStretch()
+        sidebar_layout.addStretch()
         
-        # 2. TAB BUTTONS (Nút chuyển tab Notes/Clipboard)
-        self.tab_container = QFrame()
-        self.tab_container.setStyleSheet("background: transparent; border: none;")
-        tab_layout = QHBoxLayout(self.tab_container)
-        tab_layout.setContentsMargins(4, 4, 4, 4)
-        tab_layout.setSpacing(0)
+        # Nút cài đặt & Pin ở dưới cùng Sidebar
+        self.btn_pin = create_sidebar_btn('fa5s.thumbtack', "Always on top", self.toggle_always_on_top, True)
+        self.btn_settings = create_sidebar_btn('fa5s.cog', self.t("settings"), self.show_settings_dialog, False)
         
-        self.notes_tab_btn = QPushButton(self.t("notes_tab"))
-        self.notes_tab_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.notes_tab_btn.setIconSize(QSize(16, 16))
-        self.notes_tab_btn.clicked.connect(lambda: self.switch_tab("notes"))
-        tab_layout.addWidget(self.notes_tab_btn)
+        sidebar_layout.addWidget(self.btn_pin)
+        sidebar_layout.addWidget(self.btn_settings)
         
-        self.clipboard_tab_btn = QPushButton(self.t("clipboard_tab"))
-        self.clipboard_tab_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.clipboard_tab_btn.setIconSize(QSize(16, 16))
-        self.clipboard_tab_btn.clicked.connect(lambda: self.switch_tab("clipboard"))
-        tab_layout.addWidget(self.clipboard_tab_btn)
+        main_layout.addWidget(self.sidebar)
         
-        header_layout.addWidget(self.tab_container)
+        # 2. MAIN CONTENT AREA (Vùng nội dung chính)
+        self.main_content = QWidget()
+        content_layout = QVBoxLayout(self.main_content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
         
-        # 3. SETTINGS BUTTON (Nút Cài đặt)
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFixedSize(35, 35)
-        self.settings_btn.setIcon(create_icon('fa5s.cog', color='#8b5cf6'))
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.settings_btn.setToolTip("Cài đặt")
-        self.settings_btn.clicked.connect(self.show_settings_dialog)
-        self.settings_btn.setStyleSheet("""
-            QPushButton { background: transparent; border-radius: 8px; border: none; }
-            QPushButton:hover { background: rgba(139, 92, 246, 0.15); }
-        """)
-        header_layout.addWidget(self.settings_btn)
-
-        # 4. PIN BUTTON (Nút Ghim cửa sổ)
-        self.pin_btn = QPushButton()
-        self.pin_btn.setFixedSize(35, 35)
-        self.pin_btn.setIconSize(QSize(18, 18))
-        self.pin_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.pin_btn.setToolTip("Luôn hiển thị trên cùng")
-        self.pin_btn.clicked.connect(self.toggle_always_on_top)
+        # 2a. GLOBAL SEARCH CONTAINER
+        self.search_container = QFrame()
+        self.search_container.setObjectName("searchContainer")
+        self.search_container.setStyleSheet(self.styles.get("GLOBAL_SEARCH_CONTAINER", ""))
+        search_layout = QVBoxLayout(self.search_container)
+        search_layout.setContentsMargins(20, 20, 20, 10)
         
-        self.pin_btn.setStyleSheet("""
-            QPushButton { background: transparent; border-radius: 8px; border: none; }
-            QPushButton:hover { background: rgba(239, 68, 108, 0.1); }
-        """)
+        self.global_search = QLineEdit()
+        self.global_search.setPlaceholderText("Search notes, clipboard... (Ctrl+K)")
+        self.global_search.setStyleSheet(self.styles.get("SEARCH_INPUT", ""))
+        search_action = self.global_search.addAction(create_icon('fa5s.search', color='#9ca3af'), QLineEdit.LeadingPosition)
         
-        self.update_header_icons()
+        # Connect search text change
+        self.global_search.textChanged.connect(self.on_global_search)
+        search_layout.addWidget(self.global_search)
         
-        header_layout.addWidget(self.pin_btn)
+        content_layout.addWidget(self.search_container)
         
-        # Thêm header vào layout chính
-        main_layout.addWidget(self.header_frame)
-        
-        # 5. CONTENT AREA (Vùng nội dung chính)
-        content = QWidget()
-        # content.setStyleSheet("background-color: #0a0a12;") # Removed to inherit transparent/light bg
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(20, 20, 20, 20)
-        content_layout.setSpacing(20)
-        
-        # Panel Ghi chú
         self.notes_panel = self.create_notes_panel()
-        self.notes_panel.setMinimumHeight(400)
-        content_layout.addWidget(self.notes_panel)
-        
-        # Panel Clipboard
         self.clipboard_panel = self.create_clipboard_panel()
-        self.clipboard_panel.setMinimumHeight(400)
-        content_layout.addWidget(self.clipboard_panel)
         
-        main_layout.addWidget(content, 1) # content chiếm hết không gian còn lại
+        content_layout.addWidget(self.notes_panel, 1)
+        content_layout.addWidget(self.clipboard_panel, 1)
+        
+        main_layout.addWidget(self.main_content, 1)
+        
+        # Setup Global Shortcuts
+        self.setup_shortcuts()
         
         # Đặt tab mặc định là Notes
         self.switch_tab("notes")
-    
+        
+        # Focus search bar by default
+        self.global_search.setFocus()
+        
+
+
+    def setup_shortcuts(self):
+        from PySide6.QtGui import QShortcut, QKeySequence
+        # Ctrl+K: Focus Search
+        self.shortcut_search = QShortcut(QKeySequence("Ctrl+K"), self)
+        self.shortcut_search.activated.connect(self.global_search.setFocus)
+        
+        # Ctrl+N: Focus/Open Note Input
+        self.shortcut_new_note = QShortcut(QKeySequence("Ctrl+N"), self)
+        self.shortcut_new_note.activated.connect(self.focus_note_input)
+        
+        # Navigation
+        self.shortcut_up = QShortcut(QKeySequence("Up"), self)
+        self.shortcut_up.activated.connect(self.navigate_up)
+        
+        self.shortcut_down = QShortcut(QKeySequence("Down"), self)
+        self.shortcut_down.activated.connect(self.navigate_down)
+        
+        self.shortcut_enter = QShortcut(QKeySequence("Return"), self)
+        self.shortcut_enter.activated.connect(self.copy_selected)
+        self.shortcut_enter2 = QShortcut(QKeySequence("Enter"), self)
+        self.shortcut_enter2.activated.connect(self.copy_selected)
+
+        self.selected_card_index = -1
+
+    def get_visible_cards(self):
+        if not hasattr(self, 'all_cards'): return []
+        is_notes = self.current_tab == "notes"
+        visible_cards = []
+        for card in self.all_cards:
+            if card.isVisible() and card.is_note == is_notes:
+                visible_cards.append(card)
+        return visible_cards
+
+    def update_selection(self):
+        visible_cards = self.get_visible_cards()
+        for i, card in enumerate(visible_cards):
+            card.set_selected(i == self.selected_card_index)
+
+    def navigate_up(self):
+        visible_cards = self.get_visible_cards()
+        if not visible_cards: return
+        self.selected_card_index = max(0, self.selected_card_index - 1)
+        self.update_selection()
+        # Scroll to view logic could be added here
+
+    def navigate_down(self):
+        visible_cards = self.get_visible_cards()
+        if not visible_cards: return
+        self.selected_card_index = min(len(visible_cards) - 1, self.selected_card_index + 1)
+        self.update_selection()
+
+    def copy_selected(self):
+        if hasattr(self, 'note_input') and self.note_input.hasFocus():
+            # If typing a note, don't copy, let text edit handle return if possible (or add note)
+            # Actually, return in text edit adds newline.
+            return
+            
+        visible_cards = self.get_visible_cards()
+        if 0 <= self.selected_card_index < len(visible_cards):
+            visible_cards[self.selected_card_index].copy_item()
+
+        
+        # Navigation
+        self.shortcut_up = QShortcut(QKeySequence("Up"), self)
+        self.shortcut_up.activated.connect(self.navigate_up)
+        
+        self.shortcut_down = QShortcut(QKeySequence("Down"), self)
+        self.shortcut_down.activated.connect(self.navigate_down)
+        
+        self.shortcut_enter = QShortcut(QKeySequence("Return"), self)
+        self.shortcut_enter.activated.connect(self.copy_selected)
+        self.shortcut_enter2 = QShortcut(QKeySequence("Enter"), self)
+        self.shortcut_enter2.activated.connect(self.copy_selected)
+
+        self.selected_card_index = -1
+
+    def get_visible_cards(self):
+        if not hasattr(self, 'all_cards'): return []
+        is_notes = self.current_tab == "notes"
+        visible_cards = []
+        for card in self.all_cards:
+            if card.isVisible() and card.is_note == is_notes:
+                visible_cards.append(card)
+        return visible_cards
+
+    def update_selection(self):
+        visible_cards = self.get_visible_cards()
+        for i, card in enumerate(visible_cards):
+            card.set_selected(i == self.selected_card_index)
+
+    def navigate_up(self):
+        visible_cards = self.get_visible_cards()
+        if not visible_cards: return
+        self.selected_card_index = max(0, self.selected_card_index - 1)
+        self.update_selection()
+        # Scroll to view logic could be added here
+
+    def navigate_down(self):
+        visible_cards = self.get_visible_cards()
+        if not visible_cards: return
+        self.selected_card_index = min(len(visible_cards) - 1, self.selected_card_index + 1)
+        self.update_selection()
+
+    def copy_selected(self):
+        if hasattr(self, 'note_input') and self.note_input.hasFocus():
+            # If typing a note, don't copy, let text edit handle return if possible (or add note)
+            # Actually, return in text edit adds newline.
+            return
+            
+        visible_cards = self.get_visible_cards()
+        if 0 <= self.selected_card_index < len(visible_cards):
+            visible_cards[self.selected_card_index].copy_item()
+
+        from PySide6.QtGui import QShortcut, QKeySequence
+        # Ctrl+K: Focus Search
+        self.shortcut_search = QShortcut(QKeySequence("Ctrl+K"), self)
+        self.shortcut_search.activated.connect(self.global_search.setFocus)
+        
+        # Ctrl+N: Focus/Open Note Input
+        self.shortcut_new_note = QShortcut(QKeySequence("Ctrl+N"), self)
+        self.shortcut_new_note.activated.connect(self.focus_note_input)
+        
+    def focus_note_input(self):
+        self.switch_tab("notes")
+        if hasattr(self, 'note_input'):
+            self.note_input.setFocus()
+            
+    def on_global_search(self, text):
+        text = text.lower()
+        if hasattr(self, 'all_cards'):
+            for card in self.all_cards:
+                # If in notes tab, search notes; if in clipboard tab, search clipboard
+                is_active_tab = (self.current_tab == "notes" and card.is_note) or (self.current_tab == "clipboard" and not card.is_note)
+                if not is_active_tab:
+                    continue
+                    
+                match = text in card.data.get("content", "").lower()
+                card.setVisible(match)
+
+        
     def create_notes_panel(self):
         """
-        Tạo panel chứa giao diện ghi chú.
-        Sử dụng QStackedWidget để chuyển đổi giữa màn hình chọn nhóm và màn hình danh sách note.
+        Tạo panel chứa giao diện ghi chú - Speed First Redesign.
+        Hiển thị nhóm dưới dạng pill ngang và danh sách note dọc.
         """
         panel = QFrame()
-        panel.setStyleSheet(self.styles["PANEL"])
+        panel.setStyleSheet(self.styles.get("PANEL", ""))
         panel.setObjectName("notesPanel")
         
-        # Stacked Widget để chuyển cảnh
-        self.notes_stack = QStackedWidget()
-        
-        # Screen 1: Chọn nhóm (Group Selection)
-        self.group_selection_screen = self.create_group_selection_screen()
-        self.notes_stack.addWidget(self.group_selection_screen)
-        
-        # Screen 2: Quản lý ghi chú trong nhóm (Notes Management)
-        self.notes_management_screen = self.create_notes_management_screen()
-        self.notes_stack.addWidget(self.notes_management_screen)
-        
-        # Mặc định hiện màn hình chọn nhóm
-        self.notes_stack.setCurrentIndex(0)
-        
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.notes_stack)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
         
-        return panel
-    
-    def create_group_selection_screen(self):
-        """Màn hình chọn nhóm ghi chú"""
-        screen = QWidget()
-        layout = QVBoxLayout(screen)
-        layout.setContentsMargins(24, 24, 24, 20)
-        layout.setSpacing(20)
-        
-        # Header - removed title (no longer needed)
-        # header = QHBoxLayout()
-        # title = QLabel("Nhóm ghi chú")
-        # title_color = "#1f2937" if self.current_theme_mode == "light" else "#e8e8f8"
-        # title.setStyleSheet(f"color: {title_color}; font-size: 18px; font-weight: 600;")
-        # header.addWidget(title)
-        # header.addStretch()
-        
-        # layout.addLayout(header)
-        
-        # Danh sách nhóm (Grid/List)
+        # 1. GROUPS PILL SCROLL AREA (Ngang)
         self.groups_scroll = QScrollArea()
         self.groups_scroll.setWidgetResizable(True)
+        self.groups_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.groups_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.groups_scroll.setFixedHeight(40)
         self.groups_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         
         self.groups_list_container = QWidget()
         self.groups_list_container.setStyleSheet("background: transparent;")
-        self.groups_list_layout = QVBoxLayout(self.groups_list_container)
-        self.groups_list_layout.setContentsMargins(0, 0, 4, 0)
+        self.groups_list_layout = QHBoxLayout(self.groups_list_container)
+        self.groups_list_layout.setContentsMargins(0, 0, 0, 0)
         self.groups_list_layout.setSpacing(8)
         self.groups_list_layout.addStretch()
         
         self.groups_scroll.setWidget(self.groups_list_container)
-        layout.addWidget(self.groups_scroll, 1)
+        layout.addWidget(self.groups_scroll)
         
-        # Tải danh sách nhóm
-        self.refresh_groups_list()
-        
-        return screen
-    
-    def create_notes_management_screen(self):
-        """Màn hình quản lý ghi chú (hiển thị khi vào 1 nhóm)"""
-        screen = QWidget()
-        layout = QVBoxLayout(screen)
-        layout.setContentsMargins(20, 20, 20, 15)
-        layout.setSpacing(15)
-        
-        # 1. HEADER (Nút Back + Tên nhóm)
-        header = QHBoxLayout()
-        
-        # Nút Quay lại (Back)
-        back_btn = QPushButton("Quay lại")
-        back_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        text_color = "#6b7280" if self.current_theme_mode == "light" else "#94a3b8"
-        back_btn.setIcon(create_icon('fa5s.arrow-left', color=text_color))
-        back_btn.setIconSize(QSize(14, 14))
-        back_btn.setStyleSheet(f"background: transparent; color: {text_color}; font-size: 14px; font-weight: 600; border: none; padding: 4px 8px;")
-        back_btn.clicked.connect(self.go_back_to_group_selection)
-        header.addWidget(back_btn)
-        
-        header.addStretch()
-        
-        # Nhãn hiển thị Tên nhóm hiện tại
-        self.current_group_label = QLabel("🏷️ Nhóm")
-        group_label_color = "#1f2937" if self.current_theme_mode == "light" else "#f0f0ff"
-        self.current_group_label.setStyleSheet(f"color: {group_label_color}; font-size: 18px; font-weight: 700; letter-spacing: 0.3px;")
-        header.addWidget(self.current_group_label)
-        
-        layout.addLayout(header)
-        
-        # 2. INPUT AREA (Vùng nhập liệu) - Chỉ hiện khi đã chọn nhóm
-        self.input_widget = QWidget()
-        input_layout = QHBoxLayout(self.input_widget)
-        
-        # Input area
+        # 2. INPUT AREA (Vùng nhập liệu nhanh)
         self.input_widget = QWidget()
         input_layout = QHBoxLayout(self.input_widget)
         input_layout.setContentsMargins(0, 0, 0, 0)
-        input_layout.setSpacing(10)
+        input_layout.setSpacing(8)
         
-        # Ô nhập nội dung note
         self.note_input = QTextEdit()
-        self.note_input.setFixedHeight(45)  # Set chiều cao ban đầu
-        self.note_input.setPlaceholderText("Viết ghi chú mới...")
-        self.note_input.setStyleSheet(self.styles["INPUT"])
-        self.note_input.textChanged.connect(self.adjust_input_height) # Tự động giãn chiều cao
+        self.note_input.setFixedHeight(40)
+        self.note_input.setPlaceholderText("Ctrl+N to create a note...")
+        self.note_input.setStyleSheet(self.styles.get("INPUT", ""))
+        self.note_input.textChanged.connect(self.adjust_input_height)
         input_layout.addWidget(self.note_input, 1)
         
-        # Nút Thêm (Add) - Style mũi tên lên hiện đại
         add_btn = QPushButton()
         add_btn.setIcon(create_icon('fa5s.arrow-up', color='white'))
-        add_btn.setIconSize(QSize(20, 20))
-        add_btn.setFixedSize(45, 45)
+        add_btn.setIconSize(QSize(16, 16))
+        add_btn.setFixedSize(40, 40)
         add_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a78bfa, stop:1 #8b5cf6);
-                border-radius: 12px;
-                border: none;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c4b5fd, stop:1 #a78bfa);
-            }
-            QPushButton:pressed {
-                background: #7c3aed;
-            }
-        """)
+        add_btn.setStyleSheet(self.styles.get("ADD_BTN", ""))
         add_btn.clicked.connect(self.add_note)
         input_layout.addWidget(add_btn)
         
         layout.addWidget(self.input_widget)
         
-        # 3. NOTES LIST (Danh sách ghi chú)
+        # 3. NOTES LIST (Danh sách ghi chú dọc)
         self.notes_scroll = QScrollArea()
         self.notes_scroll.setWidgetResizable(True)
         self.notes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.notes_scroll.setStyleSheet(self.styles["SCROLL"])
-        self.notes_scroll.setMinimumHeight(200)
+        self.notes_scroll.setStyleSheet(self.styles.get("SCROLL", ""))
         
         self.notes_container = QWidget()
         self.notes_container.setStyleSheet("background: transparent;")
         self.notes_layout = QVBoxLayout(self.notes_container)
-        self.notes_layout.setContentsMargins(0, 0, 8, 0)
-        self.notes_layout.setSpacing(10)
-        self.notes_layout.addStretch() # Đẩy nội dung lên trên
+        self.notes_layout.setContentsMargins(0, 0, 4, 0)
+        self.notes_layout.setSpacing(6)
+        self.notes_layout.addStretch()
         
         self.notes_scroll.setWidget(self.notes_container)
         layout.addWidget(self.notes_scroll, 1)
         
-        return screen
-    
+        # Tải danh sách nhóm (sẽ tự động load groups pills)
+        self.refresh_groups_list()
+        
+        return panel
+
+    def refresh_groups_list(self):
+        """Refresh danh sách nhóm thành dạng Pill"""
+        # Clear existing
+        while self.groups_list_layout.count() > 1:
+            item = self.groups_list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Add 'All' group or select first group if current_group is None
+        if not self.current_group:
+            self.current_group = "ALL"
+            
+        # Add ALL button
+        btn_all = QPushButton("ALL")
+        from PySide6.QtGui import QCursor
+        from PySide6.QtCore import Qt
+        btn_all.setCursor(QCursor(Qt.PointingHandCursor))
+        btn_all.setCheckable(True)
+        btn_all.setStyleSheet(self.styles.get("PILL_GROUP", ""))
+        if self.current_group == "ALL":
+            btn_all.setChecked(True)
+        btn_all.clicked.connect(lambda checked: self.select_group("ALL"))
+        self.groups_list_layout.insertWidget(0, btn_all)
+
+        if self.groups:
+            sorted_groups = sorted(self.groups)
+            for idx, group in enumerate(sorted_groups):
+                btn = QPushButton(group)
+                btn.setCursor(QCursor(Qt.PointingHandCursor))
+                btn.setCheckable(True)
+                btn.setStyleSheet(self.styles.get("PILL_GROUP", ""))
+                if group == self.current_group:
+                    btn.setChecked(True)
+                
+                # Use lambda default argument to capture current group variable
+                btn.clicked.connect(lambda checked, g=group: self.select_group(g))
+                
+                # Setup context menu
+                btn.setContextMenuPolicy(Qt.CustomContextMenu)
+                btn.customContextMenuRequested.connect(lambda pos, g=group: self.show_group_context_menu(g))
+                
+                self.groups_list_layout.insertWidget(idx + 1, btn)
+        
+        # Nút Thêm Nhóm
+        add_group_btn = QPushButton("+ New")
+        add_group_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        add_group_btn.setStyleSheet(self.styles.get("PILL_GROUP", ""))
+        add_group_btn.clicked.connect(self.quick_add_group)
+        self.groups_list_layout.insertWidget(len(self.groups) + 1, add_group_btn)
+        
+        self.refresh_notes_list()
+
+    def select_group(self, group_name):
+        self.current_group = group_name
+        self.refresh_groups_list() # To update check state
+        
     def create_clipboard_panel(self):
         """Tạo panel hiển thị lịch sử Clipboard"""
         panel = QFrame()
@@ -1667,20 +1789,22 @@ class MainWindow(QMainWindow):
         """
         
         # Notes Tab
-        if is_notes:
-            self.notes_tab_btn.setStyleSheet(active_style)
-            self.notes_tab_btn.setIcon(create_icon('fa5s.sticky-note', color='white'))
-        else:
-            self.notes_tab_btn.setStyleSheet(self.styles["TAB_INACTIVE"])
-            self.notes_tab_btn.setIcon(create_icon('fa5s.sticky-note', color=inactive_color))
+        if hasattr(self, 'notes_tab_btn'):
+            if is_notes:
+                self.notes_tab_btn.setStyleSheet(active_style)
+                self.notes_tab_btn.setIcon(create_icon('fa5s.sticky-note', color='white'))
+            else:
+                self.notes_tab_btn.setStyleSheet(self.styles["TAB_INACTIVE"])
+                self.notes_tab_btn.setIcon(create_icon('fa5s.sticky-note', color=inactive_color))
         
         # Clipboard Tab
-        if not is_notes:
-            self.clipboard_tab_btn.setStyleSheet(active_style)
-            self.clipboard_tab_btn.setIcon(create_icon('fa5s.clipboard', color='white'))
-        else:
-            self.clipboard_tab_btn.setStyleSheet(self.styles["TAB_INACTIVE"])
-            self.clipboard_tab_btn.setIcon(create_icon('fa5s.clipboard', color=inactive_color))
+        if hasattr(self, 'clipboard_tab_btn'):
+            if not is_notes:
+                self.clipboard_tab_btn.setStyleSheet(active_style)
+                self.clipboard_tab_btn.setIcon(create_icon('fa5s.clipboard', color='white'))
+            else:
+                self.clipboard_tab_btn.setStyleSheet(self.styles["TAB_INACTIVE"])
+                self.clipboard_tab_btn.setIcon(create_icon('fa5s.clipboard', color=inactive_color))
     
     def create_bubble(self):
         self.bubble = FloatingBubble(self)
@@ -1765,8 +1889,9 @@ class MainWindow(QMainWindow):
             return
         
         # Kiểm tra xem đã chọn nhóm chưa
-        if not self.current_group:
-            QMessageBox.warning(self, "Chưa chọn nhóm", "Vui lòng chọn nhóm trước!")
+        if not self.current_group or self.current_group == "ALL":
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Chưa chọn nhóm", "Vui lòng chọn một nhóm cụ thể để thêm Note (không thể thêm ở tab ALL)!")
             return
         
         note = {
@@ -1911,7 +2036,7 @@ class MainWindow(QMainWindow):
         # Lọc notes theo nhóm hiện tại
         filtered_notes = []
         for i, note in enumerate(self.notes):
-            if note.get("group") == self.current_group:
+            if self.current_group == "ALL" or note.get("group") == self.current_group:
                 filtered_notes.append((i, note))
         
         if not filtered_notes:
@@ -1983,82 +2108,7 @@ class MainWindow(QMainWindow):
             self.group_colors[group_name] = colors[color_index]
         return self.group_colors[group_name]
     
-    def refresh_groups_list(self):
-        """Refresh danh sách nhóm"""
-        # Clear existing
-        while self.groups_list_layout.count() > 1:
-            item = self.groups_list_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        
-        # Add existing groups using swipeable cards
-        if self.groups:
-            # Sort groups alphabetically
-            sorted_groups = sorted(self.groups)
-            for idx, group in enumerate(sorted_groups):
-                color = self.get_group_color(group)
-                count = sum(1 for n in self.notes if n.get("group") == group)
-                
-                # Sử dụng SwipeableGroupCard
-                group_card = SwipeableGroupCard(
-                    self.groups_list_container,
-                    self,
-                    group,
-                    count,
-                    color
-                )
-                
-                self.groups_list_layout.insertWidget(idx, group_card)
-        
-        # Thêm nút "Thêm nhóm mới" vào cuối danh sách
-        add_group_card = QFrame()
-        add_group_card.setObjectName("AddGroupCard")
-        add_group_card.setFixedHeight(60)
-        add_group_card.setCursor(QCursor(Qt.PointingHandCursor))
-        
-        # Dynamic styles based on theme
-        is_light = self.current_theme_mode == "light"
-        colors = ThemeColors.LIGHT if is_light else ThemeColors.DARK
-        
-        # Dashed border style cho nút thêm
-        border_color = colors['accent']
-        bg_color = f"rgba(139, 92, 246, {'0.03' if is_light else '0.08'})"
-        bg_hover_color = f"rgba(139, 92, 246, {'0.08' if is_light else '0.15'})"
-        
-        add_group_card.setStyleSheet(f"""
-            #AddGroupCard {{
-                background: {bg_color};
-                border-radius: 12px;
-                border: 2px dashed rgba(139, 92, 246, 0.4);
-            }}
-            #AddGroupCard:hover {{
-                background: {bg_hover_color};
-                border: 2px dashed rgba(139, 92, 246, 0.8);
-            }}
-        """)
-        
-        card_layout = QHBoxLayout(add_group_card)
-        card_layout.setContentsMargins(20, 0, 20, 0)
-        card_layout.setSpacing(15)
-        
-        # Icon dấu cộng
-        plus_icon = QLabel()
-        plus_icon.setPixmap(create_icon('fa5s.plus-circle', color='#a78bfa').pixmap(QSize(24, 24)))
-        plus_icon.setStyleSheet("background: transparent; border: none;")
-        card_layout.addWidget(plus_icon)
-        
-        # Text
-        text_color = "#7c3aed" if is_light else "#a78bfa"
-        add_label = QLabel(self.t("create_group"))
-        add_label.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {text_color}; background: transparent; border: none;")
-        card_layout.addWidget(add_label, 1)
-        
-        # Make clickable
-        add_group_card.mousePressEvent = lambda event: self.quick_add_group()
-        
-        # Insert at the end, before the stretch
-        insert_index = len(self.groups) if self.groups else 0
-        self.groups_list_layout.insertWidget(insert_index, add_group_card)
+
     
     def show_add_group_dialog(self, parent_dialog, refresh_callback):
         """Hiển thị dialog thêm nhóm với chọn màu - Modern UI"""
@@ -2703,6 +2753,19 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, self.t("error"), self.t("group_exists"))
     
+    def show_group_context_menu(self, group_name):
+        menu = QMenu(self)
+        menu.setStyleSheet(self.styles.get("MENU", ""))
+        
+        rename_action = menu.addAction(create_icon('fa5s.edit', color='#3b82f6'), self.t("rename_group"))
+        del_action = menu.addAction(create_icon('fa5s.trash-alt', color='#ef4444'), self.t("delete_group"))
+        
+        action = menu.exec(QCursor.pos())
+        if action == rename_action:
+            self.rename_group_inline(group_name)
+        elif action == del_action:
+            self.delete_group_inline(group_name)
+            
     def delete_group_inline(self, group_name):
         # Delete group from swipe action
         msg_box = QMessageBox(self)
@@ -2914,7 +2977,7 @@ class MainWindow(QMainWindow):
         """Modern Settings Dialog"""
         dialog = QDialog(self)
         dialog.setWindowTitle(self.t("settings"))
-        dialog.setFixedSize(450, 550)  # Tăng height để hiển thị đầy đủ custom bubble settings
+        dialog.setFixedSize(450, 600)  # Tăng height để hiển thị đầy đủ custom bubble settings và presets
         
         is_light = self.current_theme_mode == "light"
         bg = "#ffffff" if is_light else "#0a0a0a"
@@ -3050,6 +3113,116 @@ class MainWindow(QMainWindow):
         bubble_group_layout.setContentsMargins(15, 15, 15, 15)
         bubble_group_layout.setSpacing(15)
         
+        # 0. Preset Selection Row
+        preset_row = QHBoxLayout()
+        
+        # Preset label with FontAwesome icon
+        preset_label_widget = QWidget()
+        preset_label_layout = QHBoxLayout(preset_label_widget)
+        preset_label_layout.setContentsMargins(0, 0, 0, 0)
+        preset_label_layout.setSpacing(8)
+        
+        preset_icon = QLabel()
+        preset_icon.setPixmap(create_icon('fa5s.palette', color='#8b5cf6').pixmap(QSize(18, 18)))
+        preset_label_layout.addWidget(preset_icon)
+        
+        preset_text = QLabel(f"{self.t('bubble_character')}:")
+        preset_text.setStyleSheet(f"color: {text_primary}; font-size: 15px; font-weight: 600;")
+        preset_label_layout.addWidget(preset_text)
+        
+        preset_row.addWidget(preset_label_widget)
+        preset_row.addStretch()
+        
+        # Preset ComboBox
+        from PySide6.QtWidgets import QComboBox
+        preset_combo = QComboBox()
+        preset_combo.setFixedSize(200, 32)
+        
+        # Define colors to avoid f-string syntax issues with hash characters inside curly braces
+        combo_bg = "#ffffff" if is_light else "#2d2d2d"
+        combo_border = "#cbd5e1" if is_light else "#4b5563"
+        combo_view_border = "#e2e8f0" if is_light else "#404040"
+        
+        preset_combo.setStyleSheet(f"""
+            QComboBox {{
+                background: {combo_bg};
+                color: {text_primary};
+                border: 1px solid {combo_border};
+                border-radius: 6px;
+                padding-left: 8px;
+                font-weight: 500;
+                font-size: 12px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 25px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid {text_secondary};
+                margin-top: 2px;
+            }}
+            QComboBox QAbstractItemView {{
+                background: {combo_bg};
+                color: {text_primary};
+                border: 1px solid {combo_view_border};
+                border-radius: 6px;
+                selection-background-color: #8b5cf6;
+                selection-color: white;
+                outline: none;
+            }}
+        """)
+        
+        preset_combo.addItem(self.t('preset_default'), None)
+        preset_combo.addItem(self.t('preset_cat'), "bubble_frames/cat")
+        preset_combo.addItem(self.t('preset_shiba'), "bubble_frames/shiba")
+        preset_combo.addItem(self.t('preset_ghost'), "bubble_frames/ghost")
+        preset_combo.addItem(self.t('preset_penguin'), "bubble_frames/penguin")
+        
+        # Check current icon path to select corresponding item
+        current_icon = self.custom_bubble_icon
+        presets_map = {
+            None: 0,
+            "bubble_frames/cat": 1,
+            "bubble_frames/shiba": 2,
+            "bubble_frames/ghost": 3,
+            "bubble_frames/penguin": 4
+        }
+        
+        normalized_icon = current_icon
+        if current_icon:
+            # Check ends with for relative/absolute equivalence
+            for key in presets_map.keys():
+                if key and (current_icon == key or current_icon.replace("\\", "/").replace("\\", "/").endswith(key)):
+                    normalized_icon = key
+                    break
+                    
+        if normalized_icon in presets_map:
+            preset_combo.setCurrentIndex(presets_map[normalized_icon])
+        else:
+            # User has set a custom file/folder path manually
+            preset_combo.addItem(self.t('preset_custom'), current_icon)
+            preset_combo.setCurrentIndex(5)
+            
+        def on_preset_changed(index):
+            if index < 0 or index >= preset_combo.count():
+                return
+            selected_data = preset_combo.itemData(index)
+            self.custom_bubble_icon = selected_data
+            self.save_bubble_settings()
+            if hasattr(self, 'bubble'):
+                self.bubble.update_appearance()
+            
+            # If changed back to built-in presets, remove the temporary custom item
+            if preset_combo.count() > 5 and index < 5:
+                preset_combo.removeItem(5)
+                
+        preset_combo.currentIndexChanged.connect(on_preset_changed)
+        preset_row.addWidget(preset_combo)
+        bubble_group_layout.addLayout(preset_row)
+        
         # 1. Custom Icon Row
         icon_row = QHBoxLayout()
         
@@ -3060,15 +3233,12 @@ class MainWindow(QMainWindow):
         icon_label_layout.setSpacing(8)
         
         icon_icon = QLabel()
-        icon_icon.setPixmap(create_icon('fa5s.palette', color='#8b5cf6').pixmap(QSize(18, 18)))
+        icon_icon.setPixmap(create_icon('fa5s.sticky-note', color='#8b5cf6').pixmap(QSize(18, 18)))
         icon_label_layout.addWidget(icon_icon)
         
-        icon_text = QLabel(f"{self.t('icon')}:")
-        icon_text.setStyleSheet(f"color: {text_primary}; font-size: 15px; font-weight: 600;")
-        icon_label_layout.addWidget(icon_text)
-        
+        icon_text = QLabel(f"{{self.t('custom_upload')}}:")
+        icon_text.setStyleSheet(f"color: {{text_primary}}; font-size: 15px; font-weight: 600;")
         icon_row.addWidget(icon_label_widget)
-        
         icon_row.addStretch()
         
         # Upload & Reset Buttons
@@ -3117,6 +3287,14 @@ class MainWindow(QMainWindow):
                 self.save_bubble_settings()
                 if hasattr(self, 'bubble'): self.bubble.update_appearance()
                 
+                # Sync combobox
+                preset_combo.blockSignals(True)
+                if preset_combo.count() > 5:
+                    preset_combo.removeItem(5)
+                preset_combo.addItem(self.t('preset_custom'), file_path)
+                preset_combo.setCurrentIndex(5)
+                preset_combo.blockSignals(False)
+                
         def upload_custom_folder():
             from PySide6.QtWidgets import QFileDialog
             folder_path = QFileDialog.getExistingDirectory(dialog, "Chọn thư mục hoạt ảnh")
@@ -3125,11 +3303,26 @@ class MainWindow(QMainWindow):
                 self.save_bubble_settings()
                 if hasattr(self, 'bubble'): self.bubble.update_appearance()
                 
+                # Sync combobox
+                preset_combo.blockSignals(True)
+                if preset_combo.count() > 5:
+                    preset_combo.removeItem(5)
+                preset_combo.addItem(self.t('preset_custom'), folder_path)
+                preset_combo.setCurrentIndex(5)
+                preset_combo.blockSignals(False)
+                
         def reset_icon():
             self.custom_bubble_icon = None
             self.save_bubble_settings()
             if hasattr(self, 'bubble'): self.bubble.update_appearance()
-
+            
+            # Sync combobox
+            preset_combo.blockSignals(True)
+            if preset_combo.count() > 5:
+                preset_combo.removeItem(5)
+            preset_combo.setCurrentIndex(0)
+            preset_combo.blockSignals(False)
+ 
         # Update Layout to include new button
         upload_btn.setText("Chọn Ảnh")
         upload_btn.setToolTip("Chọn 1 ảnh tĩnh")
@@ -3279,7 +3472,7 @@ class MainWindow(QMainWindow):
         
         # Pin Icon
         pin_color = pin_active_color if self.always_on_top else pin_inactive_color
-        self.pin_btn.setIcon(create_icon('fa5s.thumbtack', color=pin_color))
+        if hasattr(self, 'btn_pin'): self.btn_pin.setIcon(create_icon('fa5s.thumbtack', color=pin_color))
 
     # Old update_pin_button removed (moved to end of file)
     def copy_to_clipboard(self, content):
@@ -3418,6 +3611,11 @@ if __name__ == "__main__":
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     
     app = QApplication(sys.argv)
+    
+    # Thiết lập font chữ hiện đại toàn cục
+    font = QFont("Segoe UI", 10)
+    app.setFont(font)
+    
     app.setQuitOnLastWindowClosed(False)
     
     # Set icon cho app (Windows taskbar sẽ dùng icon này)
