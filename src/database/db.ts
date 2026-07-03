@@ -4,8 +4,6 @@ export interface DatabaseConnection {
 }
 
 let dbInstance: DatabaseConnection | null = null;
-let isWebFallback = false;
-
 // Mock WebDatabase class simulating SQLite operations over LocalStorage for Browser mode
 class WebDatabase {
   async execute(query: string, values: any[] = []): Promise<any> {
@@ -185,7 +183,7 @@ class WebDatabase {
       }
       
       if (q.includes("title like ? or content like ?")) {
-        const term = values[0].replaceAll("%", "").toLowerCase();
+        const term = values[0].split("%").join("").toLowerCase();
         return notes.filter((n: any) => 
           n.title.toLowerCase().includes(term) || 
           n.content.toLowerCase().includes(term)
@@ -198,7 +196,7 @@ class WebDatabase {
       }
       
       if (q.includes("type = 'daily'")) {
-        const titlePattern = values[0].replaceAll("%", "").toLowerCase();
+        const titlePattern = values[0].split("%").join("").toLowerCase();
         return notes.filter((n: any) => 
           n.type === 'daily' && n.title.toLowerCase().includes(titlePattern)
         ) as unknown as T;
@@ -289,7 +287,6 @@ export async function initDatabase(): Promise<DatabaseConnection> {
 
   if (!isTauri) {
     console.log("[Database] Tauri environment not detected. Initializing LocalStorage simulated database.");
-    isWebFallback = true;
     dbInstance = new WebDatabase();
     return dbInstance;
   }
@@ -455,7 +452,6 @@ export async function initDatabase(): Promise<DatabaseConnection> {
     return db;
   } catch (error) {
     console.error("Failed to initialize SQLite database. Falling back to Web simulation:", error);
-    isWebFallback = true;
     dbInstance = new WebDatabase();
     return dbInstance;
   }

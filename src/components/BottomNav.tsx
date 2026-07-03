@@ -1,4 +1,3 @@
-import React from "react";
 import { 
   LayoutDashboard, 
   FileText, 
@@ -22,18 +21,19 @@ export default function BottomNav({ activeView, setActiveView }: BottomNavProps)
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 glass-panel border-t border-white/5 flex items-center justify-around z-20 px-3 bg-zinc-950/95 shadow-lg shrink-0">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 glass-panel border-t border-zinc-200 dark:border-white/5 flex items-center justify-around z-20 px-3 bg-zinc-50/95 dark:bg-zinc-950/95 shadow-lg shrink-0">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeView === item.id;
         return (
           <button
             key={item.id}
+            type="button"
             onClick={() => setActiveView(item.id)}
             className={`flex flex-col items-center gap-1 transition-all ${
               isActive 
-                ? "text-purple-400 font-semibold scale-105" 
-                : "text-zinc-400 hover:text-white"
+                ? "text-purple-650 dark:text-purple-400 font-semibold scale-105" 
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
             }`}
           >
             <Icon className="w-5 h-5" />

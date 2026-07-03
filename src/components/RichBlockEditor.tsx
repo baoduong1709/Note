@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { 
-  PlusCircle, 
   Trash2, 
   Type, 
   Heading, 
@@ -37,7 +36,7 @@ export default function RichBlockEditor({
   const [title, setTitle] = useState(initialTitle);
   const [blocks, setBlocks] = useState<EditorBlock[]>([]);
   const [saving, setSaving] = useState(false);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Parse initialContent (supports both block JSON and backward-compatible raw text)
   useEffect(() => {
@@ -220,7 +219,7 @@ export default function RichBlockEditor({
   };
 
   // Render individual block types
-  const renderBlockElement = (block: EditorBlock, index: number) => {
+  const renderBlockElement = (block: EditorBlock) => {
     switch (block.type) {
       case "header":
         return (
@@ -229,7 +228,7 @@ export default function RichBlockEditor({
             value={block.content}
             onChange={(e) => handleBlockChange(block.id, e.target.value)}
             placeholder="Tiêu đề khối..."
-            className="w-full bg-transparent border-none outline-none font-bold text-white text-sm sm:text-base focus:ring-0 p-0 placeholder-zinc-600"
+            className="w-full bg-transparent border-none outline-none font-bold text-zinc-900 dark:text-white text-sm sm:text-base focus:ring-0 p-0 placeholder-zinc-550 dark:placeholder-zinc-600"
           />
         );
       case "todo":
@@ -239,15 +238,15 @@ export default function RichBlockEditor({
               type="checkbox"
               checked={!!block.checked}
               onChange={() => handleToggleTodo(block.id, !!block.checked)}
-              className="rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-purple-600 cursor-pointer w-4 h-4 shrink-0"
+              className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-purple-600 focus:ring-purple-600 cursor-pointer w-4 h-4 shrink-0"
             />
             <input
               type="text"
               value={block.content}
               onChange={(e) => handleBlockChange(block.id, e.target.value)}
               placeholder="Việc cần làm..."
-              className={`w-full bg-transparent border-none outline-none text-xs focus:ring-0 p-0 placeholder-zinc-600 ${
-                block.checked ? "line-through text-zinc-500" : "text-zinc-300"
+              className={`w-full bg-transparent border-none outline-none text-xs focus:ring-0 p-0 placeholder-zinc-550 dark:placeholder-zinc-600 ${
+                block.checked ? "line-through text-zinc-500" : "text-zinc-700 dark:text-zinc-300"
               }`}
             />
           </div>
@@ -273,7 +272,7 @@ export default function RichBlockEditor({
             onChange={(e) => handleBlockChange(block.id, e.target.value)}
             placeholder="Gõ văn bản ghi chú..."
             rows={1}
-            className="w-full bg-transparent border-none outline-none text-xs text-zinc-300 focus:ring-0 p-0 placeholder-zinc-600 resize-none min-h-[22px] leading-relaxed"
+            className="w-full bg-transparent border-none outline-none text-xs text-zinc-700 dark:text-zinc-300 focus:ring-0 p-0 placeholder-zinc-550 dark:placeholder-zinc-600 resize-none min-h-[22px] leading-relaxed"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = "auto";
@@ -287,13 +286,13 @@ export default function RichBlockEditor({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden select-text">
       {/* 1. EDITOR TOOLBAR & TITLE */}
-      <div className="pb-3 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 shrink-0">
+      <div className="pb-3 border-b border-zinc-200 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 shrink-0">
         <input 
           type="text" 
           value={title}
           onChange={handleTitleChange}
           placeholder="Tiêu đề ghi chú..."
-          className="bg-transparent border-none outline-none font-bold text-white text-sm sm:text-base focus:ring-0 p-0 w-full sm:w-2/3"
+          className="bg-transparent border-none outline-none font-bold text-zinc-900 dark:text-white text-sm sm:text-base focus:ring-0 p-0 w-full sm:w-2/3"
         />
 
         <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
@@ -302,31 +301,35 @@ export default function RichBlockEditor({
           </span>
 
           {/* Quick Toolbar Chèn Block */}
-          <div className="flex bg-zinc-900 border border-white/5 rounded-lg p-0.5 text-[9px] text-zinc-400 font-semibold gap-0.5">
+          <div className="flex bg-zinc-200/50 dark:bg-zinc-900 border border-zinc-250 dark:border-white/5 rounded-lg p-0.5 text-[9px] text-zinc-500 dark:text-zinc-400 font-semibold gap-0.5">
             <button 
+              type="button"
               onClick={() => addBlock("text")}
-              className="px-2 py-0.5 rounded hover:bg-zinc-800 hover:text-white flex items-center gap-1 transition-all"
+              className="px-2 py-0.5 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 transition-all"
               title="Thêm văn bản"
             >
               <Type className="w-3 h-3 text-zinc-400" /> Text
             </button>
             <button 
+              type="button"
               onClick={() => addBlock("header")}
-              className="px-2 py-0.5 rounded hover:bg-zinc-800 hover:text-white flex items-center gap-1 transition-all"
+              className="px-2 py-0.5 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-550 dark:text-teal-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 transition-all"
               title="Thêm tiêu đề"
             >
-              <Heading className="w-3 h-3 text-teal-400" /> Header
+              <Heading className="w-3 h-3 text-teal-600 dark:text-teal-400" /> Header
             </button>
             <button 
+              type="button"
               onClick={() => addBlock("todo")}
-              className="px-2 py-0.5 rounded hover:bg-zinc-800 hover:text-white flex items-center gap-1 transition-all"
+              className="px-2 py-0.5 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-550 dark:text-purple-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 transition-all"
               title="Thêm checklist"
             >
-              <CheckSquare className="w-3 h-3 text-purple-400" /> Todo
+              <CheckSquare className="w-3 h-3 text-purple-650 dark:text-purple-400" /> Todo
             </button>
             <button 
+              type="button"
               onClick={() => addBlock("copy_block")}
-              className="px-2 py-0.5 rounded hover:bg-zinc-800 hover:text-white flex items-center gap-1 transition-all"
+              className="px-2 py-0.5 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-550 dark:text-yellow-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 transition-all"
               title="Thêm khối copy"
             >
               <Terminal className="w-3 h-3 text-yellow-400" /> CopyBlock
@@ -348,22 +351,24 @@ export default function RichBlockEditor({
         {blocks.map((block, idx) => (
           <div 
             key={block.id} 
-            className="flex items-start gap-2.5 group relative pl-6 hover:bg-white/[0.01] py-1 rounded-lg transition-all"
+            className="flex items-start gap-2.5 group relative pl-6 hover:bg-black/[0.02] dark:hover:bg-white/[0.01] py-1 rounded-lg transition-all"
           >
             {/* Block Hover Drag/Move/Delete Handles */}
             <div className="absolute left-0 top-1.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all shrink-0">
               <button 
+                type="button"
                 onClick={() => moveBlock(idx, "up")}
                 disabled={idx === 0}
-                className="p-0.5 rounded hover:bg-white/5 text-zinc-500 hover:text-zinc-300 disabled:opacity-30"
+                className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 hover:text-zinc-350 disabled:opacity-30"
                 title="Di chuyển lên"
               >
                 <MoveUp className="w-3 h-3" />
               </button>
               <button 
+                type="button"
                 onClick={() => moveBlock(idx, "down")}
                 disabled={idx === blocks.length - 1}
-                className="p-0.5 rounded hover:bg-white/5 text-zinc-500 hover:text-zinc-300 disabled:opacity-30"
+                className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 hover:text-zinc-350 disabled:opacity-30"
                 title="Di chuyển xuống"
               >
                 <MoveDown className="w-3 h-3" />
@@ -379,7 +384,7 @@ export default function RichBlockEditor({
 
             {/* Block Content Render */}
             <div className="flex-1 min-w-0">
-              {renderBlockElement(block, idx)}
+              {renderBlockElement(block)}
             </div>
           </div>
         ))}

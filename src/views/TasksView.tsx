@@ -16,7 +16,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Task['priority']>("medium");
   const [dueDate, setDueDate] = useState("");
-  const [workspace, setWorkspace] = useState("personal");
+  const workspace = "personal";
 
   // Jira confirmation state
   const [showJiraConfirm, setShowJiraConfirm] = useState(false);
@@ -164,8 +164,8 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       {/* Top Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>
-          <h3 className="text-xs sm:text-sm font-bold text-white">Quản lý Công việc & Kanban</h3>
-          <p className="text-[9px] sm:text-[10px] text-zinc-500">Xem tiến độ công việc local của bạn.</p>
+          <h3 className="text-xs sm:text-sm font-bold text-zinc-950 dark:text-white">Quản lý Công việc & Kanban</h3>
+          <p className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400">Xem tiến độ công việc local của bạn.</p>
         </div>
         
         <div className="flex gap-2">
@@ -188,7 +188,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
 
       {/* Add Task Form Modal/Inline */}
       {showAddForm && (
-        <form onSubmit={handleAddTask} className="glass-panel p-4 rounded-xl space-y-3 shrink-0 text-xs text-zinc-300">
+        <form onSubmit={handleAddTask} className="glass-panel p-4 rounded-xl space-y-3 shrink-0 text-xs text-zinc-700 dark:text-zinc-300">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="sm:col-span-2">
               <label className="block text-zinc-400 mb-1">Tên công việc</label>
@@ -206,7 +206,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
               <select 
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Task['priority'])}
-                className="w-full p-2 rounded bg-zinc-900 border border-white/10 text-zinc-300 focus:outline-none"
+                className="w-full p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none"
               >
                 <option value="low">Thấp (Low)</option>
                 <option value="medium">Trung bình (Medium)</option>
@@ -219,7 +219,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                 type="date" 
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full p-2 rounded bg-zinc-900 border border-white/10 text-zinc-300 focus:outline-none"
+                className="w-full p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none"
               />
             </div>
           </div>
@@ -240,23 +240,24 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         {/* 1. TODO COLUMN */}
         <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-center mb-3 shrink-0">
-            <h4 className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+            <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
               Cần làm (Todo)
             </h4>
-            <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">{todoTasks.length}</span>
+            <span className="text-[9px] bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">{todoTasks.length}</span>
           </div>
           <div className="space-y-2 pr-1 overflow-y-auto flex-1 min-h-[150px]">
             {todoTasks.map(task => (
               <div 
                 key={task.id} 
-                className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-2 hover:border-purple-500/20 transition-all relative group"
+                className="p-3 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 space-y-2 hover:border-purple-500/20 transition-all relative group"
               >
                 {task.source === "jira" && (
-                  <span className="text-[8px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
+                  <span className="text-[8px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
                 )}
-                <p className="text-xs text-white font-medium pr-6 leading-relaxed">{task.title}</p>
+                <p className="text-xs text-zinc-800 dark:text-white font-medium pr-6 leading-relaxed">{task.title}</p>
                 <button 
+                  type="button"
                   onClick={() => handleDelete(task.id)}
                   className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-all"
                   title="Xóa task"
@@ -265,12 +266,13 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                 </button>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
                   <span className={`px-1 rounded uppercase tracking-wider font-bold ${
-                    task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-800 text-zinc-400"
+                    task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}>{task.priority}</span>
                   <div className="flex gap-2">
                     <button 
+                      type="button"
                       onClick={() => handleStatusChange(task.id, "in_progress")}
-                      className="text-[9px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-0.5"
+                      className="text-[9px] text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-semibold flex items-center gap-0.5"
                     >
                       <Play className="w-2.5 h-2.5" /> Start
                     </button>
@@ -284,30 +286,31 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         {/* 2. IN PROGRESS COLUMN */}
         <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-center mb-3 shrink-0">
-            <h4 className="text-xs font-semibold text-purple-400 flex items-center gap-1.5">
+            <h4 className="text-xs font-semibold text-purple-650 dark:text-purple-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
               Đang làm (In Progress)
             </h4>
-            <span className="text-[9px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full">{inProgressTasks.length}</span>
+            <span className="text-[9px] bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">{inProgressTasks.length}</span>
           </div>
           <div className="space-y-2 pr-1 overflow-y-auto flex-1 min-h-[150px]">
             {inProgressTasks.map(task => (
               <div 
                 key={task.id} 
-                className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-2 hover:border-purple-500/20 transition-all relative group"
+                className="p-3 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 space-y-2 hover:border-purple-500/20 transition-all relative group"
               >
                 {task.source === "jira" && (
-                  <span className="text-[8px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
+                  <span className="text-[8px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
                 )}
-                <p className="text-xs text-white font-medium pr-6 leading-relaxed">{task.title}</p>
+                <p className="text-xs text-zinc-800 dark:text-white font-medium pr-6 leading-relaxed">{task.title}</p>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
                   <span className={`px-1 rounded uppercase tracking-wider font-bold ${
-                    task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-800 text-zinc-400"
+                    task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
                   }`}>{task.priority}</span>
                   <div className="flex gap-2">
                     <button 
+                      type="button"
                       onClick={() => handleStatusChange(task.id, "done")}
-                      className="text-[9px] text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-0.5"
+                      className="text-[9px] text-teal-650 dark:text-teal-400 hover:text-teal-500 dark:hover:text-teal-300 font-semibold flex items-center gap-0.5"
                     >
                       <CheckCircle className="w-2.5 h-2.5" /> Done
                     </button>
@@ -321,23 +324,24 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         {/* 3. DONE COLUMN */}
         <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-center mb-3 shrink-0">
-            <h4 className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+            <h4 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               Đã xong (Done)
             </h4>
-            <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded-full">{doneTasks.length}</span>
+            <span className="text-[9px] bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">{doneTasks.length}</span>
           </div>
           <div className="space-y-2 pr-1 overflow-y-auto flex-1 min-h-[150px]">
             {doneTasks.map(task => (
               <div 
                 key={task.id} 
-                className="p-3 rounded-lg bg-zinc-900/30 border border-white/5 opacity-60 relative group"
+                className="p-3 rounded-lg bg-zinc-100/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 opacity-60 relative group"
               >
                 {task.source === "jira" && (
-                  <span className="text-[8px] bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider block mb-1">Jira</span>
+                  <span className="text-[8px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider block mb-1">Jira</span>
                 )}
-                <p className="text-xs text-zinc-400 line-through pr-6 leading-relaxed">{task.title}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 line-through pr-6 leading-relaxed">{task.title}</p>
                 <button 
+                  type="button"
                   onClick={() => handleDelete(task.id)}
                   className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-all"
                   title="Xóa task"
@@ -345,10 +349,11 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className="bg-zinc-800 text-zinc-500 px-1 rounded uppercase tracking-wider font-bold">Done</span>
+                  <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-500 px-1 rounded uppercase tracking-wider font-bold">Done</span>
                   <button 
+                    type="button"
                     onClick={() => handleStatusChange(task.id, "todo")}
-                    className="text-[9px] text-purple-400 hover:text-purple-300 font-semibold"
+                    className="text-[9px] text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-semibold"
                   >
                     Re-open
                   </button>

@@ -19,6 +19,20 @@ export default function App() {
   const [dbReady, setDbReady] = useState(false);
   const [showAiSidebar, setShowAiSidebar] = useState(true);
 
+  // Theme settings
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    return (localStorage.getItem("theme") as "light" | "dark") || "dark";
+  });
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   // App PIN lock states
   const [isLocked, setIsLocked] = useState(false);
   const [inputPin, setInputPin] = useState("");
@@ -185,6 +199,8 @@ export default function App() {
             jiraConnected={jiraConnected} 
             setJiraConnected={setJiraConnected}
             triggerToast={triggerToast}
+            theme={theme}
+            setTheme={setTheme}
           />
         );
       default:
@@ -195,16 +211,16 @@ export default function App() {
   // Lock Screen Overlay UI
   if (isLocked) {
     return (
-      <div className="h-screen w-screen bg-[#070709] flex items-center justify-center relative font-sans text-zinc-300">
+      <div className="h-screen w-screen bg-zinc-100 dark:bg-[#070709] flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200">
         <div className="absolute inset-0 bg-gradient-to-tr from-purple-950/20 to-teal-950/20 opacity-40"></div>
-        <div className="glass-panel w-full max-w-sm rounded-2xl p-6 sm:p-8 space-y-6 border border-white/5 relative z-10 shadow-2xl flex flex-col items-center">
+        <div className="glass-panel w-full max-w-sm rounded-2xl p-6 sm:p-8 space-y-6 border border-zinc-200 dark:border-white/5 relative z-10 shadow-2xl flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-purple-600/10 text-purple-400 flex items-center justify-center mb-2">
             <Lock className="w-6 h-6 animate-pulse" />
           </div>
           
           <div className="text-center space-y-1.5">
-            <h2 className="text-sm font-bold text-white uppercase tracking-widest">AI NOTEBOOK LOCKED</h2>
-            <p className="text-[10px] text-zinc-500">Vui lòng nhập mã PIN bảo mật để mở khóa dữ liệu local.</p>
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest">AI NOTEBOOK LOCKED</h2>
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Vui lòng nhập mã PIN bảo mật để mở khóa dữ liệu local.</p>
           </div>
 
           <form onSubmit={handlePinSubmit} className="w-full space-y-4 flex flex-col items-center">
@@ -217,7 +233,7 @@ export default function App() {
                 setInputPin(e.target.value.replace(/\D/g, ""));
               }}
               placeholder="••••"
-              className={`w-3/4 p-2.5 rounded-lg glass-input text-center text-lg font-mono tracking-[0.75em] text-white focus:outline-none focus:ring-1 ${
+              className={`w-3/4 p-2.5 rounded-lg glass-input text-center text-lg font-mono tracking-[0.75em] text-zinc-800 dark:text-white focus:outline-none focus:ring-1 ${
                 pinError ? "border-red-500/50 bg-red-950/10 focus:ring-red-500" : "focus:ring-purple-500"
               }`}
               autoFocus
@@ -237,7 +253,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-row h-screen w-screen overflow-hidden bg-[#0b0b0d] text-zinc-300 font-sans relative">
+    <div className="flex flex-row h-screen w-screen overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans relative transition-colors duration-200">
       {/* 1. SIDEBAR LEFT (PC/Web) */}
       <Sidebar 
         activeView={activeView} 

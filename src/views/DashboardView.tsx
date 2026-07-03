@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { 
   Zap, 
   CheckSquare, 
@@ -74,8 +74,8 @@ export default function DashboardView({
       {/* Welcome Header */}
       <div className="flex justify-between items-start shrink-0">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Chào buổi chiều, Bảo!</h2>
-          <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">Mọi sửa đổi sẽ tự động được lưu trữ local (Offline-first).</p>
+          <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white tracking-tight">Chào buổi chiều, Bảo!</h2>
+          <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Mọi sửa đổi sẽ tự động được lưu trữ local (Offline-first).</p>
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export default function DashboardView({
           {/* Quick Capture Panel */}
           <section className="glass-panel rounded-xl p-4 sm:p-5 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-teal-500"></div>
-            <h3 className="text-xs font-semibold text-white mb-3 flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-3 flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-yellow-400" />
               Quick Capture / Ghi nhanh note mới
             </h3>
@@ -96,7 +96,7 @@ export default function DashboardView({
               value={quickText}
               onChange={(e) => setQuickText(e.target.value)}
               placeholder="Nhập nhanh ghi chú ở đây... Bấm nút lưu để cất vào Inbox" 
-              className="w-full h-20 p-2.5 rounded-lg glass-input text-xs text-zinc-300 resize-none"
+              className="w-full h-20 p-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 resize-none"
             />
             <div className="flex justify-end mt-2">
               <button 
@@ -112,7 +112,7 @@ export default function DashboardView({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {/* Today Tasks Widget */}
             <div className="glass-panel rounded-xl p-4">
-              <h3 className="text-xs font-bold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
                 <CheckSquare className="w-3.5 h-3.5 text-teal-400" />
                 Today Tasks
               </h3>
@@ -121,14 +121,14 @@ export default function DashboardView({
               ) : (
                 <div className="space-y-2 text-xs">
                   {todayTasks.map(task => (
-                    <div key={task.id} className="flex items-center gap-2 hover:bg-white/5 p-1.5 rounded">
+                    <div key={task.id} className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 p-1.5 rounded">
                       <input 
                         type="checkbox" 
                         checked={task.status === "done"}
                         readOnly
-                        className="rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-purple-600"
+                        className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-purple-600 focus:ring-purple-600"
                       />
-                      <span className="text-zinc-300 truncate">{task.title}</span>
+                      <span className="text-zinc-700 dark:text-zinc-300 truncate">{task.title}</span>
                     </div>
                   ))}
                 </div>
@@ -137,13 +137,13 @@ export default function DashboardView({
 
             {/* Recent Command Blocks Widget */}
             <div className="glass-panel rounded-xl p-4">
-              <h3 className="text-xs font-bold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
                 <Terminal className="w-3.5 h-3.5 text-purple-400" />
                 Command Block nổi bật
               </h3>
               <div className="space-y-2 text-xs">
-                <div className="bg-zinc-900/60 p-2.5 rounded border border-white/5 flex flex-col gap-1.5">
-                  <code className="text-[10px] font-mono text-zinc-300 truncate">kubectl port-forward svc/postgres 5434:5432</code>
+                <div className="bg-zinc-200/50 dark:bg-zinc-900/60 p-2.5 rounded border border-zinc-200 dark:border-white/5 flex flex-col gap-1.5">
+                  <code className="text-[10px] font-mono text-zinc-700 dark:text-zinc-300 truncate">kubectl port-forward svc/postgres 5434:5432</code>
                   <div className="flex justify-end gap-2">
                     <button 
                       onClick={() => triggerToast("Nhập biến (Chức năng mẫu)")}
@@ -171,13 +171,14 @@ export default function DashboardView({
         <div className="col-span-12 md:col-span-4 space-y-5">
           {/* Daily Note Status */}
           <section className="glass-panel rounded-xl p-4">
-            <h3 className="text-xs font-bold text-white mb-2">Daily Note hôm nay</h3>
-            <div className="p-3 rounded-lg bg-zinc-900/60 border border-white/5 space-y-2">
-              <p className="text-xs text-white font-medium">Daily Note - {new Date().toISOString().split('T')[0]}</p>
-              <p className="text-[10px] text-zinc-500 leading-relaxed">Tiến độ ngày hôm nay của bạn. Ghi nhận các hoạt động và tự động summary cuối ngày.</p>
+            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2">Daily Note hôm nay</h3>
+            <div className="p-3 rounded-lg bg-zinc-200/50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-white/5 space-y-2">
+              <p className="text-xs text-zinc-800 dark:text-white font-medium">Daily Note - {new Date().toISOString().split('T')[0]}</p>
+              <p className="text-[10px] text-zinc-650 dark:text-zinc-550 leading-relaxed">Tiến độ ngày hôm nay của bạn. Ghi nhận các hoạt động và tự động summary cuối ngày.</p>
               <button 
+                type="button"
                 onClick={() => setActiveView("daily")}
-                className="text-[9px] text-teal-400 font-semibold hover:underline flex items-center gap-1 pt-1"
+                className="text-[9px] text-teal-600 dark:text-teal-400 font-semibold hover:underline flex items-center gap-1 pt-1"
               >
                 Mở Daily Note <ChevronRight className="w-3 h-3" />
               </button>
@@ -186,7 +187,7 @@ export default function DashboardView({
 
           {/* Recent Notes Widget */}
           <section className="glass-panel rounded-xl p-4">
-            <h3 className="text-xs font-bold text-white mb-3">Ghi chú gần đây</h3>
+            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3">Ghi chú gần đây</h3>
             {recentNotes.length === 0 ? (
               <p className="text-[10px] text-zinc-500 py-3 text-center">Chưa có ghi chú nào.</p>
             ) : (
@@ -198,10 +199,10 @@ export default function DashboardView({
                       setSelectedNoteId(note.id);
                       setActiveView("notes");
                     }}
-                    className="p-2 rounded hover:bg-white/5 border border-white/5 cursor-pointer transition-all flex items-center gap-2"
+                    className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200 dark:border-white/5 cursor-pointer transition-all flex items-center gap-2"
                   >
-                    <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span className="text-zinc-300 truncate font-medium flex-1">{note.title}</span>
+                    <FileText className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                    <span className="text-zinc-700 dark:text-zinc-300 truncate font-medium flex-1">{note.title}</span>
                   </div>
                 ))}
               </div>

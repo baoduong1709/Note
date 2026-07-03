@@ -2,9 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Light Mode Variables */
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(0, 0, 0, 0.16);
+  --glass-input-bg: rgba(0, 0, 0, 0.02);
+  --glass-input-border: rgba(0, 0, 0, 0.16);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+  --text-active-menu: #4c1d95;
+  --bg-active-menu: rgba(139, 92, 246, 0.1);
+  --glass-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+.dark {
+  /* Dark Mode Variables */
+  --glass-bg: rgba(23, 23, 28, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.04);
+  --glass-input-bg: rgba(255, 255, 255, 0.03);
+  --glass-input-border: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.15);
+  --text-active-menu: #ffffff;
+  --bg-active-menu: rgba(139, 92, 246, 0.12);
+  --glass-shadow: none;
+}
+
 @layer base {
   body {
-    @apply bg-zinc-950 text-zinc-300 antialiased overflow-hidden font-sans h-screen w-screen;
+    @apply bg-zinc-200 text-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 antialiased overflow-hidden font-sans h-screen w-screen transition-colors duration-200;
   }
 }
 
@@ -17,36 +43,37 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--scrollbar-thumb);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Glassmorphism Panels */
 .glass-panel {
-  background: rgba(23, 23, 28, 0.65);
+  background: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-input-bg);
+  border: 1px solid var(--glass-input-border);
 }
 .glass-input:focus {
   border-color: #8b5cf6;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg);
   outline: none;
   box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
 }
 
 /* Menu Active States */
 .menu-active {
-  color: #ffffff;
-  background: rgba(139, 92, 246, 0.12);
+  color: var(--text-active-menu);
+  background: var(--bg-active-menu);
   border-left: 3px solid #8b5cf6;
 }
 

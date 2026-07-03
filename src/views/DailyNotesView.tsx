@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { Sparkles, Calendar, Terminal, CheckCircle2, FileText, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, Terminal, CheckCircle2, ArrowRight } from "lucide-react";
 import { getDatabase } from "../database/db";
 import { generateDailySummaryAI } from "../services/aiService";
-import { updateNote, getNoteById, Note } from "../database/queries/notes";
+import { updateNote, getNoteById } from "../database/queries/notes";
 
 interface DailyNotesViewProps {
   triggerToast: (message: string) => void;
@@ -105,10 +105,10 @@ export default function DailyNotesView({ triggerToast }: DailyNotesViewProps) {
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto space-y-6">
-      <div className="pb-3 border-b border-white/5 flex justify-between items-center shrink-0">
+      <div className="pb-3 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center shrink-0">
         <div>
-          <h3 className="text-sm sm:text-base font-bold text-white">Daily Note: {todayStr}</h3>
-          <p className="text-[10px] text-zinc-400">Tự động khởi tạo theo dõi nhật ký làm việc</p>
+          <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white">Daily Note: {todayStr}</h3>
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Tự động khởi tạo theo dõi nhật ký làm việc</p>
         </div>
         
         <button 
@@ -125,27 +125,27 @@ export default function DailyNotesView({ triggerToast }: DailyNotesViewProps) {
         {/* Left Stats Column */}
         <div className="space-y-4">
           <div className="p-4 rounded-xl glass-panel space-y-2.5">
-            <h4 className="font-bold text-teal-400 border-b border-white/5 pb-1 flex items-center gap-1.5">
+            <h4 className="font-bold text-teal-600 dark:text-teal-400 border-b border-zinc-200 dark:border-white/5 pb-1 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
               Task đã hoàn thành hôm nay
             </h4>
             {doneTasks.length === 0 ? (
-              <p className="text-zinc-500 italic py-2">Chưa hoàn thành task nào. Hãy đổi status task sang Done để cập nhật tại đây.</p>
+              <p className="text-zinc-500 dark:text-zinc-400 italic py-2">Chưa hoàn thành task nào. Hãy đổi status task sang Done để cập nhật tại đây.</p>
             ) : (
-              <ul className="list-disc list-inside space-y-1.5 text-zinc-300">
+              <ul className="list-disc list-inside space-y-1.5 text-zinc-700 dark:text-zinc-300">
                 {doneTasks.map((t, idx) => <li key={idx}>{t}</li>)}
               </ul>
             )}
           </div>
 
           <div className="p-4 rounded-xl glass-panel space-y-2.5">
-            <h4 className="font-bold text-purple-400 border-b border-white/5 pb-1 flex items-center gap-1.5">
+            <h4 className="font-bold text-purple-650 dark:text-purple-400 border-b border-zinc-200 dark:border-white/5 pb-1 flex items-center gap-1.5">
               <Terminal className="w-4 h-4" />
               Command đã copy hôm nay
             </h4>
-            <ul className="space-y-1.5 text-zinc-400 font-mono text-[9px]">
+            <ul className="space-y-1.5 text-zinc-650 dark:text-zinc-400 font-mono text-[9px]">
               {copiedCommands.map((cmd, idx) => (
-                <li key={idx} className="bg-black/30 p-1.5 rounded truncate" title={cmd}>
+                <li key={idx} className="bg-black/5 dark:bg-black/30 p-1.5 rounded truncate" title={cmd}>
                   {cmd}
                 </li>
               ))}
@@ -156,23 +156,24 @@ export default function DailyNotesView({ triggerToast }: DailyNotesViewProps) {
         {/* Right AI Report Column */}
         <div className="space-y-4">
           <div className="p-4 rounded-xl glass-panel space-y-3 flex flex-col h-full min-h-[250px]">
-            <h4 className="font-bold text-purple-400 border-b border-white/5 pb-1 flex items-center gap-1.5 shrink-0">
+            <h4 className="font-bold text-purple-650 dark:text-purple-400 border-b border-zinc-200 dark:border-white/5 pb-1 flex items-center gap-1.5 shrink-0">
               <Sparkles className="w-4 h-4 text-purple-400" />
               AI Daily Summary (Tóm tắt tự động)
             </h4>
             
             {loading ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-6 text-purple-400">
+              <div className="flex-1 flex flex-col items-center justify-center py-6 text-purple-600 dark:text-purple-400">
                 <Sparkles className="w-5 h-5 animate-spin mb-2" />
                 <span>AI đang đọc SQLite data và lập báo cáo...</span>
               </div>
             ) : aiSummary ? (
               <div className="flex-1 flex flex-col justify-between space-y-4 min-h-0">
-                <div className="text-zinc-300 bg-zinc-950/40 p-3 rounded-lg border border-white/5 leading-relaxed whitespace-pre-wrap text-xs overflow-y-auto">
+                <div className="text-zinc-700 dark:text-zinc-300 bg-zinc-200/30 dark:bg-zinc-950/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 leading-relaxed whitespace-pre-wrap text-xs overflow-y-auto">
                   {aiSummary}
                 </div>
-                <div className="flex justify-end pt-2 border-t border-white/5 shrink-0">
+                <div className="flex justify-end pt-2 border-t border-zinc-200 dark:border-white/5 shrink-0">
                   <button 
+                    type="button"
                     onClick={handleInsertIntoNote}
                     className="bg-purple-600 hover:bg-purple-500 text-white text-[10px] px-3.5 py-1.5 rounded font-bold transition-all flex items-center gap-1"
                   >
@@ -181,7 +182,7 @@ export default function DailyNotesView({ triggerToast }: DailyNotesViewProps) {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 text-zinc-500 bg-zinc-950/40 p-3 rounded-lg border border-white/5 text-center flex items-center justify-center leading-relaxed">
+              <div className="flex-1 text-zinc-550 dark:text-zinc-550 bg-zinc-200/30 dark:bg-zinc-950/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-center flex items-center justify-center leading-relaxed">
                 Bấm nút "AI Summary" ở góc trên bên phải để AI phân tích logs, ghi chú, tasks hôm nay và sinh báo cáo markdown.
               </div>
             )}

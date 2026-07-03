@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import CopyBlock from "./CopyBlock";
-import { Edit2, Eye, PlusCircle, CheckSquare, AlertTriangle } from "lucide-react";
+import { PlusCircle, CheckSquare, AlertTriangle } from "lucide-react";
 import { createTask, Task } from "../database/queries/tasks";
 
 interface MarkdownEditorProps {
@@ -23,7 +23,7 @@ export default function MarkdownEditor({
   const [isEditMode, setIsEditMode] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync state when props change
   useEffect(() => {
@@ -172,19 +172,19 @@ export default function MarkdownEditor({
       // Headers
       if (line.startsWith("# ")) {
         elements.push(
-          <h1 key={`h1-${i}`} className="text-lg font-bold text-white mt-4 mb-2">
+          <h1 key={`h1-${i}`} className="text-lg font-bold text-zinc-900 dark:text-white mt-4 mb-2">
             {line.substring(2)}
           </h1>
         );
       } else if (line.startsWith("## ")) {
         elements.push(
-          <h2 key={`h2-${i}`} className="text-sm font-bold text-teal-400 mt-3 mb-1.5 border-b border-white/5 pb-1">
+          <h2 key={`h2-${i}`} className="text-sm font-bold text-teal-600 dark:text-teal-400 mt-3 mb-1.5 border-b border-zinc-200 dark:border-white/5 pb-1">
             {line.substring(3)}
           </h2>
         );
       } else if (line.startsWith("### ")) {
         elements.push(
-          <h3 key={`h3-${i}`} className="text-xs font-bold text-purple-400 mt-2.5 mb-1">
+          <h3 key={`h3-${i}`} className="text-xs font-bold text-purple-650 dark:text-purple-400 mt-2.5 mb-1">
             {line.substring(4)}
           </h3>
         );
@@ -208,28 +208,29 @@ export default function MarkdownEditor({
         elements.push(
           <div 
             key={`check-${i}`} 
-            className="flex items-center justify-between py-1 group checkbox-container hover:bg-white/5 px-2 rounded-lg transition-all"
+            className="flex items-center justify-between py-1 group checkbox-container hover:bg-black/5 dark:hover:bg-white/5 px-2 rounded-lg transition-all"
           >
             <div className="flex items-center gap-2">
               <input 
                 type="checkbox"
                 checked={isChecked}
                 onChange={() => toggleChecklistItem(lineIdx, isChecked)}
-                className="rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-purple-600 cursor-pointer"
+                className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-purple-600 focus:ring-purple-600 cursor-pointer"
               />
-              <span className={`text-xs ${isChecked ? "line-through text-zinc-500" : "text-zinc-300"}`}>
+              <span className={`text-xs ${isChecked ? "line-through text-zinc-500" : "text-zinc-700 dark:text-zinc-300"}`}>
                 {text}
               </span>
               {isLinked && (
-                <span className="text-[8px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded font-bold ml-2 flex items-center gap-0.5">
+                <span className="text-[8px] bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded font-bold ml-2 flex items-center gap-0.5">
                   <CheckSquare className="w-2.5 h-2.5" /> Linked Task
                 </span>
               )}
             </div>
             {!isLinked && (
               <button 
+                type="button"
                 onClick={() => handleConvertToTask(lineIdx, text)}
-                className="opacity-0 group-hover:opacity-100 text-[9px] text-purple-400 hover:text-purple-300 flex items-center gap-0.5 font-semibold transition-all"
+                className="opacity-0 group-hover:opacity-100 text-[9px] text-purple-650 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 flex items-center gap-0.5 font-semibold transition-all"
                 title="Convert to standalone Task"
               >
                 <PlusCircle className="w-3 h-3" /> Convert
@@ -241,7 +242,7 @@ export default function MarkdownEditor({
       // Normal paragraph
       else if (line.trim() !== "") {
         elements.push(
-          <p key={`p-${i}`} className="text-xs text-zinc-300 leading-relaxed my-1">
+          <p key={`p-${i}`} className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed my-1">
             {line}
           </p>
         );
@@ -275,13 +276,13 @@ export default function MarkdownEditor({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Editor Sub-Header Toolbar */}
-      <div className="pb-3 border-b border-white/5 flex justify-between items-center mb-4 shrink-0">
+      <div className="pb-3 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center mb-4 shrink-0">
         <input 
           type="text" 
           value={title}
           onChange={handleTitleChange}
           placeholder="Tiêu đề ghi chú..."
-          className="bg-transparent border-none outline-none font-bold text-white text-sm sm:text-base focus:ring-0 p-0 w-2/3"
+          className="bg-transparent border-none outline-none font-bold text-zinc-900 dark:text-white text-sm sm:text-base focus:ring-0 p-0 w-2/3"
         />
         
         <div className="flex items-center gap-3">
@@ -289,19 +290,21 @@ export default function MarkdownEditor({
             {saving ? "Saving..." : "Auto-saved"}
           </span>
 
-          <div className="flex bg-zinc-900 border border-white/5 rounded-lg p-0.5 text-[10px] text-zinc-400">
+          <div className="flex bg-zinc-200/50 dark:bg-zinc-900 border border-zinc-250 dark:border-white/5 rounded-lg p-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
             <button 
+              type="button"
               onClick={() => setIsEditMode(true)}
               className={`px-2.5 py-0.5 rounded flex items-center gap-1 transition-all ${
-                isEditMode ? "bg-zinc-800 text-white font-semibold" : ""
+                isEditMode ? "bg-zinc-350 dark:bg-zinc-800 text-zinc-900 dark:text-white font-semibold" : ""
               }`}
             >
               Edit
             </button>
             <button 
+              type="button"
               onClick={() => setIsEditMode(false)}
               className={`px-2.5 py-0.5 rounded flex items-center gap-1 transition-all ${
-                !isEditMode ? "bg-zinc-800 text-white font-semibold" : ""
+                !isEditMode ? "bg-zinc-350 dark:bg-zinc-800 text-zinc-900 dark:text-white font-semibold" : ""
               }`}
             >
               Preview
@@ -328,7 +331,7 @@ export default function MarkdownEditor({
 ```bash
 Lệnh copy nhanh ở đây
 ```"
-            className="w-full h-full p-2.5 rounded-lg bg-transparent text-xs text-zinc-300 font-mono resize-none focus:outline-none focus:ring-0 border-none leading-relaxed"
+            className="w-full h-full p-2.5 rounded-lg bg-transparent text-xs text-zinc-700 dark:text-zinc-300 font-mono resize-none focus:outline-none focus:ring-0 border-none leading-relaxed"
           />
         ) : (
           <div className="p-2.5 font-sans leading-relaxed select-text">

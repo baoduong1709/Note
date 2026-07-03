@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, FileText, Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Trash2, Search } from "lucide-react";
 import { getNotes, createNote, updateNote, deleteNote, Note } from "../database/queries/notes";
 import RichTextEditor from "../components/RichTextEditor";
 
@@ -8,6 +8,10 @@ interface NotesViewProps {
   setSelectedNoteId: (id: string | null) => void;
   triggerToast: (message: string) => void;
 }
+
+const SYSTEM_NOTE_TITLES = new Set(["USER.md", "MEMORY.md"]);
+
+const isUserFacingNote = (note: Note) => !SYSTEM_NOTE_TITLES.has(note.title);
 
 export default function NotesView({ 
   selectedNoteId, 
@@ -20,9 +24,19 @@ export default function NotesView({
   const loadNotes = async () => {
     try {
       const results = await getNotes();
-      setNotes(results);
-      if (results.length > 0 && !selectedNoteId) {
-        setSelectedNoteId(results[0].id);
+      const visibleNotes = results.filter(isUserFacingNote);
+
+      setNotes(visibleNotes);
+
+      if (visibleNotes.length === 0) {
+        if (selectedNoteId) {
+          setSelectedNoteId(null);
+        }
+        return;
+      }
+
+      if (!selectedNoteId || !visibleNotes.some(note => note.id === selectedNoteId)) {
+        setSelectedNoteId(visibleNotes[0].id);
       }
     } catch (err) {
       console.error("Failed to load notes:", err);
@@ -40,7 +54,7 @@ export default function NotesView({
       await updateNote(selectedNoteId, title, content);
       // Reload lists without resetting selected note
       const results = await getNotes();
-      setNotes(results);
+      setNotes(results.filter(isUserFacingNote));
     } catch (err) {
       console.error("Failed to save note:", err);
       triggerToast("Lỗi lưu ghi chú!");
@@ -101,8 +115,9 @@ export default function NotesView({
         <div className="flex justify-between items-center shrink-0">
           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">DANH SÁCH NOTE</h3>
           <button 
+            type="button"
             onClick={handleCreateNote}
-            className="p-1 rounded hover:bg-white/5 text-zinc-400 hover:text-white"
+            className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
             title="Tạo ghi chú mới"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -131,8 +146,8 @@ export default function NotesView({
                 onClick={() => setSelectedNoteId(note.id)}
                 className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-start justify-between group ${
                   isActive 
-                    ? "bg-white/5 border-purple-500/20 text-white font-medium" 
-                    : "border-transparent text-zinc-400 hover:text-white hover:bg-white/5"
+                    ? "bg-purple-50/50 dark:bg-white/5 border-purple-500/20 text-zinc-900 dark:text-white font-medium" 
+                    : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
                 }`}
               >
                 <div className="overflow-hidden flex-1 mr-2">
