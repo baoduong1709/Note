@@ -139,6 +139,18 @@ export default function App() {
     setupApp();
   }, []);
 
+  // Listen for view changes from other components
+  useEffect(() => {
+    const handleChangeView = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setActiveView(customEvent.detail);
+      }
+    };
+    window.addEventListener("change-view", handleChangeView);
+    return () => window.removeEventListener("change-view", handleChangeView);
+  }, []);
+
   const triggerToast = (message: string) => {
     setToast({ message, show: true });
     setTimeout(() => {
@@ -253,7 +265,11 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-row h-screen w-screen overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans relative transition-colors duration-200">
+    <div className="fixed inset-0 flex flex-row overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
+      {/* Aurora Background Glows */}
+      <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[45%] rounded-full bg-gradient-to-tr from-purple-400/20 to-teal-400/20 dark:from-purple-900/10 dark:to-teal-900/10 blur-[100px] pointer-events-none z-0"></div>
+      <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] rounded-full bg-gradient-to-br from-indigo-400/20 to-pink-400/20 dark:from-indigo-900/10 dark:to-pink-900/10 blur-[100px] pointer-events-none z-0"></div>
+
       {/* 1. SIDEBAR LEFT (PC/Web) */}
       <Sidebar 
         activeView={activeView} 
@@ -262,10 +278,10 @@ export default function App() {
       />
 
       {/* CONTAINER CHO GIAO DIỆN CHÍNH & AI CHAT PANEL */}
-      <div className="flex-1 flex flex-row overflow-hidden relative">
+      <div className="flex-1 min-w-0 h-full min-h-0 flex flex-row overflow-hidden relative">
         
         {/* 2. MAIN VIEW CONTENT */}
-        <main className="flex-1 flex flex-col h-full overflow-hidden p-4 sm:p-6 pb-20 md:pb-6">
+        <main key={activeView} className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6 pb-20 md:pb-6 view-enter-animate">
           {/* Top Bar for Mobile */}
           <div className="md:hidden flex items-center justify-between pb-3 border-b border-white/5 mb-3 shrink-0">
             <div className="flex items-center gap-2">
@@ -292,7 +308,7 @@ export default function App() {
 
       {/* 5. TOAST MESSAGE */}
       <div 
-        className={`toast fixed bottom-6 right-6 glass-panel border border-teal-500/20 bg-teal-950/20 text-teal-400 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg z-50 ${
+        className={`toast fixed top-5 right-5 max-w-[min(420px,calc(100vw-2rem))] pointer-events-none glass-panel border border-teal-500/20 bg-teal-950/20 text-teal-400 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg z-50 ${
           toast.show ? "show" : ""
         }`}
       >

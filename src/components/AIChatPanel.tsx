@@ -505,7 +505,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   return (
-    <aside className="w-80 glass-panel border-l border-zinc-200 dark:border-white/5 flex flex-col h-full shrink-0 z-10 transition-all duration-300 hidden xl:flex relative">
+    <aside className="w-80 glass-panel border-l border-zinc-200 dark:border-white/5 flex flex-col h-full min-h-0 max-h-full shrink-0 z-10 transition-all duration-300 hidden xl:flex relative">
       
       {/* 1. AI Chat Header */}
       <div className="p-4 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between shrink-0">
@@ -611,7 +611,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           return (
             <div 
               key={index} 
-              className={isUser ? "text-right" : "bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"}
+              className={`${isUser ? "text-right" : "bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"} chat-bubble-animate`}
             >
               {isUser ? (
                 <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">

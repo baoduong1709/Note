@@ -32,16 +32,22 @@ export function getJiraConfig(): JiraConfig | null {
 const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined;
 const isWeb = !isTauri;
 
+function normalizeJiraBaseUrl(baseUrl: string): string {
+  return baseUrl.trim().replace(/\/+$/, "");
+}
+
 // Dynamic request URL builder that maps requests to local Vite proxy /api-proxy when running in browser mode
 function getRequestUrl(baseUrl: string, path: string): { url: string; headers: Record<string, string> } {
+  const cleanBaseUrl = normalizeJiraBaseUrl(baseUrl);
+
   if (isWeb) {
     return {
       url: `/api-proxy${path}`,
-      headers: { "x-target-url": baseUrl }
+      headers: { "x-target-url": cleanBaseUrl }
     };
   }
   return {
-    url: `${baseUrl}${path}`,
+    url: `${cleanBaseUrl}${path}`,
     headers: {}
   };
 }
@@ -54,6 +60,23 @@ async function safeFetch(url: string, options: any) {
     return await tauriFetch(url, options);
   }
   return await fetch(url, options);
+}
+
+async function readJiraError(response: Response, fallback: string): Promise<string> {
+  const text = await response.text();
+  if (!text) return fallback;
+
+  try {
+    const data = JSON.parse(text);
+    const messages = [
+      ...(Array.isArray(data.errorMessages) ? data.errorMessages : []),
+      ...Object.values(data.errors || {})
+    ].filter(Boolean);
+
+    return messages.length > 0 ? messages.join(" ") : text;
+  } catch {
+    return text.slice(0, 240);
+  }
 }
 
 // Test Jira Connection
@@ -113,8 +136,12 @@ export async function fetchJiraIssues(): Promise<JiraIssue[]> {
 
   try {
     const authHeader = btoa(`${config.email}:${config.apiToken}`);
-    const jql = encodeURIComponent("assignee = currentUser() AND statusCategory != Done");
-    const { url, headers: proxyHeaders } = getRequestUrl(config.baseUrl, `/rest/api/3/search?jql=${jql}`);
+    const params = new URLSearchParams({
+      jql: "assignee = currentUser() AND statusCategory != Done",
+      maxResults: "50",
+      fields: "summary,status,priority,assignee"
+    });
+    const { url, headers: proxyHeaders } = getRequestUrl(config.baseUrl, `/rest/api/3/search/jql?${params.toString()}`);
 
     const response = await safeFetch(url, {
       method: "GET",
@@ -126,7 +153,8 @@ export async function fetchJiraIssues(): Promise<JiraIssue[]> {
     });
 
     if (!response.ok) {
-      throw new Error(`Jira API Error: ${response.status}`);
+      const detail = await readJiraError(response, response.statusText);
+      throw new Error(`Jira API Error ${response.status}: ${detail}`);
     }
 
     const data = await response.json();

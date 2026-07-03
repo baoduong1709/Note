@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Zap, 
   CheckSquare, 
   Terminal, 
   FileText, 
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
+  Clock
 } from "lucide-react";
 import { createNote, getNotes, Note } from "../database/queries/notes";
-import { getTodayTasks, Task } from "../database/queries/tasks";
+import { getTodayTasks, getImportantTasks, Task } from "../database/queries/tasks";
 
 interface DashboardViewProps {
   setActiveView: (view: string) => void;
@@ -20,12 +22,19 @@ export default function DashboardView({
   setSelectedNoteId,
   triggerToast 
 }: DashboardViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [quickText, setQuickText] = useState("");
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [recentNotes, setRecentNotes] = useState<Note[]>([]);
+  const [importantTasks, setImportantTasks] = useState<Task[]>([]);
 
   // Load data from local SQLite
   useEffect(() => {
+    // Force scroll to top on mount to avoid browser auto-scrolling
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+
     async function loadData() {
       try {
         const tasks = await getTodayTasks();
@@ -33,11 +42,40 @@ export default function DashboardView({
 
         const notes = await getNotes();
         setRecentNotes(notes.slice(0, 3)); // Show top 3 recent notes
+
+        const imptTasks = await getImportantTasks();
+        setImportantTasks(imptTasks);
+
+        // Force scroll-to-top after DOM updates
+        setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+          }
+        }, 60);
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
       }
     }
     loadData();
+
+    // Trigger alert toast once on mount
+    async function triggerInitialAlert() {
+      try {
+        const imptTasks = await getImportantTasks();
+        if (imptTasks.length > 0) {
+          setTimeout(() => {
+            triggerToast(`⚠️ Bạn có ${imptTasks.length} việc quan trọng cần làm gấp!`);
+          }, 800);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    triggerInitialAlert();
+
+    // Listen to updates from other components (like Sidebar completions)
+    window.addEventListener("task-updated", loadData);
+    return () => window.removeEventListener("task-updated", loadData);
   }, []);
 
   // Save quick note
@@ -70,14 +108,60 @@ export default function DashboardView({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1">
+    <div ref={containerRef} className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1">
       {/* Welcome Header */}
       <div className="flex justify-between items-start shrink-0">
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white tracking-tight">Chào buổi chiều, Bảo!</h2>
-          <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Mọi sửa đổi sẽ tự động được lưu trữ local (Offline-first).</p>
+          <p className="text-[10px] sm:text-xs text-zinc-650 dark:text-zinc-400 mt-0.5">Mọi sửa đổi sẽ tự động được lưu trữ local (Offline-first).</p>
         </div>
       </div>
+
+      {/* Reminders Alert Section */}
+      <section className={`glass-panel rounded-xl p-4 border-l-4 ${importantTasks.length > 0 ? "border-l-red-500" : "border-l-emerald-500"} relative overflow-hidden transition-all duration-300`}>
+        {importantTasks.length > 0 ? (
+          <>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
+              <h3 className="text-xs font-bold text-red-650 dark:text-red-400 uppercase tracking-wider">Cần chú ý: Nhắc nhở việc quan trọng</h3>
+              <span className="text-[10px] bg-red-100 dark:bg-red-500/10 text-red-650 dark:text-red-400 px-2 py-0.5 rounded-full font-bold ml-1">{importantTasks.length} việc gấp</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {importantTasks.map(task => {
+                const isOverdue = task.due_date && new Date(task.due_date) < new Date(new Date().toDateString());
+                return (
+                  <div key={task.id} className="p-3 rounded-lg bg-red-50/40 dark:bg-red-950/10 border border-red-200/50 dark:border-red-500/10 flex flex-col justify-between gap-2 shadow-sm hover:scale-[1.01] transition-all">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        {task.source === "jira" && (
+                          <span className="text-[7px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
+                        )}
+                        <span className="text-[7px] bg-red-500/10 text-red-600 dark:text-red-400 px-1 py-0.5 rounded font-bold uppercase tracking-wider">HIGH</span>
+                      </div>
+                      <p className="text-xs text-zinc-800 dark:text-zinc-200 font-semibold leading-normal break-words line-clamp-2">{task.title}</p>
+                    </div>
+                    {task.due_date && (
+                      <div className="flex items-center gap-1 text-[9px] text-zinc-550 dark:text-zinc-400 font-medium">
+                        <Clock className={`w-3 h-3 ${isOverdue ? "text-red-500" : "text-zinc-400"}`} />
+                        <span className={isOverdue ? "text-red-600 dark:text-red-400 font-bold" : ""}>
+                          Hạn: {task.due_date} {isOverdue ? "(Trễ)" : ""}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <h3 className="text-xs font-semibold">Tất cả việc quan trọng đã được xử lý xong. Chúc bạn một ngày tốt lành!</h3>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Widgets Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
@@ -86,8 +170,7 @@ export default function DashboardView({
         <div className="col-span-12 md:col-span-8 space-y-5">
           
           {/* Quick Capture Panel */}
-          <section className="glass-panel rounded-xl p-4 sm:p-5 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-teal-500"></div>
+          <section className="glass-panel rounded-xl p-4 sm:p-5 border-l-4 border-l-purple-500 relative overflow-hidden">
             <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-3 flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-yellow-400" />
               Quick Capture / Ghi nhanh note mới
@@ -101,7 +184,7 @@ export default function DashboardView({
             <div className="flex justify-end mt-2">
               <button 
                 onClick={handleQuickSave}
-                className="bg-purple-600 hover:bg-purple-500 text-white text-[10px] px-3.5 py-1.5 rounded-md font-semibold transition-all"
+                className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white text-[10px] px-3.5 py-1.5 rounded-md font-semibold transition-all shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
               >
                 Lưu nhanh
               </button>

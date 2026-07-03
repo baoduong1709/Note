@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Play, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Play, CheckCircle, RefreshCw } from "lucide-react";
 import { getTasks, createTask, updateTaskStatus, deleteTask, Task } from "../database/queries/tasks";
 import { transitionJiraIssue } from "../services/jiraService";
 import ConfirmModal from "../components/ConfirmModal";
@@ -11,6 +11,8 @@ interface TasksViewProps {
 export default function TasksView({ triggerToast }: TasksViewProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  
+  const [syncingJira, setSyncingJira] = useState(false);
   
   // Form states
   const [title, setTitle] = useState("");
@@ -37,6 +39,13 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
 
   useEffect(() => {
     loadTasks();
+
+    // Sync state when changes happen in Sidebar
+    const handleSync = () => {
+      loadTasks();
+    };
+    window.addEventListener("task-updated", handleSync);
+    return () => window.removeEventListener("task-updated", handleSync);
   }, []);
 
   const handleStatusChange = async (id: string, newStatus: Task['status']) => {
@@ -55,6 +64,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       await updateTaskStatus(id, newStatus);
       triggerToast(`Đã chuyển trạng thái sang: ${newStatus}`);
       loadTasks();
+      window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err) {
       console.error("Failed to update status:", err);
       triggerToast("Lỗi cập nhật trạng thái!");
@@ -79,6 +89,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       triggerToast(`🚀 Đã cập nhật Jira ${task.external_id} thành công!`);
       setPendingJiraAction(null);
       loadTasks();
+      window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err: any) {
       console.error(err);
       triggerToast(err.message || "Lỗi đồng bộ lên Jira!");
@@ -86,11 +97,18 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa task này không?")) return;
+    const task = tasks.find(t => t.id === id);
+    const confirmMessage =
+      task?.source === "jira"
+        ? `Xóa task Jira ${task.external_id || ""} khỏi notebook local?\n\nHành động này không xóa issue trên Jira Cloud.`
+        : "Bạn có chắc chắn muốn xóa task này không?";
+
+    if (!window.confirm(confirmMessage)) return;
     try {
       await deleteTask(id);
-      triggerToast("Đã xóa task!");
+      triggerToast(task?.source === "jira" ? "Đã xóa task Jira khỏi notebook local!" : "Đã xóa task!");
       loadTasks();
+      window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err) {
       console.error("Failed to delete task:", err);
       triggerToast("Lỗi xóa task!");
@@ -123,35 +141,109 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       setDueDate("");
       setShowAddForm(false);
       loadTasks();
+      window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err) {
       console.error("Failed to create task:", err);
       triggerToast("Lỗi tạo task!");
     }
   };
 
-  // Generate mock Jira tasks if list is empty for demo purpose
-  const handleCreateMockJiraTask = async () => {
-    const mockJiraTask: Task = {
-      id: "jira-mock-123",
-      note_id: null,
-      title: "[GL-123] Code UI Main Dashboard for Work Notebook",
-      status: "in_progress",
-      priority: "high",
-      due_date: null,
-      workspace_id: "work",
-      project_id: null,
-      source: "jira",
-      external_id: "GL-123",
-      external_url: "https://gamelifestyle.atlassian.net/browse/GL-123",
-      is_pending_sync: 0
-    };
+  const handleSyncJira = async () => {
+    const configStr = localStorage.getItem("jira_config");
+    if (!configStr) {
+      triggerToast("Vui lòng cấu hình Jira và Test kết nối trong mục Cài đặt trước!");
+      window.dispatchEvent(new CustomEvent("change-view", { detail: "settings" }));
+      return;
+    }
+
+    setSyncingJira(true);
+    triggerToast("Đang kết nối để lấy task từ Jira Cloud...");
 
     try {
-      await createTask(mockJiraTask);
-      triggerToast("Đã import Mock Jira task (GL-123) để test confirm!");
+      const { fetchJiraIssues } = await import("../services/jiraService");
+      const jiraIssues = await fetchJiraIssues();
+
+      if (jiraIssues.length === 0) {
+        triggerToast("Không tìm thấy issue nào được gán cho bạn trên Jira.");
+        setSyncingJira(false);
+        return;
+      }
+
+      const { getDatabase } = await import("../database/db");
+      const db = await getDatabase();
+
+      let createdCount = 0;
+      let updatedCount = 0;
+
+      for (const issue of jiraIssues) {
+        let localStatus: Task['status'] = "todo";
+        const statusLower = issue.status.toLowerCase();
+        if (statusLower.includes("progress") || statusLower.includes("review") || statusLower.includes("test")) {
+          localStatus = "in_progress";
+        } else if (statusLower.includes("done") || statusLower.includes("close") || statusLower.includes("resolve")) {
+          localStatus = "done";
+        }
+
+        let localPriority: Task['priority'] = "medium";
+        const priorityLower = issue.priority.toLowerCase();
+        if (priorityLower.includes("high") || priorityLower.includes("critical") || priorityLower.includes("major")) {
+          localPriority = "high";
+        } else if (priorityLower.includes("low") || priorityLower.includes("minor")) {
+          localPriority = "low";
+        }
+
+        const existing = await db.select<any[]>(
+          "SELECT id FROM tasks WHERE external_id = ?",
+          [issue.key]
+        );
+
+        if (existing.length > 0) {
+          await db.execute(
+            `UPDATE tasks SET title = ?, status = ?, priority = ?, external_url = ?, updated_at = ? WHERE external_id = ?`,
+            [
+              `[${issue.key}] ${issue.summary}`,
+              localStatus,
+              localPriority,
+              issue.url,
+              new Date().toISOString(),
+              issue.key
+            ]
+          );
+          updatedCount++;
+        } else {
+          const taskId = Math.random().toString(36).substring(2, 11);
+          await db.execute(
+            `INSERT INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, is_pending_sync, created_at, updated_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              taskId,
+              null,
+              `[${issue.key}] ${issue.summary}`,
+              localStatus,
+              localPriority,
+              null,
+              workspace,
+              null,
+              "jira",
+              issue.key,
+              issue.url,
+              0,
+              new Date().toISOString(),
+              new Date().toISOString()
+            ]
+          );
+          createdCount++;
+        }
+      }
+
+      triggerToast(`Đồng bộ thành công! Thêm mới ${createdCount}, cập nhật ${updatedCount} task Jira.`);
       loadTasks();
-    } catch (err) {
+      window.dispatchEvent(new CustomEvent("task-updated"));
+    } catch (err: any) {
       console.error(err);
+      triggerToast(err.message || "Lỗi đồng bộ Jira!");
+    } finally {
+      setSyncingJira(false);
     }
   };
 
@@ -170,15 +262,17 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         
         <div className="flex gap-2">
           <button 
-            onClick={handleCreateMockJiraTask}
-            className="border border-blue-500/30 text-blue-400 text-[10px] px-3.5 py-1.5 rounded-lg font-semibold hover:bg-blue-500/10 transition-all"
-            title="Import task Jira giả lập để test"
+            onClick={handleSyncJira}
+            disabled={syncingJira}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/10 hover:scale-[1.02] active:scale-[0.98]"
+            title="Đồng bộ task từ Jira Cloud thật"
           >
-            Import Jira Task
+            <RefreshCw className={`w-3.5 h-3.5 ${syncingJira ? "animate-spin" : ""}`} />
+            {syncingJira ? "Đang đồng bộ..." : "Đồng bộ Jira"}
           </button>
           <button 
             onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-purple-600 hover:bg-purple-500 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all"
+            className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
           >
             <Plus className="w-3.5 h-3.5" /> 
             {showAddForm ? "Hủy bỏ" : "Thêm Task"}
@@ -226,7 +320,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
           <div className="flex justify-end gap-2 pt-1">
             <button 
               type="submit"
-              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded font-semibold"
+              className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white px-4 py-1.5 rounded font-semibold shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
             >
               Tạo Task
             </button>
@@ -238,7 +332,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 overflow-y-auto md:overflow-hidden min-h-0 pb-1">
         
         {/* 1. TODO COLUMN */}
-        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden">
+        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate">
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
@@ -284,7 +378,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </div>
 
         {/* 2. IN PROGRESS COLUMN */}
-        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden">
+        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate" style={{ animationDelay: '0.05s' }}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-purple-650 dark:text-purple-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
@@ -302,6 +396,14 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                   <span className="text-[8px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
                 )}
                 <p className="text-xs text-zinc-800 dark:text-white font-medium pr-6 leading-relaxed">{task.title}</p>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(task.id)}
+                  className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-all"
+                  title={task.source === "jira" ? "Xóa khỏi notebook local" : "Xóa task"}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
                   <span className={`px-1 rounded uppercase tracking-wider font-bold ${
                     task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
@@ -322,7 +424,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </div>
 
         {/* 3. DONE COLUMN */}
-        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden">
+        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate" style={{ animationDelay: '0.1s' }}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon } from "lucide-react";
 import { getDatabase } from "../database/db";
 import { createNote, getNotes, Note, updateNote } from "../database/queries/notes";
@@ -25,6 +25,7 @@ export default function SettingsView({
   theme,
   setTheme
 }: SettingsViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   // Jira Form States
   const [jiraBaseUrl, setJiraBaseUrl] = useState("");
   const [jiraEmail, setJiraEmail] = useState("");
@@ -200,6 +201,13 @@ export default function SettingsView({
       if (showToast) {
         triggerToast("Đã tải lại bộ nhớ agent.");
       }
+
+      // Reset scroll position after DOM updates
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = 0;
+        }
+      }, 60);
     } catch (err) {
       console.error("Failed to load agent memory:", err);
       triggerToast("Lỗi tải bộ nhớ agent.");
@@ -208,8 +216,12 @@ export default function SettingsView({
     }
   };
 
-  // Load configuration from localStorage
   useEffect(() => {
+    // Force scroll to top on mount to avoid browser auto-scrolling
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+
     // Load Jira
     const jiraConfig = localStorage.getItem("jira_config");
     if (jiraConfig) {
@@ -387,7 +399,7 @@ export default function SettingsView({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1 pb-10">
+    <div ref={containerRef} className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1 pb-10">
       <div>
         <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white">Settings & Integrations</h3>
         <p className="text-[10px] text-zinc-600 dark:text-zinc-500">Cấu hình kết nối API thực tế cho Jira và Trợ lý AI của bạn.</p>
@@ -440,6 +452,7 @@ export default function SettingsView({
                 value={jiraApiToken} 
                 onChange={(e) => setJiraApiToken(e.target.value)}
                 placeholder="Nhập API Token Jira của bạn..." 
+                autoComplete="new-password"
                 className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs" 
               />
               <span className="text-[9px] text-zinc-650 dark:text-zinc-500 mt-1 block">Tạo token tại id.atlassian.com/manage-profile/security/api-tokens</span>
@@ -500,6 +513,7 @@ export default function SettingsView({
                 value={aiApiKey} 
                 onChange={(e) => setAiApiKey(e.target.value)}
                 placeholder={aiBaseUrl.includes("localhost") ? "Không cần Key đối với Local Ollama..." : "AI API Key..."} 
+                autoComplete="new-password"
                 className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
               />
             </div>
