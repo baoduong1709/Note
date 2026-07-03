@@ -1,0 +1,125 @@
+{
+  "notes": [
+    {
+      "content": "đâsdasd",
+      "group": "GLAPP",
+      "timestamp": "2026-01-18 03:03"
+    },
+    {
+      "content": "adsa",
+      "group": "GLAPP",
+      "timestamp": "2026-01-18 01:26"
+    },
+    {
+      "content": "đá",
+      "group": "GLAPP",
+      "timestamp": "2026-01-18 01:26"
+    },
+    {
+      "content": "da",
+      "group": "GLAPP",
+      "timestamp": "2026-01-18 01:26"
+    },
+    {
+      "content": "d",
+      "group": "GLAPP",
+      "timestamp": "2026-01-18 01:26"
+    },
+    {
+      "content": "hi",
+      "group": "GLAPP",
+      "timestamp": "2026-01-17 20:45"
+    },
+    {
+      "content": "Bao",
+      "group": "GLAPP",
+      "timestamp": "2026-01-17 20:44"
+    },
+    {
+      "content": "fsdf\nf\ndà\nádf",
+      "group": null,
+      "timestamp": "2026-01-16 15:40"
+    },
+    {
+      "content": "$env:NODE_ENV=\"development\"; nest start @app/admin --debug --watch",
+      "group": null,
+      "timestamp": "2026-01-14 09:10"
+    },
+    {
+      "content": "cd \"c:\\Users\\bao\\MADISON\\gl-lifestyle-app\\backend\"",
+      "group": null,
+      "timestamp": "2026-01-14 09:10"
+    }
+  ],
+  "groups": [
+    "GLAPP",
+    "Bao",
+    "Anh",
+    "asdadasd"
+  ],
+  "group_colors": {
+    "GLAPP": "#3b82f6",
+    "hi": "#ec4899",
+    "he": "#6366f1",
+    "baqsfda": "#ef4444",
+    "d": "#14b8a6",
+    "aDAD": "#f59e0b",
+    "đA": "#14b8a6",
+    "ad": "#ec4899",
+    "Đa": "#ec4899",
+    "ADd": "#22c55e",
+    "ĐÂ": "#6366f1",
+    "ĐÂđA": "#f59e0b",
+    "đa": "#3b82f6",
+    "a": "#a855f7",
+    "Bao": "#ec4899",
+    "Anh": "#f59e0b",
+    "đâsdad": "#0ea5e9",
+    "asdadasd": "#ec4899",
+    "Baodasdasd\ndadasdadasdad dad adadasdasdasdas": "#6366f1"
+  },
+  "clipboard_history": [
+    {
+      "type": "image",
+      "content": "clip_20260118_045301_e9968903.png",
+      "width": 219,
+      "height": 196,
+      "timestamp": "04:53"
+    },
+    {
+      "type": "text",
+      "content": "file:///C:/Project/Note/bubble_frames",
+      "timestamp": "04:49"
+    },
+    {
+      "type": "text",
+      "content": "file:///C:/Users/bao/Downloads/Gemini_Generated_Image_693wsl693wsl693w (1).png",
+      "timestamp": "04:05"
+    },
+    {
+      "type": "text",
+      "content": "file:///C:/Users/bao/Downloads/Gemini_Generated_Image_nfs0mxnfs0mxnfs0 (1).png",
+      "timestamp": "04:04"
+    },
+    {
+      "type": "text",
+      "content": "t?o m?t h?nh có kích thư?c và các chi ti?t khác i h?t ?nh trên ch? là m?t g?u nhúc nh?m l?i\u0000",
+      "timestamp": "04:02"
+    },
+    {
+      "type": "text",
+      "content": "tạo một hình có kích thước và các chi tiết khác i hệt ảnh trên chỉ là mắt gấu nhúc nhắm lại",
+      "timestamp": "04:02"
+    },
+    {
+      "type": "text",
+      "content": "C:\\Project\\Note\\panda.png\u0000",
+      "timestamp": "03:57"
+    },
+    {
+      "type": "text",
+      "content": "C:\\Project\\Note\\panda.png",
+      "timestamp": "03:53"
+    }
+  ]
+}
