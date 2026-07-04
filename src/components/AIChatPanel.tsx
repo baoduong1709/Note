@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion } from "framer-motion";
 import { Send, Sparkles, X, History, Plus, Trash2 } from "lucide-react";
 import { askAI, extractAndSaveMemory } from "../services/aiService";
 import CopyBlock from "./CopyBlock";
+import GenericConfirmModal from "./GenericConfirmModal";
 import { 
   getAISessions, 
   createAISession, 
   deleteAISession, 
   getAIMessages, 
   addAIMessage,
+  updateAIMessage,
   updateAISessionTitle,
   AISession
 } from "../database/queries/aiChat";
@@ -23,7 +26,23 @@ interface AIChatPanelProps {
   onClose: () => void;
 }
 
+const WELCOME_TEXT = "Chào Bảo! Tôi là Notebook Agent của bạn. Tôi có thể đọc/tạo note, đọc/tạo task, lưu ngày quan trọng và dùng web search khi cần dữ liệu mới.";
+
+const normalizeWelcomeMessage = (message: Message): Message => {
+  if (
+    message.text.includes("Notebook Agent") &&
+    (message.text.includes("Daily Note") || message.text.includes("Jira"))
+  ) {
+    return { ...message, text: WELCOME_TEXT };
+  }
+
+  return message;
+};
+
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [sessionIdToDelete, setSessionIdToDelete] = useState<string | null>(null);
+  
   // Session States
   const [sessions, setSessions] = useState<AISession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -33,12 +52,21 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamRunRef = useRef(0);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (instant = false) => {
+    if (instant && messagesEndRef.current) {
+      // Use direct scrollTop for instant scroll during streaming (no animation fight)
+      const container = messagesEndRef.current.parentElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const updateLastAIMessage = (patch: Partial<Message>) => {
@@ -78,6 +106,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         isStreaming: true,
         thinking: "Đang trả lời..."
       });
+      scrollToBottom(true);
 
       await new Promise(resolve => setTimeout(resolve, char === "\n" ? 35 : 12));
     }
@@ -108,12 +137,21 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const loadMessages = async (sessionId: string) => {
     const list = await getAIMessages(sessionId);
     if (list.length > 0) {
-      setMessages(list.map(m => ({ sender: m.sender, text: m.text })));
+      const normalizedMessages = await Promise.all(
+        list.map(async (m) => {
+          const message = normalizeWelcomeMessage({ sender: m.sender, text: m.text });
+          if (message.text !== m.text) {
+            await updateAIMessage(m.id, message.text);
+          }
+          return message;
+        })
+      );
+      setMessages(normalizedMessages);
     } else {
       setMessages([
         {
           sender: "ai",
-          text: "Chào Bảo! Tôi là Notebook Agent của bạn. Tôi có thể đọc ghi chú, tìm task, tóm tắt Daily Note, tra Jira và dùng web search khi cần dữ liệu mới."
+          text: WELCOME_TEXT
         }
       ]);
     }
@@ -124,8 +162,12 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Only smooth-scroll for non-streaming updates (new messages, session switch)
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg?.isStreaming) {
+      scrollToBottom();
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     return () => {
@@ -143,11 +185,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     
     // Add default initial message to SQLite
     const msgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
-    const welcomeText = "Chào Bảo! Tôi là Notebook Agent của bạn. Tôi có thể đọc ghi chú, tìm task, tóm tắt Daily Note, tra Jira và dùng web search khi cần dữ liệu mới.";
-    await addAIMessage(msgId, newId, "ai", welcomeText);
+    await addAIMessage(msgId, newId, "ai", WELCOME_TEXT);
 
     setActiveSessionId(newId);
-    setMessages([{ sender: "ai", text: welcomeText }]);
+    setMessages([{ sender: "ai", text: WELCOME_TEXT }]);
     
     // Reload sessions list
     const list = await getAISessions();
@@ -156,20 +197,30 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   // 4. Delete session
-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (window.confirm("Bạn có chắc chắn muốn xóa phiên chat này và toàn bộ lịch sử tin nhắn liên quan?")) {
-      await deleteAISession(sessionId);
+    setSessionIdToDelete(sessionId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDeleteSession = async () => {
+    if (!sessionIdToDelete) return;
+    try {
+      await deleteAISession(sessionIdToDelete);
       
       // If we deleted the active session, reset active ID
-      if (activeSessionId === sessionId) {
+      if (activeSessionId === sessionIdToDelete) {
         await loadSessions(null);
       } else {
         const list = await getAISessions();
         setSessions(list);
       }
+    } catch (err) {
+      console.error("Failed to delete chat session:", err);
+    } finally {
+      setShowDeleteConfirm(false);
+      setSessionIdToDelete(null);
     }
   };
 
@@ -608,34 +659,40 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       <div className="flex-1 p-4 space-y-4 overflow-y-auto text-xs">
         {messages.map((msg, index) => {
           const isUser = msg.sender === "user";
-          return (
-            <div 
-              key={index} 
-              className={`${isUser ? "text-right" : "bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"} chat-bubble-animate`}
+          return isUser ? (
+            <motion.div 
+              key={index}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              className="text-right"
             >
-              {isUser ? (
-                <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">
-                  {msg.text}
-                </span>
+              <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">
+                {msg.text}
+              </span>
+            </motion.div>
+          ) : (
+            <div 
+              key={index}
+              className="bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm chat-bubble-animate"
+            >
+              {msg.isStreaming ? (
+                <div className="space-y-2">
+                  {msg.thinking ? (
+                    <div className="flex items-center gap-1.5 text-purple-400">
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                      <span>{msg.thinking}</span>
+                    </div>
+                  ) : null}
+                  {msg.text ? (
+                    <div>
+                      {renderMessageContent(msg.text)}
+                      <span className="inline-block w-1.5 h-3 ml-0.5 align-[-1px] bg-purple-400 animate-pulse" />
+                    </div>
+                  ) : null}
+                </div>
               ) : (
-                msg.isStreaming ? (
-                  <div className="space-y-2">
-                    {msg.thinking ? (
-                      <div className="flex items-center gap-1.5 text-purple-400">
-                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                        <span>{msg.thinking}</span>
-                      </div>
-                    ) : null}
-                    {msg.text ? (
-                      <div>
-                        {renderMessageContent(msg.text)}
-                        <span className="inline-block w-1.5 h-3 ml-0.5 align-[-1px] bg-purple-400 animate-pulse" />
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  renderMessageContent(msg.text)
-                )
+                renderMessageContent(msg.text)
               )}
             </div>
           );
@@ -645,15 +702,19 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
       {/* 4. AI Chat Input */}
       <div className="p-3 border-t border-zinc-200 dark:border-white/5 shrink-0">
-        <div className="relative flex items-center">
+        <div className={`relative flex items-center w-full rounded-lg transition-all duration-300 glass-panel ${
+          (isInputFocused || loading) ? "premium-gradient-border border-transparent" : ""
+        }`}>
           <input 
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
             disabled={loading}
-            placeholder={loading ? "Agent đang trả lời..." : "Hỏi agent về note, task, Jira, web..."} 
-            className="w-full pl-3 pr-10 py-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-500 dark:placeholder-zinc-600 focus:outline-none disabled:opacity-50"
+            placeholder={loading ? "Agent đang trả lời..." : "Hỏi hoặc tạo note, task, ngày quan trọng..."} 
+            className="w-full pl-3 pr-10 py-2.5 rounded-lg bg-transparent border-none text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-500 dark:placeholder-zinc-600 focus:outline-none disabled:opacity-50"
           />
           <button 
             type="button"
@@ -665,6 +726,21 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           </button>
         </div>
       </div>
+
+      {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING CHAT SESSION */}
+      <GenericConfirmModal 
+        isOpen={showDeleteConfirm}
+        title="Xóa lịch sử chat"
+        message="Bạn có chắc chắn muốn xóa phiên chat này và toàn bộ lịch sử tin nhắn liên quan? Hành động này không thể khôi phục."
+        confirmLabel="Xóa phiên chat"
+        cancelLabel="Hủy"
+        type="danger"
+        onConfirm={handleConfirmDeleteSession}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setSessionIdToDelete(null);
+        }}
+      />
     </aside>
   );
 }

@@ -1,0 +1,437 @@
+﻿diff --git a/src/components/AIChatPanel.tsx b/src/components/AIChatPanel.tsx
+index c69330b..cf4c785 100644
+--- a/src/components/AIChatPanel.tsx
++++ b/src/components/AIChatPanel.tsx
+@@ -1,13 +1,16 @@
+ import React, { useState, useRef, useEffect } from "react";
++import { motion } from "framer-motion";
+ import { Send, Sparkles, X, History, Plus, Trash2 } from "lucide-react";
+ import { askAI, extractAndSaveMemory } from "../services/aiService";
+ import CopyBlock from "./CopyBlock";
++import GenericConfirmModal from "./GenericConfirmModal";
+ import { 
+   getAISessions, 
+   createAISession, 
+   deleteAISession, 
+   getAIMessages, 
+   addAIMessage,
++  updateAIMessage,
+   updateAISessionTitle,
+   AISession
+ } from "../database/queries/aiChat";
+@@ -23,7 +26,23 @@ interface AIChatPanelProps {
+   onClose: () => void;
+ }
+ 
++const WELCOME_TEXT = "ChĂ o Báº£o! TĂ´i lĂ  Notebook Agent cá»§a báº¡n. TĂ´i cĂ³ thá»ƒ Ä‘á»c/táº¡o note, Ä‘á»c/táº¡o task, lÆ°u ngĂ y quan trá»ng vĂ  dĂ¹ng web search khi cáº§n dá»¯ liá»‡u má»›i.";
++
++const normalizeWelcomeMessage = (message: Message): Message => {
++  if (
++    message.text.includes("Notebook Agent") &&
++    (message.text.includes("Daily Note") || message.text.includes("Jira"))
++  ) {
++    return { ...message, text: WELCOME_TEXT };
++  }
++
++  return message;
++};
++
+ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
++  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
++  const [sessionIdToDelete, setSessionIdToDelete] = useState<string | null>(null);
++  
+   // Session States
+   const [sessions, setSessions] = useState<AISession[]>([]);
+   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+@@ -33,6 +52,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+   const [messages, setMessages] = useState<Message[]>([]);
+   const [input, setInput] = useState("");
+   const [loading, setLoading] = useState(false);
++  const [isInputFocused, setIsInputFocused] = useState(false);
+   
+   const messagesEndRef = useRef<HTMLDivElement>(null);
+   const streamRunRef = useRef(0);
+@@ -108,12 +128,21 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+   const loadMessages = async (sessionId: string) => {
+     const list = await getAIMessages(sessionId);
+     if (list.length > 0) {
+-      setMessages(list.map(m => ({ sender: m.sender, text: m.text })));
++      const normalizedMessages = await Promise.all(
++        list.map(async (m) => {
++          const message = normalizeWelcomeMessage({ sender: m.sender, text: m.text });
++          if (message.text !== m.text) {
++            await updateAIMessage(m.id, message.text);
++          }
++          return message;
++        })
++      );
++      setMessages(normalizedMessages);
+     } else {
+       setMessages([
+         {
+           sender: "ai",
+-          text: "ChĂ o Báº£o! TĂ´i lĂ  Notebook Agent cá»§a báº¡n. TĂ´i cĂ³ thá»ƒ Ä‘á»c ghi chĂº, tĂ¬m task, tĂ³m táº¯t Daily Note, tra Jira vĂ  dĂ¹ng web search khi cáº§n dá»¯ liá»‡u má»›i."
++          text: WELCOME_TEXT
+         }
+       ]);
+     }
+@@ -143,11 +172,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+     
+     // Add default initial message to SQLite
+     const msgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
+-    const welcomeText = "ChĂ o Báº£o! TĂ´i lĂ  Notebook Agent cá»§a báº¡n. TĂ´i cĂ³ thá»ƒ Ä‘á»c ghi chĂº, tĂ¬m task, tĂ³m táº¯t Daily Note, tra Jira vĂ  dĂ¹ng web search khi cáº§n dá»¯ liá»‡u má»›i.";
+-    await addAIMessage(msgId, newId, "ai", welcomeText);
++    await addAIMessage(msgId, newId, "ai", WELCOME_TEXT);
+ 
+     setActiveSessionId(newId);
+-    setMessages([{ sender: "ai", text: welcomeText }]);
++    setMessages([{ sender: "ai", text: WELCOME_TEXT }]);
+     
+     // Reload sessions list
+     const list = await getAISessions();
+@@ -156,20 +184,30 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+   };
+ 
+   // 4. Delete session
+-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
++  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+     e.preventDefault();
+     e.stopPropagation();
+-    
+-    if (window.confirm("Báº¡n cĂ³ cháº¯c cháº¯n muá»‘n xĂ³a phiĂªn chat nĂ y vĂ  toĂ n bá»™ lá»‹ch sá»­ tin nháº¯n liĂªn quan?")) {
+-      await deleteAISession(sessionId);
++    setSessionIdToDelete(sessionId);
++    setShowDeleteConfirm(true);
++  };
++
++  const handleConfirmDeleteSession = async () => {
++    if (!sessionIdToDelete) return;
++    try {
++      await deleteAISession(sessionIdToDelete);
+       
+       // If we deleted the active session, reset active ID
+-      if (activeSessionId === sessionId) {
++      if (activeSessionId === sessionIdToDelete) {
+         await loadSessions(null);
+       } else {
+         const list = await getAISessions();
+         setSessions(list);
+       }
++    } catch (err) {
++      console.error("Failed to delete chat session:", err);
++    } finally {
++      setShowDeleteConfirm(false);
++      setSessionIdToDelete(null);
+     }
+   };
+ 
+@@ -608,36 +646,45 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+       <div className="flex-1 p-4 space-y-4 overflow-y-auto text-xs">
+         {messages.map((msg, index) => {
+           const isUser = msg.sender === "user";
+-          return (
+-            <div 
+-              key={index} 
+-              className={`${isUser ? "text-right" : "bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"} chat-bubble-animate`}
++          return isUser ? (
++            <motion.div 
++              key={index}
++              initial={{ opacity: 0, scale: 0.96, y: 10 }}
++              animate={{ opacity: 1, scale: 1, y: 0 }}
++              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
++              className="text-right"
+             >
+-              {isUser ? (
+-                <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">
+-                  {msg.text}
+-                </span>
++              <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">
++                {msg.text}
++              </span>
++            </motion.div>
++          ) : (
++            <motion.div 
++              key={index}
++              initial={{ opacity: 0, y: 10 }}
++              animate={{ opacity: 1, y: 0 }}
++              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
++              className="bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"
++            >
++              {msg.isStreaming ? (
++                <div className="space-y-2">
++                  {msg.thinking ? (
++                    <div className="flex items-center gap-1.5 text-purple-400">
++                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
++                      <span>{msg.thinking}</span>
++                    </div>
++                  ) : null}
++                  {msg.text ? (
++                    <div>
++                      {renderMessageContent(msg.text)}
++                      <span className="inline-block w-1.5 h-3 ml-0.5 align-[-1px] bg-purple-400 animate-pulse" />
++                    </div>
++                  ) : null}
++                </div>
+               ) : (
+-                msg.isStreaming ? (
+-                  <div className="space-y-2">
+-                    {msg.thinking ? (
+-                      <div className="flex items-center gap-1.5 text-purple-400">
+-                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
+-                        <span>{msg.thinking}</span>
+-                      </div>
+-                    ) : null}
+-                    {msg.text ? (
+-                      <div>
+-                        {renderMessageContent(msg.text)}
+-                        <span className="inline-block w-1.5 h-3 ml-0.5 align-[-1px] bg-purple-400 animate-pulse" />
+-                      </div>
+-                    ) : null}
+-                  </div>
+-                ) : (
+-                  renderMessageContent(msg.text)
+-                )
++                renderMessageContent(msg.text)
+               )}
+-            </div>
++            </motion.div>
+           );
+         })}
+         <div ref={messagesEndRef} />
+@@ -645,15 +692,19 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+ 
+       {/* 4. AI Chat Input */}
+       <div className="p-3 border-t border-zinc-200 dark:border-white/5 shrink-0">
+-        <div className="relative flex items-center">
++        <div className={`relative flex items-center w-full rounded-lg transition-all duration-300 glass-panel ${
++          (isInputFocused || loading) ? "premium-gradient-border border-transparent" : ""
++        }`}>
+           <input 
+             type="text" 
+             value={input}
+             onChange={(e) => setInput(e.target.value)}
+             onKeyDown={(e) => e.key === "Enter" && handleSend()}
++            onFocus={() => setIsInputFocused(true)}
++            onBlur={() => setIsInputFocused(false)}
+             disabled={loading}
+-            placeholder={loading ? "Agent Ä‘ang tráº£ lá»i..." : "Há»i agent vá» note, task, Jira, web..."} 
+-            className="w-full pl-3 pr-10 py-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-500 dark:placeholder-zinc-600 focus:outline-none disabled:opacity-50"
++            placeholder={loading ? "Agent Ä‘ang tráº£ lá»i..." : "Há»i hoáº·c táº¡o note, task, ngĂ y quan trá»ng..."} 
++            className="w-full pl-3 pr-10 py-2.5 rounded-lg bg-transparent border-none text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-500 dark:placeholder-zinc-600 focus:outline-none disabled:opacity-50"
+           />
+           <button 
+             type="button"
+@@ -665,6 +716,21 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+           </button>
+         </div>
+       </div>
++
++      {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING CHAT SESSION */}
++      <GenericConfirmModal 
++        isOpen={showDeleteConfirm}
++        title="XĂ³a lá»‹ch sá»­ chat"
++        message="Báº¡n cĂ³ cháº¯c cháº¯n muá»‘n xĂ³a phiĂªn chat nĂ y vĂ  toĂ n bá»™ lá»‹ch sá»­ tin nháº¯n liĂªn quan? HĂ nh Ä‘á»™ng nĂ y khĂ´ng thá»ƒ khĂ´i phá»¥c."
++        confirmLabel="XĂ³a phiĂªn chat"
++        cancelLabel="Há»§y"
++        type="danger"
++        onConfirm={handleConfirmDeleteSession}
++        onCancel={() => {
++          setShowDeleteConfirm(false);
++          setSessionIdToDelete(null);
++        }}
++      />
+     </aside>
+   );
+ }
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index d17c3b8..3cc9331 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -1,4 +1,5 @@
+ import { useState, useEffect } from "react";
++import { motion } from "framer-motion";
+ import { 
+   LayoutDashboard, 
+   FileText, 
+@@ -17,10 +18,9 @@ import { getImportantTasks, updateTaskStatus, Task } from "../database/queries/t
+ interface SidebarProps {
+   activeView: string;
+   setActiveView: (view: string) => void;
+-  jiraConnected: boolean;
+ }
+ 
+-export default function Sidebar({ activeView, setActiveView, jiraConnected }: SidebarProps) {
++export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
+   const [importantTasks, setImportantTasks] = useState<Task[]>([]);
+   const [isOpenReminders, setIsOpenReminders] = useState(false);
+ 
+@@ -60,7 +60,7 @@ export default function Sidebar({ activeView, setActiveView, jiraConnected }: Si
+     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+     { id: "notes", label: "Notes Editor", icon: FileText },
+     { id: "tasks", label: "Tasks & Kanban", icon: CheckSquare },
+-    { id: "daily", label: "Daily Notes", icon: Calendar },
++    { id: "calendar", label: "Lá»‹ch", icon: Calendar },
+   ];
+ 
+   return (
+@@ -83,10 +83,12 @@ export default function Sidebar({ activeView, setActiveView, jiraConnected }: Si
+             const Icon = item.icon;
+             const isActive = activeView === item.id;
+             return (
+-              <button
++              <motion.button
+                 key={item.id}
+                 type="button"
+                 onClick={() => setActiveView(item.id)}
++                whileHover={{ x: 4 }}
++                whileTap={{ scale: 0.97 }}
+                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                   isActive 
+                     ? "menu-active text-zinc-900 dark:text-white" 
+@@ -98,23 +100,11 @@ export default function Sidebar({ activeView, setActiveView, jiraConnected }: Si
+                 {item.id === "tasks" && importantTasks.length > 0 && (
+                   <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse animate-duration-1000" title={`CĂ³ ${importantTasks.length} viá»‡c quan trá»ng cáº§n xá»­ lĂ½!`} />
+                 )}
+-              </button>
++              </motion.button>
+             );
+           })}
+         </div>
+ 
+-        {/* Workspace Mock Section */}
+-        <div className="space-y-1">
+-          <p className="px-3 text-[9px] font-bold text-zinc-550 dark:text-zinc-550 uppercase tracking-wider mb-2">WORKSPACES</p>
+-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-zinc-700 dark:text-zinc-400">
+-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+-            <span>GL Work</span>
+-          </div>
+-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-zinc-700 dark:text-zinc-400">
+-            <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+-            <span>Game Dev</span>
+-          </div>
+-        </div>
+       </nav>
+ 
+       {/* 2.5 Collapsible Reminders Panel */}
+@@ -173,9 +163,11 @@ export default function Sidebar({ activeView, setActiveView, jiraConnected }: Si
+ 
+       {/* Footer Profile & Settings */}
+       <div className="p-3 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2 shrink-0">
+-        <button
++        <motion.button
+           type="button"
+           onClick={() => setActiveView("settings")}
++          whileHover={{ x: 4 }}
++          whileTap={{ scale: 0.97 }}
+           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+             activeView === "settings"
+               ? "menu-active text-zinc-900 dark:text-white"
+@@ -184,7 +176,7 @@ export default function Sidebar({ activeView, setActiveView, jiraConnected }: Si
+         >
+           <Settings className="w-4 h-4" />
+           <span>Settings & Integrations</span>
+-        </button>
++        </motion.button>
+ 
+         <div className="px-3 py-2 flex items-center gap-2.5 bg-black/5 dark:bg-white/5 rounded-lg">
+           <div className="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 flex items-center justify-center font-bold text-xs shrink-0">
+@@ -193,7 +185,7 @@ export default function Sidebar({ activeView, setActiveView, jiraConnected }: Si
+           <div className="flex-1 overflow-hidden">
+             <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">Bao Duong</p>
+             <span className="text-[8px] text-zinc-650 dark:text-zinc-450 font-medium">
+-              {jiraConnected ? "Connected: Jira" : "Local mode"}
++              Local mode
+             </span>
+           </div>
+         </div>
+diff --git a/src/index.css b/src/index.css
+index bc6c3f8..79a4050 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -14,6 +14,8 @@
+   --text-active-menu: #4c1d95;
+   --bg-active-menu: rgba(139, 92, 246, 0.1);
+   --glass-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
++  --primary-glow: rgba(139, 92, 246, 0.15);
++  --primary-glow-secondary: rgba(139, 92, 246, 0.1);
+ }
+ 
+ .dark {
+@@ -27,6 +29,8 @@
+   --text-active-menu: #ffffff;
+   --bg-active-menu: rgba(139, 92, 246, 0.12);
+   --glass-shadow: none;
++  --primary-glow: rgba(139, 92, 246, 0.25);
++  --primary-glow-secondary: rgba(139, 92, 246, 0.15);
+ }
+ 
+ @layer base {
+@@ -115,16 +119,6 @@ button:active:not(:disabled) {
+   transform: scale(0.97);
+ }
+ 
+-/* Sidebar navigation buttons hover translate */
+-aside nav button, aside p + button {
+-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+-}
+-aside nav button:hover, aside p + button:hover {
+-  transform: translateX(4px);
+-}
+-aside nav button:active, aside p + button:active {
+-  transform: translateX(4px) scale(0.96) !important;
+-}
+ 
+ /* View Transition (Fade + Slide Up) */
+ @keyframes viewEnter {
+@@ -170,3 +164,51 @@ aside nav button:active, aside p + button:active {
+ .kanban-col-animate {
+   animation: kanbanColumnEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+ }
++
++/* Animated Running Gradient Border */
++.premium-gradient-border {
++  position: relative;
++  border-radius: 12px;
++  z-index: 1;
++}
++
++.premium-gradient-border::before {
++  content: "";
++  position: absolute;
++  inset: -1.5px;
++  border-radius: 13.5px;
++  padding: 1.5px; /* Border thickness */
++  background: conic-gradient(
++    from 0deg,
++    #8b5cf6 0%,
++    #0d9488 25%,
++    #ec4899 50%,
++    #8b5cf6 75%,
++    #0d9488 100%
++  );
++  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
++  -webkit-mask-composite: xor;
++  mask-composite: exclude;
++  pointer-events: none;
++  z-index: -1;
++  animation: rotateGradient 4s linear infinite;
++  opacity: 0.85;
++}
++
++@keyframes rotateGradient {
++  from {
++    transform: rotate(0deg);
++  }
++  to {
++    transform: rotate(360deg);
++  }
++}
++
++/* Hover Accent Card Glow */
++.premium-hover-glow {
++  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
++}
++.premium-hover-glow:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 10px 25px -5px var(--primary-glow), 0 8px 10px -6px var(--primary-glow-secondary);
++}

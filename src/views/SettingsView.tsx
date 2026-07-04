@@ -2,11 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon } from "lucide-react";
 import { getDatabase } from "../database/db";
 import { createNote, getNotes, Note, updateNote } from "../database/queries/notes";
-import { testJiraConnection } from "../services/jiraService";
 
 interface SettingsViewProps {
-  jiraConnected: boolean;
-  setJiraConnected: (connected: boolean) => void;
   triggerToast: (message: string) => void;
   theme: "light" | "dark";
   setTheme: (theme: "light" | "dark") => void;
@@ -19,18 +16,11 @@ interface LegacyAIMemory {
 }
 
 export default function SettingsView({ 
-  jiraConnected, 
-  setJiraConnected, 
   triggerToast,
   theme,
   setTheme
 }: SettingsViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Jira Form States
-  const [jiraBaseUrl, setJiraBaseUrl] = useState("");
-  const [jiraEmail, setJiraEmail] = useState("");
-  const [jiraApiToken, setJiraApiToken] = useState("");
-  const [testingJira, setTestingJira] = useState(false);
 
   // AI Form States
   const [aiApiKey, setAiApiKey] = useState("");
@@ -47,6 +37,9 @@ export default function SettingsView({
   const [pinEnabled, setPinEnabled] = useState(false);
   const [pinCode, setPinCode] = useState("");
   const [showPinInput, setShowPinInput] = useState(false);
+
+  // Google Auth Client ID State
+  const [googleClientId, setGoogleClientId] = useState("");
 
   // Agent memory viewer
   const [userMemoryContent, setUserMemoryContent] = useState("");
@@ -222,19 +215,6 @@ export default function SettingsView({
       containerRef.current.scrollTop = 0;
     }
 
-    // Load Jira
-    const jiraConfig = localStorage.getItem("jira_config");
-    if (jiraConfig) {
-      try {
-        const parsed = JSON.parse(jiraConfig);
-        setJiraBaseUrl(parsed.baseUrl || "");
-        setJiraEmail(parsed.email || "");
-        setJiraApiToken(parsed.apiToken || "");
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
     // Load AI
     const aiConfig = localStorage.getItem("ai_config");
     if (aiConfig) {
@@ -271,20 +251,16 @@ export default function SettingsView({
     setPinEnabled(enabled);
     setPinCode(code);
 
+    // Load Google Client ID
+    const savedClientId = localStorage.getItem("google_client_id") || "";
+    setGoogleClientId(savedClientId);
+
     loadAgentMemoryData();
   }, []);
 
   // Save Configs
   const handleSaveConfigs = () => {
-    // 1. Save Jira
-    const jiraData = {
-      baseUrl: jiraBaseUrl.trim(),
-      email: jiraEmail.trim(),
-      apiToken: jiraApiToken.trim()
-    };
-    localStorage.setItem("jira_config", JSON.stringify(jiraData));
-
-    // 2. Save AI
+    // 1. Save AI
     const aiData = {
       apiKey: aiApiKey.trim(),
       baseUrl: aiBaseUrl.trim(),
@@ -292,7 +268,7 @@ export default function SettingsView({
     };
     localStorage.setItem("ai_config", JSON.stringify(aiData));
 
-    // 3. Save Search
+    // 2. Save Search
     const searchData = {
       provider: searchProvider,
       apiKey: searchApiKey.trim(),
@@ -304,39 +280,10 @@ export default function SettingsView({
     triggerToast("Đã lưu cấu hình trợ lý AI & Tìm kiếm thành công!");
   };
 
-  // Test connection to Jira API
-  const handleTestJira = async () => {
-    if (!jiraBaseUrl || !jiraEmail || !jiraApiToken) {
-      triggerToast("Vui lòng điền đủ thông tin kết nối Jira!");
-      return;
-    }
-
-    setTestingJira(true);
-    triggerToast("Đang kiểm tra kết nối Jira Cloud...");
-
-    const config = {
-      baseUrl: jiraBaseUrl.trim(),
-      email: jiraEmail.trim(),
-      apiToken: jiraApiToken.trim()
-    };
-
-    try {
-      const isOk = await testJiraConnection(config);
-      if (isOk) {
-        setJiraConnected(true);
-        // Save automatically if test succeeds
-        localStorage.setItem("jira_config", JSON.stringify(config));
-        triggerToast("Kết nối Jira Cloud thành công! Đã lưu cấu hình.");
-      } else {
-        setJiraConnected(false);
-        triggerToast("Kết nối thất bại! Vui lòng kiểm tra lại thông tin.");
-      }
-    } catch (err: any) {
-      setJiraConnected(false);
-      triggerToast(err.message || "Lỗi kiểm tra kết nối!");
-    } finally {
-      setTestingJira(false);
-    }
+  const handleSaveGoogleAuth = () => {
+    localStorage.setItem("google_client_id", googleClientId.trim());
+    window.dispatchEvent(new CustomEvent("auth-state-changed"));
+    triggerToast("Đã lưu Google Client ID thành công!");
   };
 
   const handleTogglePin = () => {
@@ -402,75 +349,12 @@ export default function SettingsView({
     <div ref={containerRef} className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1 pb-10">
       <div>
         <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white">Settings & Integrations</h3>
-        <p className="text-[10px] text-zinc-600 dark:text-zinc-500">Cấu hình kết nối API thực tế cho Jira và Trợ lý AI của bạn.</p>
+        <p className="text-[10px] text-zinc-600 dark:text-zinc-500">Cấu hình trợ lý AI, tìm kiếm, bảo mật và sao lưu dữ liệu.</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 max-w-6xl">
-        
-        {/* 1. Integration Card (Jira) */}
-        <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-4">
-          <div className="flex items-center gap-3 border-b border-white/5 pb-3">
-            <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white shrink-0">
-              <Globe className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">Jira Cloud Integration</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-600 dark:text-zinc-500">Cho phép kéo thả task Jira và sync trạng thái an toàn.</p>
-            </div>
-            <span className={`ml-auto text-[9px] px-2 py-0.5 rounded-full font-bold ${
-              jiraConnected ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-500"
-            }`}>
-              {jiraConnected ? "Connected" : "Disconnected"}
-            </span>
-          </div>
 
-          <div className="space-y-3 text-xs text-zinc-750 dark:text-zinc-300">
-            <div>
-              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">Jira Base URL</label>
-              <input 
-                type="text" 
-                value={jiraBaseUrl} 
-                onChange={(e) => setJiraBaseUrl(e.target.value)}
-                placeholder="Ví dụ: https://company.atlassian.net" 
-                className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs" 
-              />
-            </div>
-            <div>
-              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">Email Tài khoản</label>
-              <input 
-                type="email" 
-                value={jiraEmail} 
-                onChange={(e) => setJiraEmail(e.target.value)}
-                placeholder="email@company.vn" 
-                className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs" 
-              />
-            </div>
-            <div>
-              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">Jira API Token</label>
-              <input 
-                type="password" 
-                value={jiraApiToken} 
-                onChange={(e) => setJiraApiToken(e.target.value)}
-                placeholder="Nhập API Token Jira của bạn..." 
-                autoComplete="new-password"
-                className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs" 
-              />
-              <span className="text-[9px] text-zinc-650 dark:text-zinc-500 mt-1 block">Tạo token tại id.atlassian.com/manage-profile/security/api-tokens</span>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button 
-                type="button"
-                onClick={handleTestJira}
-                disabled={testingJira}
-                className="px-3.5 py-2 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold transition-all disabled:opacity-50"
-              >
-                {testingJira ? "Testing..." : "Test & Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Integration Card (AI API Keys) */}
+        {/* 1. Integration Card (AI API Keys) */}
         <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-4">
           <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
             <div className="w-8 h-8 rounded bg-purple-600 flex items-center justify-center text-white shrink-0">
@@ -700,6 +584,44 @@ export default function SettingsView({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Google Sync Client ID Configuration */}
+        <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
+            <div className="w-8 h-8 rounded bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
+              <Globe className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">Google OAuth Client ID</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">Cấu hình OAuth Client ID để sử dụng Đăng nhập Google thật sự.</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs text-zinc-750 dark:text-zinc-300">
+            <div>
+              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">OAuth Web Client ID</label>
+              <input 
+                type="text" 
+                value={googleClientId} 
+                onChange={(e) => setGoogleClientId(e.target.value)}
+                placeholder="Ví dụ: 123456-abc.apps.googleusercontent.com" 
+                className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
+              />
+              <span className="text-[9px] text-zinc-655 dark:text-zinc-500 mt-1.5 block leading-normal">
+                Để lấy Client ID: Vào Google Cloud Console &rarr; API & Services &rarr; Credentials &rarr; Create OAuth Client ID (loại Web Application). Thêm JavaScript Origin: <code>http://localhost:5173</code> (hoặc port chạy app dev).
+              </span>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button 
+                type="button"
+                onClick={handleSaveGoogleAuth}
+                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10"
+              >
+                Lưu Client ID
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* 3.5 Theme Settings Card */}

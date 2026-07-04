@@ -60,7 +60,10 @@ class WebDatabase {
     }
     else if (q.startsWith("insert into tasks")) {
       const tasks = this.getTable("tasks");
-      const [id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, is_pending_sync] = values;
+      const includesExternalStatus = q.includes("external_status");
+      const [id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url] = values;
+      const external_status = includesExternalStatus ? values[11] : null;
+      const is_pending_sync = includesExternalStatus ? values[12] : values[11];
       tasks.push({ 
         id, 
         note_id, 
@@ -73,6 +76,7 @@ class WebDatabase {
         source, 
         external_id, 
         external_url, 
+        external_status,
         is_pending_sync, 
         created_at: new Date().toISOString(), 
         updated_at: new Date().toISOString() 
@@ -88,13 +92,34 @@ class WebDatabase {
       }
       this.saveTable("tasks", tasks);
     }
+    else if (q.startsWith("update tasks set title = ?") && q.includes("where external_id = ?")) {
+      const hasExternalStatus = q.includes("external_status");
+      const [title, status, priority, external_url] = values;
+      const external_status = hasExternalStatus ? values[4] : undefined;
+      const updated_at = hasExternalStatus ? values[5] : values[4];
+      const external_id = hasExternalStatus ? values[6] : values[5];
+      const tasks = this.getTable("tasks");
+      const idx = tasks.findIndex((t: any) => t.external_id === external_id);
+      if (idx !== -1) {
+        tasks[idx] = { ...tasks[idx], title, status, priority, external_url, updated_at };
+        if (hasExternalStatus) {
+          tasks[idx].external_status = external_status;
+        }
+      }
+      this.saveTable("tasks", tasks);
+    }
     else if (q.startsWith("update tasks set")) {
       // Full task update
-      const [note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, is_pending_sync, updated_at, id] = values;
+      const hasExternalStatus = q.includes("external_status");
+      const [note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url] = values;
+      const external_status = hasExternalStatus ? values[10] : null;
+      const is_pending_sync = 1;
+      const updated_at = hasExternalStatus ? values[11] : values[10];
+      const id = hasExternalStatus ? values[12] : values[11];
       const tasks = this.getTable("tasks");
       const idx = tasks.findIndex((t: any) => t.id === id);
       if (idx !== -1) {
-        tasks[idx] = { ...tasks[idx], note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, is_pending_sync, updated_at };
+        tasks[idx] = { ...tasks[idx], note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, external_status, is_pending_sync, updated_at };
       }
       this.saveTable("tasks", tasks);
     }
@@ -112,6 +137,47 @@ class WebDatabase {
     }
     else if (q.startsWith("delete from activity_logs")) {
       this.saveTable("activity_logs", []);
+    }
+    else if (q.startsWith("insert into calendar_events")) {
+      const events = this.getTable("calendar_events");
+      const [
+        id,
+        title,
+        event_type,
+        date_type,
+        solar_date,
+        lunar_day,
+        lunar_month,
+        lunar_year,
+        is_lunar_leap,
+        repeat_yearly,
+        is_important,
+        notes
+      ] = values;
+      const now = new Date().toISOString();
+      events.push({
+        id,
+        title,
+        event_type,
+        date_type,
+        solar_date,
+        lunar_day,
+        lunar_month,
+        lunar_year,
+        is_lunar_leap,
+        repeat_yearly,
+        is_important,
+        notes,
+        created_at: now,
+        updated_at: now
+      });
+      this.saveTable("calendar_events", events);
+    }
+    else if (q.startsWith("delete from calendar_events")) {
+      const id = values[0];
+      let events = this.getTable("calendar_events");
+      events = events.filter((event: any) => event.id !== id);
+      this.saveTable("calendar_events", events);
     }
     else if (q.startsWith("insert into ai_sessions")) {
       const sessions = this.getTable("ai_sessions");
@@ -138,6 +204,15 @@ class WebDatabase {
       const messages = this.getTable("ai_messages");
       const [id, session_id, sender, text, created_at] = values;
       messages.push({ id, session_id, sender, text, created_at });
+      this.saveTable("ai_messages", messages);
+    }
+    else if (q.startsWith("update ai_messages set text = ?")) {
+      const [text, id] = values;
+      const messages = this.getTable("ai_messages");
+      const idx = messages.findIndex((m: any) => m.id === id);
+      if (idx !== -1) {
+        messages[idx] = { ...messages[idx], text };
+      }
       this.saveTable("ai_messages", messages);
     }
     else if (q.startsWith("delete from ai_messages")) {
@@ -207,6 +282,11 @@ class WebDatabase {
     
     if (q.includes("from tasks")) {
       const tasks = this.getTable("tasks");
+
+      if (q.includes("external_id = ?")) {
+        const externalId = values[0];
+        return tasks.filter((t: any) => t.external_id === externalId) as unknown as T;
+      }
       
       if (q.includes("workspace_id = ?")) {
         const wsId = values[0];
@@ -214,9 +294,17 @@ class WebDatabase {
       }
 
       if (q.includes("status != 'done'")) {
-        const today = new Date().toISOString().split('T')[0];
+        const dateLimit = values[0] || new Date().toISOString().split('T')[0];
+        const dueDateOnly = (value: string | null) => value ? value.slice(0, 10) : null;
+
+        if (q.includes("priority = 'high'")) {
+          return tasks.filter((t: any) => 
+            t.status !== 'done' && (t.priority === 'high' || (dueDateOnly(t.due_date) !== null && dueDateOnly(t.due_date)! <= dateLimit))
+          ).sort((a: any, b: any) => (a.due_date || '').localeCompare(b.due_date || '') || b.priority.localeCompare(a.priority)) as unknown as T;
+        }
+
         return tasks.filter((t: any) => 
-          t.status !== 'done' && (t.due_date <= today || t.due_date === null)
+          t.status !== 'done' && (dueDateOnly(t.due_date) !== null ? dueDateOnly(t.due_date)! <= dateLimit : true)
         ).sort((a: any, b: any) => b.priority.localeCompare(a.priority)) as unknown as T;
       }
       
@@ -233,6 +321,11 @@ class WebDatabase {
     if (q.includes("from activity_logs")) {
       const logs = this.getTable("activity_logs");
       return logs.sort((a: any, b: any) => b.created_at.localeCompare(a.created_at)).slice(0, 100) as unknown as T;
+    }
+
+    if (q.includes("from calendar_events")) {
+      const events = this.getTable("calendar_events");
+      return events.sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || "")) as unknown as T;
     }
     
     if (q.includes("from ai_sessions")) {
@@ -362,9 +455,10 @@ export async function initDatabase(): Promise<DatabaseConnection> {
         due_date DATE,
         workspace_id TEXT,
         project_id TEXT,
-        source TEXT CHECK(source IN ('local', 'jira')) DEFAULT 'local',
+        source TEXT CHECK(source IN ('local')) DEFAULT 'local',
         external_id TEXT,
         external_url TEXT,
+        external_status TEXT,
         is_pending_sync INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -374,15 +468,41 @@ export async function initDatabase(): Promise<DatabaseConnection> {
       );
     `);
 
+    try {
+      await db.execute("ALTER TABLE tasks ADD COLUMN external_status TEXT");
+    } catch {
+      // Column already exists in upgraded databases.
+    }
+
     // Create activity_logs table
     await db.execute(`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id TEXT PRIMARY KEY,
-        target_type TEXT CHECK(target_type IN ('note', 'task', 'copy_block', 'jira', 'sync', 'ai')) NOT NULL,
+        target_type TEXT CHECK(target_type IN ('note', 'task', 'copy_block', 'sync', 'ai')) NOT NULL,
         target_id TEXT,
         action TEXT NOT NULL,
         description TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create calendar_events table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        event_type TEXT CHECK(event_type IN ('birthday', 'holiday', 'anniversary', 'other')) DEFAULT 'other',
+        date_type TEXT CHECK(date_type IN ('solar', 'lunar')) NOT NULL,
+        solar_date TEXT,
+        lunar_day INTEGER,
+        lunar_month INTEGER,
+        lunar_year INTEGER,
+        is_lunar_leap INTEGER DEFAULT 0,
+        repeat_yearly INTEGER DEFAULT 1,
+        is_important INTEGER DEFAULT 1,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
 

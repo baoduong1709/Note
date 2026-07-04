@@ -14,6 +14,8 @@
   --text-active-menu: #4c1d95;
   --bg-active-menu: rgba(139, 92, 246, 0.1);
   --glass-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --primary-glow: rgba(139, 92, 246, 0.15);
+  --primary-glow-secondary: rgba(139, 92, 246, 0.1);
 }
 
 .dark {
@@ -27,6 +29,8 @@
   --text-active-menu: #ffffff;
   --bg-active-menu: rgba(139, 92, 246, 0.12);
   --glass-shadow: none;
+  --primary-glow: rgba(139, 92, 246, 0.25);
+  --primary-glow-secondary: rgba(139, 92, 246, 0.15);
 }
 
 @layer base {
@@ -68,7 +72,7 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .glass-panel:hover {
   border-color: rgba(139, 92, 246, 0.25);
@@ -91,7 +95,9 @@
 .menu-active {
   color: var(--text-active-menu);
   background: var(--bg-active-menu);
-  border-left: 3px solid #8b5cf6;
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, #8b5cf6, #0d9488) 1;
+  position: relative;
 }
 
 /* Toast show/hide transition */
@@ -115,16 +121,6 @@ button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
-/* Sidebar navigation buttons hover translate */
-aside nav button, aside p + button {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-aside nav button:hover, aside p + button:hover {
-  transform: translateX(4px);
-}
-aside nav button:active, aside p + button:active {
-  transform: translateX(4px) scale(0.96) !important;
-}
 
 /* View Transition (Fade + Slide Up) */
 @keyframes viewEnter {
@@ -169,4 +165,423 @@ aside nav button:active, aside p + button:active {
 }
 .kanban-col-animate {
   animation: kanbanColumnEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ============================================
+   ANIMATED GRADIENT EFFECTS
+   ============================================ */
+
+/* --- 1. Floating Aurora Orbs --- */
+@keyframes floatOrb1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(60px, -40px) scale(1.1); }
+  50% { transform: translate(-30px, -80px) scale(0.95); }
+  75% { transform: translate(-60px, 20px) scale(1.05); }
+}
+@keyframes floatOrb2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-50px, 50px) scale(1.08); }
+  50% { transform: translate(40px, 70px) scale(0.92); }
+  75% { transform: translate(70px, -30px) scale(1.12); }
+}
+@keyframes floatOrb3 {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  33% { transform: translate(80px, 30px) scale(0.9); }
+  66% { transform: translate(-40px, -60px) scale(1.1); }
+}
+@keyframes floatOrb4 {
+  0%, 100% { transform: translate(0, 0) scale(0.95); }
+  20% { transform: translate(-70px, -50px) scale(1.1); }
+  40% { transform: translate(30px, -90px) scale(1); }
+  60% { transform: translate(80px, 10px) scale(0.9); }
+  80% { transform: translate(-20px, 60px) scale(1.05); }
+}
+
+.aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+.aurora-orb-1 {
+  width: 400px; height: 400px;
+  top: -8%; left: -5%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0) 70%);
+  animation: floatOrb1 20s ease-in-out infinite;
+}
+.dark .aurora-orb-1 {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0) 70%);
+}
+.aurora-orb-2 {
+  width: 350px; height: 350px;
+  bottom: -10%; right: -5%;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.3) 0%, rgba(13, 148, 136, 0) 70%);
+  animation: floatOrb2 25s ease-in-out infinite;
+}
+.dark .aurora-orb-2 {
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(13, 148, 136, 0) 70%);
+}
+.aurora-orb-3 {
+  width: 300px; height: 300px;
+  top: 40%; left: 30%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, rgba(236, 72, 153, 0) 70%);
+  animation: floatOrb3 18s ease-in-out infinite;
+}
+.dark .aurora-orb-3 {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%);
+}
+.aurora-orb-4 {
+  width: 250px; height: 250px;
+  top: 15%; right: 20%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0) 70%);
+  animation: floatOrb4 22s ease-in-out infinite;
+}
+.dark .aurora-orb-4 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0) 70%);
+}
+
+/* --- 2. Animated Gradient Text --- */
+@keyframes gradientTextFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gradient-text-animated {
+  background: linear-gradient(
+    270deg,
+    #8b5cf6,
+    #0d9488,
+    #ec4899,
+    #6366f1,
+    #8b5cf6
+  );
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientTextFlow 6s ease infinite;
+}
+
+/* --- 3. Shimmer Sweep on Hover --- */
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+.shimmer-hover {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.06) 40%,
+    rgba(139, 92, 246, 0.12) 50%,
+    rgba(139, 92, 246, 0.06) 60%,
+    transparent 100%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
+  z-index: 1;
+  transition: none;
+}
+.shimmer-hover:hover::after {
+  animation: shimmerSweep 0.8s ease-out forwards;
+}
+
+/* --- 4. Enhanced Animated Gradient Border --- */
+.premium-gradient-border {
+  position: relative;
+  border-radius: 12px;
+  z-index: 1;
+}
+
+.premium-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 13.5px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--gradient-angle, 0deg),
+    #8b5cf6 0%,
+    #0d9488 25%,
+    #ec4899 50%,
+    #6366f1 75%,
+    #8b5cf6 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+  animation: rotateGradient 4s linear infinite;
+  opacity: 0.85;
+}
+
+/* Urgent variant - faster rotation + brighter */
+.premium-gradient-border-urgent::before {
+  animation: rotateGradient 2s linear infinite;
+  opacity: 1;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--gradient-angle, 0deg),
+    #ef4444 0%,
+    #f59e0b 25%,
+    #ec4899 50%,
+    #8b5cf6 75%,
+    #ef4444 100%
+  );
+}
+
+@keyframes rotateGradient {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* --- 5. Gradient Button with Moving Background --- */
+@keyframes gradientButtonShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gradient-btn {
+  background: linear-gradient(270deg, #8b5cf6, #6366f1, #0d9488, #8b5cf6);
+  background-size: 300% 300%;
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.gradient-btn:hover {
+  animation: gradientButtonShift 3s ease infinite;
+  box-shadow: 0 8px 25px -5px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+.gradient-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  transform: translateX(-100%);
+  transition: none;
+}
+.gradient-btn:hover::after {
+  animation: shimmerSweep 0.6s ease-out forwards;
+}
+
+/* --- 6. Sidebar Logo Gradient Spin --- */
+@keyframes logoGradientSpin {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+.logo-gradient-spin {
+  animation: logoGradientSpin 8s linear infinite;
+}
+
+/* --- 7. Sidebar Active Gradient Indicator --- */
+@keyframes sidebarIndicatorFlow {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 0% 100%; }
+  100% { background-position: 0% 0%; }
+}
+.menu-active-gradient {
+  position: relative;
+  overflow: hidden;
+}
+.menu-active-gradient::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #8b5cf6, #0d9488, #ec4899, #8b5cf6);
+  background-size: 100% 300%;
+  animation: sidebarIndicatorFlow 3s ease infinite;
+}
+
+/* --- 8. Profile Avatar Gradient Ring --- */
+@keyframes avatarRingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.avatar-gradient-ring {
+  position: relative;
+}
+.avatar-gradient-ring::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #8b5cf6,
+    #0d9488,
+    #ec4899,
+    #8b5cf6
+  );
+  z-index: -1;
+  animation: avatarRingSpin 6s linear infinite;
+}
+
+/* --- 9. Toast Gradient Border --- */
+.toast-gradient {
+  position: relative;
+  overflow: hidden;
+}
+.toast-gradient::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, #8b5cf6, #0d9488, #ec4899, #8b5cf6);
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: gradientButtonShift 3s ease infinite;
+  z-index: 0;
+}
+
+/* --- 10. Lock Screen Animated Background --- */
+@keyframes lockscreenAurora {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  75% {
+    background-position: 0% 100%;
+  }
+}
+.lockscreen-aurora {
+  background: linear-gradient(
+    -45deg,
+    #0f0f12,
+    #1a0a2e,
+    #0a1628,
+    #0f0f12,
+    #1e0a2a,
+    #0a2020
+  );
+  background-size: 400% 400%;
+  animation: lockscreenAurora 15s ease infinite;
+}
+
+/* Light mode lockscreen */
+.lockscreen-aurora-light {
+  background: linear-gradient(
+    -45deg,
+    #f5f3ff,
+    #ede9fe,
+    #e0f2fe,
+    #f5f3ff,
+    #fce7f3,
+    #ecfdf5
+  );
+  background-size: 400% 400%;
+  animation: lockscreenAurora 15s ease infinite;
+}
+
+/* --- 11. Floating AI Button Glow Pulse --- */
+@keyframes aiGlowPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.3), 0 0 30px rgba(139, 92, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(139, 92, 246, 0.5), 0 0 50px rgba(139, 92, 246, 0.2);
+  }
+}
+.ai-glow-pulse {
+  animation: aiGlowPulse 2s ease-in-out infinite;
+}
+
+/* --- 12. Bottom Nav Gradient Dot --- */
+@keyframes navDotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.7; }
+}
+.nav-dot-active {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #0d9488);
+  animation: navDotPulse 2s ease-in-out infinite;
+}
+
+/* --- 13. Card Icon Gradient Glow --- */
+@keyframes iconGlowPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(139, 92, 246, 0.3)); }
+  50% { filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.6)); }
+}
+.icon-glow {
+  animation: iconGlowPulse 3s ease-in-out infinite;
+}
+
+/* --- 14. Mesh Gradient Overlay --- */
+@keyframes meshShift {
+  0%, 100% { opacity: 0.3; transform: scale(1) rotate(0deg); }
+  33% { opacity: 0.5; transform: scale(1.02) rotate(1deg); }
+  66% { opacity: 0.35; transform: scale(0.98) rotate(-1deg); }
+}
+.mesh-gradient-overlay {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 20% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(13, 148, 136, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  animation: meshShift 12s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* --- 15. Sidebar Divider Gradient Shimmer --- */
+@keyframes dividerShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.3),
+    rgba(13, 148, 136, 0.3),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: dividerShimmer 4s ease-in-out infinite;
+  border: none;
+}
+
+/* Hover Accent Card Glow */
+.premium-hover-glow {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.premium-hover-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px var(--primary-glow), 0 8px 10px -6px var(--primary-glow-secondary);
 }

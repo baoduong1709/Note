@@ -9,9 +9,10 @@ export interface Task {
   due_date: string | null;
   workspace_id: string | null;
   project_id: string | null;
-  source: 'local' | 'jira';
+  source: 'local';
   external_id: string | null;
   external_url: string | null;
+  external_status?: string | null;
   is_pending_sync: number; // 0 or 1
   created_at?: string;
   updated_at?: string;
@@ -40,8 +41,8 @@ export async function getTaskById(id: string): Promise<Task | null> {
 export async function createTask(task: Task): Promise<void> {
   const db = await getDatabase();
   await db.execute(
-    `INSERT INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, is_pending_sync) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, external_status, is_pending_sync) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.id,
       task.note_id,
@@ -54,12 +55,16 @@ export async function createTask(task: Task): Promise<void> {
       task.source || "local",
       task.external_id,
       task.external_url,
+      task.external_status || null,
       task.is_pending_sync || 0
     ]
   );
 
   // Log activity
   await logActivity("task", task.id, "created", `Created task: ${task.title}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Update task status
@@ -76,6 +81,9 @@ export async function updateTaskStatus(id: string, status: Task['status']): Prom
 
   // Log activity
   await logActivity("task", id, "status_changed", `Changed task "${title}" status to ${status}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Update complete task data
@@ -95,6 +103,7 @@ export async function updateTask(task: Task): Promise<void> {
       source = ?, 
       external_id = ?, 
       external_url = ?, 
+      external_status = ?,
       is_pending_sync = 1,
       updated_at = ? 
      WHERE id = ?`,
@@ -109,6 +118,7 @@ export async function updateTask(task: Task): Promise<void> {
       task.source,
       task.external_id,
       task.external_url,
+      task.external_status || null,
       now,
       task.id
     ]
@@ -116,6 +126,9 @@ export async function updateTask(task: Task): Promise<void> {
 
   // Log activity
   await logActivity("task", task.id, "updated", `Updated task details for: ${task.title}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Delete task
@@ -128,6 +141,9 @@ export async function deleteTask(id: string): Promise<void> {
   
   // Log activity
   await logActivity("task", id, "deleted", `Deleted task: ${title}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Get tasks due today or overdue
@@ -135,7 +151,7 @@ export async function getTodayTasks(): Promise<Task[]> {
   const db = await getDatabase();
   const today = new Date().toISOString().split('T')[0];
   return await db.select<Task[]>(
-    "SELECT * FROM tasks WHERE status != 'done' AND (due_date <= ? OR due_date IS NULL) ORDER BY priority DESC",
+    "SELECT * FROM tasks WHERE status != 'done' AND (substr(due_date, 1, 10) <= ? OR due_date IS NULL) ORDER BY priority DESC",
     [today]
   );
 }
@@ -160,7 +176,7 @@ export async function getImportantTasks(): Promise<Task[]> {
   return await db.select<Task[]>(
     `SELECT * FROM tasks 
      WHERE status != 'done' 
-       AND (priority = 'high' OR (due_date IS NOT NULL AND due_date <= ?))
+       AND (priority = 'high' OR (due_date IS NOT NULL AND substr(due_date, 1, 10) <= ?))
      ORDER BY due_date ASC, priority DESC`,
     [dateLimit]
   );

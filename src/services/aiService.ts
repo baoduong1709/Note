@@ -1,10 +1,17 @@
 import { getDatabase } from "../database/db";
 import { getActivityLogs } from "../database/queries/logs";
-import { createNote, getNotes, searchNotes, updateNote } from "../database/queries/notes";
-import { getTasks, searchTasks } from "../database/queries/tasks";
-import { fetchJiraIssues } from "./jiraService";
+import { createNote, getNotes, Note, searchNotes, updateNote } from "../database/queries/notes";
+import { createTask, getTasks, searchTasks, Task } from "../database/queries/tasks";
+import {
+  CalendarDateType,
+  CalendarEvent,
+  CalendarEventType,
+  createCalendarEvent,
+  getCalendarEvents
+} from "../database/queries/calendarEvents";
+import { lunarToSolar, solarToLunar } from "../utils/lunarCalendar";
 
-// OpenAI-compatible AI service with a read-only agent tool layer.
+// OpenAI-compatible AI service with a local notebook agent tool layer.
 
 export interface AIConfig {
   baseUrl: string;
@@ -182,8 +189,134 @@ function formatDateTime(value?: string | null): string {
   });
 }
 
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function toLocalDateKey(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
 function todayIsoDate(): string {
-  return new Date().toISOString().split("T")[0];
+  return toLocalDateKey(new Date());
+}
+
+function makeLocalId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return fallback;
+  if (["true", "1", "yes", "y", "có", "co", "đúng", "dung"].includes(text)) return true;
+  if (["false", "0", "no", "n", "không", "khong", "sai"].includes(text)) return false;
+  return fallback;
+}
+
+function normalizeNoteType(value: unknown): Note["type"] {
+  const text = String(value || "").trim().toLowerCase();
+  if (["command", "cmd", "lệnh", "lenh"].includes(text)) return "command";
+  if (["workflow", "quy trình", "quy trinh"].includes(text)) return "workflow";
+  if (["error_fix", "error fix", "fix", "lỗi", "loi"].includes(text)) return "error_fix";
+  if (["prompt"].includes(text)) return "prompt";
+  return "quick";
+}
+
+function normalizeTaskStatus(value: unknown): Task["status"] {
+  const text = String(value || "").trim().toLowerCase();
+  if (["in_progress", "doing", "đang làm", "dang lam", "progress"].includes(text)) return "in_progress";
+  if (["blocked", "block", "kẹt", "ket"].includes(text)) return "blocked";
+  if (["done", "xong", "hoàn thành", "hoan thanh"].includes(text)) return "done";
+  return "todo";
+}
+
+function normalizeTaskPriority(value: unknown): Task["priority"] {
+  const text = String(value || "").trim().toLowerCase();
+  if (["high", "cao", "gấp", "gap", "urgent", "quan trọng", "quan trong"].includes(text)) return "high";
+  if (["low", "thấp", "thap"].includes(text)) return "low";
+  return "medium";
+}
+
+function normalizeCalendarEventType(value: unknown, title = ""): CalendarEventType {
+  const text = `${String(value || "")} ${title}`.trim().toLowerCase();
+  if (text.includes("sinh nhật") || text.includes("sinh nhat") || text.includes("birthday")) return "birthday";
+  if (text.includes("ngày lễ") || text.includes("ngay le") || text.includes("holiday") || text.includes("lễ")) return "holiday";
+  if (text.includes("kỷ niệm") || text.includes("ky niem") || text.includes("anniversary")) return "anniversary";
+  return "other";
+}
+
+function normalizeCalendarDateType(value: unknown, promptText = ""): CalendarDateType {
+  const text = `${String(value || "")} ${promptText}`.trim().toLowerCase();
+  return text.includes("âm") || text.includes("am ") || text.includes("lunar") ? "lunar" : "solar";
+}
+
+function parseDateInput(value: unknown): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const lower = raw.toLowerCase();
+  const today = new Date();
+  if (lower === "hôm nay" || lower === "hom nay" || lower === "today") {
+    return toLocalDateKey(today);
+  }
+  if (lower === "ngày mai" || lower === "ngay mai" || lower === "mai" || lower === "tomorrow") {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return toLocalDateKey(tomorrow);
+  }
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return validateDateParts(Number(year), Number(month), Number(day));
+  }
+
+  const vnMatch = raw.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
+  if (vnMatch) {
+    const day = Number(vnMatch[1]);
+    const month = Number(vnMatch[2]);
+    let year = vnMatch[3] ? Number(vnMatch[3]) : today.getFullYear();
+    if (year < 100) year += 2000;
+    return validateDateParts(year, month, day);
+  }
+
+  return null;
+}
+
+function validateDateParts(year: number, month: number, day: number): string | null {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return toLocalDateKey(date);
+}
+
+function parseLunarInput(args: Record<string, any>, fallbackText = ""): { day: number; month: number; year: number; isLeap: boolean } | null {
+  const todayLunar = solarToLunar(new Date());
+  const directDay = Number(args.lunar_day ?? args.day);
+  const directMonth = Number(args.lunar_month ?? args.month);
+  const directYear = Number(args.lunar_year ?? args.year ?? todayLunar.year);
+  const directLeap = normalizeBoolean(args.is_lunar_leap ?? args.isLeap, false);
+
+  if (Number.isInteger(directDay) && Number.isInteger(directMonth) && Number.isInteger(directYear)) {
+    if (directDay >= 1 && directDay <= 30 && directMonth >= 1 && directMonth <= 12 && directYear >= 1900 && directYear <= 2100) {
+      return { day: directDay, month: directMonth, year: directYear, isLeap: directLeap };
+    }
+  }
+
+  const raw = String(args.date || args.lunar_date || fallbackText || "").trim();
+  const match = raw.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = match[3] ? Number(match[3]) : todayLunar.year;
+  if (year < 100) year += 2000;
+  if (day < 1 || day > 30 || month < 1 || month > 12 || year < 1900 || year > 2100) return null;
+  return { day, month, year, isLeap: raw.toLowerCase().includes("nhuận") || raw.toLowerCase().includes("nhuan") };
 }
 
 function formatList(items: string[], emptyText: string): string {
@@ -216,11 +349,6 @@ async function buildNotebookContext(includeMemory: boolean): Promise<string> {
           `${task.title} [${task.status}, ${task.priority}${task.due_date ? `, hạn ${task.due_date}` : ""}]`
       );
 
-    const jiraTasks = tasks
-      .filter((task) => task.source === "jira")
-      .slice(0, 5)
-      .map((task) => `${task.external_id || task.id}: ${task.title} [${task.status}]`);
-
     const recentActivity = logs
       .slice(0, 8)
       .map((log) => `${formatDateTime(log.created_at)} - ${log.action}: ${compactText(log.description, 180)}`);
@@ -248,9 +376,6 @@ async function buildNotebookContext(includeMemory: boolean): Promise<string> {
       "",
       "[TASK HÔM NAY / QUÁ HẠN]",
       formatList(todayTasks, "Không có task mở tới hạn hôm nay."),
-      "",
-      "[TASK JIRA LOCAL]",
-      formatList(jiraTasks, "Chưa có task Jira local."),
       "",
       "[HOẠT ĐỘNG GẦN ĐÂY]",
       formatList(recentActivity, "Chưa có activity log.")
@@ -283,13 +408,15 @@ function buildSystemPrompt(localContext: string): string {
     "[NGUYÊN TẮC VẬN HÀNH]",
     "- Ưu tiên dùng dữ liệu notebook local trước khi suy đoán.",
     "- Với thông tin có thể thay đổi theo thời gian như tin tức, giá cả, luật lệ, phiên bản phần mềm, lịch trình hoặc dữ liệu web, hãy gọi web_search/web_extract trước khi kết luận.",
-    "- Không tự nhận đã tạo, sửa, xóa note/task/Jira. Các tool hiện tại là read-only; nếu người dùng muốn ghi dữ liệu, hãy tạo bản nháp hoặc action preview để UI xác nhận.",
+    "- Được phép tạo note, task hoặc ngày quan trọng khi người dùng yêu cầu rõ ràng. Nếu yêu cầu thiếu tên/ngày/nội dung cần thiết, hỏi tối đa một câu ngắn.",
+    "- Sau khi tạo dữ liệu bằng tool, trả lời rõ đã tạo gì, ID là gì, và các trường chính. Không tự nhận đã tạo nếu tool chưa chạy thành công.",
+    "- Không tự ý xóa hoặc sửa dữ liệu nếu người dùng chưa yêu cầu rõ.",
     "- Không lộ API key, token, password hoặc secret; nếu thấy secret trong ngữ cảnh, hãy che lại.",
     "- Khi đưa command nguy hiểm như rm -rf, drop database, kubectl delete, terraform destroy, git reset --hard, phải cảnh báo rõ rủi ro.",
     "- Nếu thiếu dữ liệu để làm đúng, hỏi tối đa một câu ngắn. Nếu vẫn có thể làm bằng giả định hợp lý, nêu giả định rồi làm.",
     "- Khi người dùng hỏi về ngày tương đối, dùng ngày cụ thể. Thời gian hệ thống hiện tại: " + now + ".",
     "",
-    "[CÔNG CỤ READ-ONLY CÓ SẴN]",
+    "[CÔNG CỤ NOTEBOOK CÓ SẴN]",
     toolGuide,
     "",
     "[CÁCH GỌI TOOL KHI MODEL KHÔNG HỖ TRỢ NATIVE TOOLS]",
@@ -588,9 +715,8 @@ async function searchLocalTasksTool(args: Record<string, any>): Promise<string> 
 }
 
 async function getTodayBriefTool(): Promise<string> {
-  const [notes, tasks, logs] = await Promise.all([getNotes(), getTasks(), getActivityLogs()]);
+  const [tasks, logs] = await Promise.all([getTasks(), getActivityLogs()]);
   const today = todayIsoDate();
-  const dailyNote = notes.find((note) => note.type === "daily" && note.title.includes(today));
   const dueTasks = tasks.filter((task) => task.status !== "done" && (!task.due_date || task.due_date <= today));
   const doneToday = tasks.filter(
     (task) => task.status === "done" && typeof task.updated_at === "string" && task.updated_at.startsWith(today)
@@ -599,9 +725,6 @@ async function getTodayBriefTool(): Promise<string> {
 
   return [
     `Ngày: ${today}`,
-    "",
-    "[Daily Note]",
-    dailyNote ? `${dailyNote.title}\n${compactText(dailyNote.content, 1600)}` : "Chưa có Daily Note hôm nay.",
     "",
     "[Task cần xử lý]",
     formatList(
@@ -639,17 +762,175 @@ async function getRecentActivityTool(args: Record<string, any>): Promise<string>
     .join("\n");
 }
 
-async function listJiraIssuesTool(): Promise<string> {
-  const issues = await fetchJiraIssues();
-  if (issues.length === 0) return "Không tìm thấy Jira issue đang được gán.";
+async function createLocalNoteTool(args: Record<string, any>): Promise<string> {
+  const title = String(args.title || "").trim();
+  const content = String(args.content || args.body || "").trim();
+  const type = normalizeNoteType(args.type);
 
-  return issues
-    .slice(0, 12)
-    .map(
-      (issue, index) =>
-        `[Jira ${index + 1}]\nKey: ${issue.key}\nSummary: ${issue.summary}\nStatus: ${issue.status}\nPriority: ${issue.priority}\nURL: ${issue.url}`
-    )
+  if (!title) {
+    return "Thiếu tiêu đề note. Hãy cung cấp title.";
+  }
+
+  const note: Note = {
+    id: makeLocalId("note"),
+    workspace_id: null,
+    project_id: null,
+    title,
+    content,
+    type,
+    is_locked: 0,
+    is_pending_sync: 1
+  };
+
+  await createNote(note);
+  return `Đã tạo note.\nID: ${note.id}\nTiêu đề: ${note.title}\nLoại: ${note.type}\nNội dung: ${compactText(note.content || "(trống)", 900)}`;
+}
+
+async function createLocalTaskTool(args: Record<string, any>): Promise<string> {
+  const title = String(args.title || "").trim();
+  const dueDate = parseDateInput(args.due_date || args.dueDate || args.date);
+
+  if (!title) {
+    return "Thiếu tiêu đề task. Hãy cung cấp title.";
+  }
+
+  const task: Task = {
+    id: makeLocalId("task"),
+    note_id: args.note_id ? String(args.note_id) : null,
+    title,
+    status: normalizeTaskStatus(args.status),
+    priority: normalizeTaskPriority(args.priority),
+    due_date: dueDate,
+    workspace_id: null,
+    project_id: null,
+    source: "local",
+    external_id: null,
+    external_url: null,
+    external_status: null,
+    is_pending_sync: 1
+  };
+
+  await createTask(task);
+  return [
+    "Đã tạo task.",
+    `ID: ${task.id}`,
+    `Tiêu đề: ${task.title}`,
+    `Trạng thái: ${task.status}`,
+    `Ưu tiên: ${task.priority}`,
+    `Hạn: ${task.due_date || "không có"}`
+  ].join("\n");
+}
+
+async function searchImportantDatesTool(args: Record<string, any>): Promise<string> {
+  const query = String(args.query || "").trim().toLowerCase();
+  const limit = Number(args.limit || 12);
+  let events = await getCalendarEvents();
+
+  if (query) {
+    events = events.filter((event) => {
+      const haystack = `${event.title} ${event.event_type} ${event.notes || ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }
+
+  const visibleEvents = events.slice(0, limit);
+  if (visibleEvents.length === 0) {
+    return query ? `Không tìm thấy ngày quan trọng phù hợp với "${query}".` : "Chưa có ngày quan trọng nào do bạn tạo.";
+  }
+
+  return visibleEvents
+    .map((event, index) => {
+      const dateText =
+        event.date_type === "lunar"
+          ? `Âm lịch ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " nhuận" : ""}`
+          : `Dương lịch ${event.solar_date || "không rõ"}`;
+
+      return [
+        `[Ngày ${index + 1}]`,
+        `ID: ${event.id}`,
+        `Tên: ${event.title}`,
+        `Loại: ${event.event_type}`,
+        `Ngày: ${dateText}`,
+        `Lặp lại hằng năm: ${event.repeat_yearly ? "có" : "không"}`,
+        `Quan trọng: ${event.is_important ? "có" : "không"}`,
+        event.notes ? `Ghi chú: ${compactText(event.notes, 500)}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
     .join("\n\n");
+}
+
+async function createImportantDateTool(args: Record<string, any>): Promise<string> {
+  const title = String(args.title || args.name || "").trim();
+  if (!title) {
+    return "Thiếu tên ngày quan trọng. Hãy cung cấp title.";
+  }
+
+  const dateType = normalizeCalendarDateType(args.date_type || args.dateType, `${title} ${args.date || ""}`);
+  const repeatYearly = normalizeBoolean(args.repeat_yearly ?? args.repeatYearly, true);
+  const notes = String(args.notes || args.note || "").trim() || null;
+  const eventType = normalizeCalendarEventType(args.event_type || args.eventType, title);
+  let solarDate: string | null = null;
+  let lunarDay: number | null = null;
+  let lunarMonth: number | null = null;
+  let lunarYear: number | null = null;
+  let isLunarLeap = 0;
+
+  if (dateType === "solar") {
+    solarDate = parseDateInput(args.solar_date || args.solarDate || args.date);
+    if (!solarDate) {
+      return "Ngày dương lịch không hợp lệ. Hãy dùng định dạng YYYY-MM-DD hoặc DD/MM/YYYY.";
+    }
+
+    const solar = new Date(`${solarDate}T12:00:00`);
+    const lunar = solarToLunar(solar);
+    lunarDay = lunar.day;
+    lunarMonth = lunar.month;
+    lunarYear = lunar.year;
+    isLunarLeap = lunar.isLeap ? 1 : 0;
+  } else {
+    const lunar = parseLunarInput(args, `${title} ${args.date || ""}`);
+    if (!lunar) {
+      return "Ngày âm lịch không hợp lệ. Hãy cung cấp lunar_day/lunar_month/lunar_year hoặc ngày dạng DD/MM/YYYY.";
+    }
+
+    lunarDay = lunar.day;
+    lunarMonth = lunar.month;
+    lunarYear = repeatYearly ? null : lunar.year;
+    isLunarLeap = lunar.isLeap ? 1 : 0;
+    solarDate = repeatYearly ? null : toLocalDateKey(lunarToSolar(lunar.day, lunar.month, lunar.year, lunar.isLeap));
+  }
+
+  const event: CalendarEvent = {
+    id: makeLocalId("cal"),
+    title,
+    event_type: eventType,
+    date_type: dateType,
+    solar_date: solarDate,
+    lunar_day: lunarDay,
+    lunar_month: lunarMonth,
+    lunar_year: lunarYear,
+    is_lunar_leap: isLunarLeap,
+    repeat_yearly: repeatYearly ? 1 : 0,
+    is_important: normalizeBoolean(args.is_important ?? args.isImportant, true) ? 1 : 0,
+    notes
+  };
+
+  await createCalendarEvent(event);
+  const dateText =
+    event.date_type === "lunar"
+      ? `Âm lịch ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " nhuận" : ""}`
+      : `Dương lịch ${event.solar_date}`;
+
+  return [
+    "Đã tạo ngày quan trọng.",
+    `ID: ${event.id}`,
+    `Tên: ${event.title}`,
+    `Loại: ${event.event_type}`,
+    `Ngày: ${dateText}`,
+    `Lặp lại hằng năm: ${event.repeat_yearly ? "có" : "không"}`
+  ].join("\n");
 }
 
 const AGENT_TOOLS: AgentToolDefinition[] = [
@@ -664,6 +945,24 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
       }
     },
     execute: searchLocalNotesTool
+  },
+  {
+    name: "create_note",
+    description: "Tạo note local mới khi người dùng yêu cầu rõ ràng. Không dùng tool này nếu người dùng chỉ hỏi hoặc muốn xem trước.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Tiêu đề note cần tạo." },
+        content: { type: "string", description: "Nội dung note. Có thể để trống nếu người dùng chỉ đưa tiêu đề." },
+        type: {
+          type: "string",
+          enum: ["quick", "command", "workflow", "error_fix", "prompt"],
+          description: "Loại note, mặc định quick."
+        }
+      },
+      required: ["title"]
+    },
+    execute: createLocalNoteTool
   },
   {
     name: "search_tasks",
@@ -683,8 +982,75 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
     execute: searchLocalTasksTool
   },
   {
+    name: "create_task",
+    description: "Tạo task local mới khi người dùng yêu cầu rõ ràng.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Tên task cần tạo." },
+        priority: {
+          type: "string",
+          enum: ["low", "medium", "high"],
+          description: "Độ ưu tiên, mặc định medium."
+        },
+        status: {
+          type: "string",
+          enum: ["todo", "in_progress", "blocked", "done"],
+          description: "Trạng thái, mặc định todo."
+        },
+        due_date: { type: "string", description: "Ngày hạn dạng YYYY-MM-DD, DD/MM/YYYY, hôm nay hoặc ngày mai." },
+        note_id: { type: "string", description: "ID note liên quan nếu có." }
+      },
+      required: ["title"]
+    },
+    execute: createLocalTaskTool
+  },
+  {
+    name: "search_important_dates",
+    description: "Đọc/tìm các ngày quan trọng người dùng đã lưu trong lịch.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Từ khóa tìm theo tên, loại hoặc ghi chú. Có thể để trống." },
+        limit: { type: "number", description: "Số kết quả tối đa, mặc định 12." }
+      }
+    },
+    execute: searchImportantDatesTool
+  },
+  {
+    name: "create_important_date",
+    description: "Tạo ngày quan trọng trong lịch khi người dùng yêu cầu rõ ràng, ví dụ sinh nhật, ngày lễ, kỷ niệm.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Tên ngày quan trọng." },
+        event_type: {
+          type: "string",
+          enum: ["birthday", "holiday", "anniversary", "other"],
+          description: "Loại sự kiện, tự suy ra nếu không chắc."
+        },
+        date_type: {
+          type: "string",
+          enum: ["solar", "lunar"],
+          description: "solar cho dương lịch, lunar cho âm lịch."
+        },
+        date: { type: "string", description: "Ngày dạng YYYY-MM-DD hoặc DD/MM/YYYY. Với âm lịch cũng dùng DD/MM/YYYY hoặc DD/MM." },
+        solar_date: { type: "string", description: "Ngày dương lịch nếu date_type=solar." },
+        lunar_day: { type: "number", description: "Ngày âm lịch nếu date_type=lunar." },
+        lunar_month: { type: "number", description: "Tháng âm lịch nếu date_type=lunar." },
+        lunar_year: { type: "number", description: "Năm âm lịch nếu không lặp hằng năm." },
+        is_lunar_leap: { type: "boolean", description: "Có phải tháng âm nhuận không." },
+        repeat_yearly: { type: "boolean", description: "Có lặp hằng năm không, mặc định true." },
+        is_important: { type: "boolean", description: "Có đánh dấu quan trọng không, mặc định true." },
+        notes: { type: "string", description: "Ghi chú thêm nếu có." }
+      },
+      required: ["title"]
+    },
+    execute: createImportantDateTool
+  },
+  {
     name: "get_today_brief",
-    description: "Lấy Daily Note, task tới hạn, task đã xong và activity hôm nay từ notebook local.",
+    description: "Lấy task tới hạn, task đã xong và activity hôm nay từ notebook local.",
     parameters: { type: "object", properties: {} },
     execute: async () => await getTodayBriefTool()
   },
@@ -698,12 +1064,6 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
       }
     },
     execute: getRecentActivityTool
-  },
-  {
-    name: "list_jira_issues",
-    description: "Đọc danh sách Jira issue đang được gán cho người dùng. Tool chỉ đọc, không cập nhật Jira.",
-    parameters: { type: "object", properties: {} },
-    execute: async () => await listJiraIssuesTool()
   },
   {
     name: "web_search",
@@ -914,6 +1274,156 @@ async function requestChatCompletion(
   return data.choices?.[0]?.message;
 }
 
+function stripVietnameseAccents(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
+function extractIntentPayload(input: string, keywords: string[]): string {
+  const normalized = stripVietnameseAccents(input).toLowerCase();
+  const matchedKeyword = keywords.find((keyword) => normalized.includes(keyword));
+  if (!matchedKeyword) return "";
+  const start = normalized.indexOf(matchedKeyword) + matchedKeyword.length;
+  return input
+    .slice(start)
+    .replace(/^\s*(giúp tôi|giup toi|cho tôi|cho toi|với|voi|là|la|:|-)\s*/i, "")
+    .trim();
+}
+
+function splitTitleAndContent(payload: string): { title: string; content: string } {
+  const clean = payload.trim().replace(/^[:\-\s]+/, "");
+  if (!clean) return { title: "", content: "" };
+
+  const contentMatch = clean.match(/(.+?)\s+(?:nội dung|noi dung|content)\s*[:：-]?\s*(.+)$/i);
+  if (contentMatch) {
+    return { title: contentMatch[1].trim(), content: contentMatch[2].trim() };
+  }
+
+  const colonIndex = clean.indexOf(":");
+  if (colonIndex > 0) {
+    return {
+      title: clean.slice(0, colonIndex).trim(),
+      content: clean.slice(colonIndex + 1).trim()
+    };
+  }
+
+  return { title: clean, content: "" };
+}
+
+function extractDueDateFromText(text: string): { dueDate: string | null; cleanText: string } {
+  const dueMatch = text.match(/\b(?:hạn|han|deadline|due)(?:\s+là|\s+la|\s+ngày|\s+ngay)?\s+([^,.;]+)/i);
+  if (dueMatch) {
+    return {
+      dueDate: parseDateInput(dueMatch[1]),
+      cleanText: text.replace(dueMatch[0], "").trim()
+    };
+  }
+
+  if (/(hôm nay|hom nay|today)/i.test(text)) {
+    return { dueDate: parseDateInput("hôm nay"), cleanText: text.replace(/hôm nay|hom nay|today/gi, "").trim() };
+  }
+
+  if (/(ngày mai|ngay mai|tomorrow)/i.test(text)) {
+    return { dueDate: parseDateInput("ngày mai"), cleanText: text.replace(/ngày mai|ngay mai|tomorrow/gi, "").trim() };
+  }
+
+  const dateMatch = text.match(/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/);
+  if (dateMatch) {
+    return {
+      dueDate: parseDateInput(dateMatch[0]),
+      cleanText: text.replace(dateMatch[0], "").trim()
+    };
+  }
+
+  return { dueDate: null, cleanText: text };
+}
+
+function extractSearchQuery(input: string, keywords: string[]): string {
+  return extractIntentPayload(input, keywords)
+    .replace(/^(note|ghi chú|ghi chu|task|việc|viec|ngày quan trọng|ngay quan trong)\s*/i, "")
+    .trim();
+}
+
+async function tryHandleOfflineNotebookCommand(input: string): Promise<string | null> {
+  const normalized = stripVietnameseAccents(input).toLowerCase();
+
+  if (normalized.includes("tao ngay quan trong") || normalized.includes("luu ngay quan trong")) {
+    const payload = extractIntentPayload(input, ["tao ngay quan trong", "luu ngay quan trong"]);
+    const dateMatch = payload.match(/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/) || payload.match(/\b\d{4}-\d{1,2}-\d{1,2}\b/);
+    const date = dateMatch?.[0] || (normalized.includes("hom nay") ? "hôm nay" : normalized.includes("ngay mai") ? "ngày mai" : "");
+    const title = payload.replace(dateMatch?.[0] || "", "").replace(/\b(?:âm lịch|am lich|dương lịch|duong lich)\b/gi, "").trim();
+
+    if (!title || !date) {
+      return "Mình cần tên và ngày để tạo ngày quan trọng. Ví dụ: `tạo ngày quan trọng Sinh nhật mẹ 20/10/2026`.";
+    }
+
+    const result = await createImportantDateTool({
+      title,
+      date,
+      date_type: normalized.includes("am lich") ? "lunar" : "solar",
+      event_type: normalizeCalendarEventType("", title),
+      repeat_yearly: true,
+      is_important: true
+    });
+    return `[Chế độ offline/mock]\n\n${result}`;
+  }
+
+  if (normalized.includes("tao note") || normalized.includes("tao ghi chu")) {
+    const payload = extractIntentPayload(input, ["tao ghi chu", "tao note"]);
+    const { title, content } = splitTitleAndContent(payload);
+    if (!title) {
+      return "Mình cần tiêu đề note. Ví dụ: `tạo note Ý tưởng app: nội dung...`.";
+    }
+
+    const result = await createLocalNoteTool({ title, content });
+    return `[Chế độ offline/mock]\n\n${result}`;
+  }
+
+  if (normalized.includes("tao task") || normalized.includes("tao viec")) {
+    const payload = extractIntentPayload(input, ["tao task", "tao viec"]);
+    const { dueDate, cleanText } = extractDueDateFromText(payload);
+    const priority = /ưu tiên cao|uu tien cao|gấp|gap|urgent|quan trọng|quan trong/i.test(payload)
+      ? "high"
+      : /ưu tiên thấp|uu tien thap/i.test(payload)
+        ? "low"
+        : "medium";
+    const title = cleanText
+      .replace(/ưu tiên (cao|thấp|trung bình)|uu tien (cao|thap|trung binh)|gấp|gap|urgent|quan trọng|quan trong/gi, "")
+      .replace(/^[:\-\s]+/, "")
+      .trim();
+
+    if (!title) {
+      return "Mình cần tên task. Ví dụ: `tạo task gọi khách hàng hạn ngày mai ưu tiên cao`.";
+    }
+
+    const result = await createLocalTaskTool({ title, due_date: dueDate || "", priority });
+    return `[Chế độ offline/mock]\n\n${result}`;
+  }
+
+  if (normalized.includes("doc note") || normalized.includes("xem note") || normalized.includes("tim note") || normalized.includes("doc ghi chu")) {
+    const query = extractSearchQuery(input, ["doc ghi chu", "doc note", "xem note", "tim note"]);
+    const result = await searchLocalNotesTool({ query, limit: 8 });
+    return `[Chế độ offline/mock]\n\n${result}`;
+  }
+
+  if (normalized.includes("doc task") || normalized.includes("xem task") || normalized.includes("tim task") || normalized.includes("doc viec")) {
+    const query = extractSearchQuery(input, ["doc viec", "doc task", "xem task", "tim task"]);
+    const result = await searchLocalTasksTool({ query, limit: 12 });
+    return `[Chế độ offline/mock]\n\n${result}`;
+  }
+
+  if (normalized.includes("doc ngay quan trong") || normalized.includes("xem ngay quan trong") || normalized.includes("tim ngay quan trong")) {
+    const query = extractSearchQuery(input, ["doc ngay quan trong", "xem ngay quan trong", "tim ngay quan trong"]);
+    const result = await searchImportantDatesTool({ query, limit: 12 });
+    return `[Chế độ offline/mock]\n\n${result}`;
+  }
+
+  return null;
+}
+
 async function getOfflineAgentResponse(
   chatMessages: ChatMessage[],
   includeMemory: boolean,
@@ -921,6 +1431,12 @@ async function getOfflineAgentResponse(
 ): Promise<string> {
   const lastUserMsg = [...chatMessages].reverse().find((message) => message.role === "user")?.content || "";
   const lowerPrompt = lastUserMsg.toLowerCase();
+
+  onStatus?.("Đang kiểm tra lệnh notebook...");
+  const notebookCommandResult = await tryHandleOfflineNotebookCommand(lastUserMsg);
+  if (notebookCommandResult) {
+    return notebookCommandResult;
+  }
 
   const needsCurrentWebLookup =
     lowerPrompt.includes("giá vàng") ||
@@ -948,7 +1464,7 @@ async function getOfflineAgentResponse(
   onStatus?.("Đang đọc dữ liệu local...");
   const todayBrief = await getTodayBriefTool();
 
-  if (lowerPrompt.includes("daily") || lowerPrompt.includes("tổng hợp ngày") || lowerPrompt.includes("việc hôm nay")) {
+  if (lowerPrompt.includes("tổng hợp ngày") || lowerPrompt.includes("việc hôm nay")) {
     return [
       "[Chế độ offline/mock - chưa cấu hình AI API]",
       "",
@@ -960,23 +1476,12 @@ async function getOfflineAgentResponse(
     ].join("\n");
   }
 
-  if (lowerPrompt.includes("jira")) {
-    const issues = await listJiraIssuesTool();
-    return [
-      "[Chế độ offline/mock - chưa cấu hình AI API]",
-      "",
-      "Jira hiện đọc được các issue sau:",
-      "",
-      issues
-    ].join("\n");
-  }
-
   onStatus?.("Đang đọc ngữ cảnh notebook...");
   const context = await buildNotebookContext(includeMemory);
   return [
     "[Chế độ offline/mock - chưa cấu hình AI API]",
     "",
-    "Agent đã sẵn sàng với các năng lực: đọc notebook local, tìm note/task/log, đọc Jira, tìm kiếm web và ghi nhớ dài hạn. Hiện chưa có API model thật nên mình trả về snapshot thay vì suy luận sâu.",
+    "Agent đã sẵn sàng với các năng lực: đọc/tạo note, đọc/tạo task, đọc/tạo ngày quan trọng, tìm kiếm web và ghi nhớ dài hạn. Khi chưa có API model thật, các lệnh tạo/đọc cơ bản vẫn chạy bằng parser offline.",
     "",
     context
   ].join("\n");
@@ -1183,29 +1688,6 @@ export async function extractAndSaveMemory(userText: string, aiText: string): Pr
   } catch (err) {
     console.error("[Memory] Failed to extract and save memory:", err);
   }
-}
-
-export async function generateDailySummaryAI(
-  date: string,
-  tasksDone: string[],
-  commandsUsed: string[]
-): Promise<string> {
-  const prompt = [
-    "Bạn là Notebook Agent trong Personal AI Work Notebook.",
-    `Hãy tạo báo cáo tóm tắt ngày làm việc ${date} bằng markdown ngắn gọn, chuyên nghiệp.`,
-    "",
-    "Dữ liệu đầu vào:",
-    `- Task đã hoàn thành: ${tasksDone.length > 0 ? tasksDone.join(", ") : "Không có"}`,
-    `- Command/code đã dùng: ${commandsUsed.length > 0 ? commandsUsed.join(", ") : "Không có"}`,
-    "",
-    "Xuất đúng cấu trúc:",
-    "- **Năng suất:** ...",
-    "- **Hoạt động lệnh:** ...",
-    "- **Rủi ro / blocker:** ...",
-    "- **Đề xuất ngày mai:** ..."
-  ].join("\n");
-
-  return await askAI([{ role: "user", content: prompt }], true);
 }
 
 // Kept for compatibility with older modules that import getDatabase through this service indirectly.

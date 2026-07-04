@@ -4,10 +4,10 @@ import {
   CheckSquare, 
   Terminal, 
   FileText, 
-  ChevronRight,
   AlertTriangle,
   Clock
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { createNote, getNotes, Note } from "../database/queries/notes";
 import { getTodayTasks, getImportantTasks, Task } from "../database/queries/tasks";
 
@@ -17,6 +17,21 @@ interface DashboardViewProps {
   triggerToast: (message: string) => void;
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.06
+    }
+  }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const } }
+};
+
 export default function DashboardView({ 
   setActiveView, 
   setSelectedNoteId,
@@ -24,6 +39,7 @@ export default function DashboardView({
 }: DashboardViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [quickText, setQuickText] = useState("");
+  const [isQuickCaptureFocused, setIsQuickCaptureFocused] = useState(false);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [recentNotes, setRecentNotes] = useState<Note[]>([]);
   const [importantTasks, setImportantTasks] = useState<Task[]>([]);
@@ -108,17 +124,26 @@ export default function DashboardView({
   };
 
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1">
+    <motion.div 
+      ref={containerRef} 
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1"
+    >
       {/* Welcome Header */}
       <div className="flex justify-between items-start shrink-0">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white tracking-tight">Chào buổi chiều, Bảo!</h2>
+          <h2 className="text-lg sm:text-xl font-extrabold tracking-tight gradient-text-animated">Chào buổi chiều, Bảo!</h2>
           <p className="text-[10px] sm:text-xs text-zinc-650 dark:text-zinc-400 mt-0.5">Mọi sửa đổi sẽ tự động được lưu trữ local (Offline-first).</p>
         </div>
       </div>
 
       {/* Reminders Alert Section */}
-      <section className={`glass-panel rounded-xl p-4 border-l-4 ${importantTasks.length > 0 ? "border-l-red-500" : "border-l-emerald-500"} relative overflow-hidden transition-all duration-300`}>
+      <motion.section 
+        variants={cardVariants}
+        className={`glass-panel ${importantTasks.length > 0 ? "premium-gradient-border premium-gradient-border-urgent border-transparent" : "border-l-4 border-l-emerald-500"} rounded-xl p-4 relative overflow-hidden transition-all duration-300 shimmer-hover`}
+      >
         {importantTasks.length > 0 ? (
           <>
             <div className="flex items-center gap-2 mb-3">
@@ -133,9 +158,6 @@ export default function DashboardView({
                   <div key={task.id} className="p-3 rounded-lg bg-red-50/40 dark:bg-red-950/10 border border-red-200/50 dark:border-red-500/10 flex flex-col justify-between gap-2 shadow-sm hover:scale-[1.01] transition-all">
                     <div>
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        {task.source === "jira" && (
-                          <span className="text-[7px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded font-bold uppercase tracking-wider">Jira</span>
-                        )}
                         <span className="text-[7px] bg-red-500/10 text-red-600 dark:text-red-400 px-1 py-0.5 rounded font-bold uppercase tracking-wider">HIGH</span>
                       </div>
                       <p className="text-xs text-zinc-800 dark:text-zinc-200 font-semibold leading-normal break-words line-clamp-2">{task.title}</p>
@@ -161,42 +183,47 @@ export default function DashboardView({
             </div>
           </>
         )}
-      </section>
+      </motion.section>
 
       {/* Widgets Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 flex-1 min-h-0">
         
         {/* Main Content Columns (8 cols on Desktop) */}
-        <div className="col-span-12 md:col-span-8 space-y-5">
+        <div className="col-span-12 md:col-span-8 flex flex-col space-y-5 min-h-0">
           
           {/* Quick Capture Panel */}
-          <section className="glass-panel rounded-xl p-4 sm:p-5 border-l-4 border-l-purple-500 relative overflow-hidden">
+          <motion.section 
+            variants={cardVariants}
+            className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "premium-gradient-border border-transparent" : "border-l-4 border-l-purple-500"} premium-hover-glow shimmer-hover rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300`}
+          >
             <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-3 flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-yellow-400" />
+              <Zap className="w-3.5 h-3.5 text-yellow-400 icon-glow" />
               Quick Capture / Ghi nhanh note mới
             </h3>
             <textarea 
               value={quickText}
               onChange={(e) => setQuickText(e.target.value)}
+              onFocus={() => setIsQuickCaptureFocused(true)}
+              onBlur={() => setIsQuickCaptureFocused(false)}
               placeholder="Nhập nhanh ghi chú ở đây... Bấm nút lưu để cất vào Inbox" 
               className="w-full h-20 p-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 resize-none"
             />
             <div className="flex justify-end mt-2">
               <button 
                 onClick={handleQuickSave}
-                className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white text-[10px] px-3.5 py-1.5 rounded-md font-semibold transition-all shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                className="gradient-btn text-[10px] px-3.5 py-1.5 rounded-md font-semibold shadow-md shadow-purple-500/10"
               >
                 Lưu nhanh
               </button>
             </div>
-          </section>
+          </motion.section>
 
           {/* Today Tasks and Commands side by side */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-1 min-h-0">
             {/* Today Tasks Widget */}
-            <div className="glass-panel rounded-xl p-4">
+            <motion.div variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex flex-col">
               <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
-                <CheckSquare className="w-3.5 h-3.5 text-teal-400" />
+                <CheckSquare className="w-3.5 h-3.5 text-teal-400 icon-glow" />
                 Today Tasks
               </h3>
               {todayTasks.length === 0 ? (
@@ -216,12 +243,12 @@ export default function DashboardView({
                   ))}
                 </div>
               )}
-            </div>
+            </motion.div>
 
             {/* Recent Command Blocks Widget */}
-            <div className="glass-panel rounded-xl p-4">
+            <motion.div variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex flex-col">
               <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5 text-purple-400" />
+                <Terminal className="w-3.5 h-3.5 text-purple-400 icon-glow" />
                 Command Block nổi bật
               </h3>
               <div className="space-y-2 text-xs">
@@ -246,30 +273,14 @@ export default function DashboardView({
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
 
         {/* Right Columns (4 cols on Desktop) */}
-        <div className="col-span-12 md:col-span-4 space-y-5">
-          {/* Daily Note Status */}
-          <section className="glass-panel rounded-xl p-4">
-            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2">Daily Note hôm nay</h3>
-            <div className="p-3 rounded-lg bg-zinc-200/50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-white/5 space-y-2">
-              <p className="text-xs text-zinc-800 dark:text-white font-medium">Daily Note - {new Date().toISOString().split('T')[0]}</p>
-              <p className="text-[10px] text-zinc-650 dark:text-zinc-550 leading-relaxed">Tiến độ ngày hôm nay của bạn. Ghi nhận các hoạt động và tự động summary cuối ngày.</p>
-              <button 
-                type="button"
-                onClick={() => setActiveView("daily")}
-                className="text-[9px] text-teal-600 dark:text-teal-400 font-semibold hover:underline flex items-center gap-1 pt-1"
-              >
-                Mở Daily Note <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-          </section>
-
+        <div className="col-span-12 md:col-span-4 flex flex-col space-y-5 min-h-0">
           {/* Recent Notes Widget */}
-          <section className="glass-panel rounded-xl p-4">
+          <motion.section variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex-1 flex flex-col">
             <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3">Ghi chú gần đây</h3>
             {recentNotes.length === 0 ? (
               <p className="text-[10px] text-zinc-500 py-3 text-center">Chưa có ghi chú nào.</p>
@@ -290,10 +301,10 @@ export default function DashboardView({
                 ))}
               </div>
             )}
-          </section>
+          </motion.section>
         </div>
 
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Trash2, Search } from "lucide-react";
 import { getNotes, createNote, updateNote, deleteNote, Note } from "../database/queries/notes";
 import RichTextEditor from "../components/RichTextEditor";
+import GenericConfirmModal from "../components/GenericConfirmModal";
 
 interface NotesViewProps {
   selectedNoteId: string | null;
@@ -18,6 +19,8 @@ export default function NotesView({
   setSelectedNoteId,
   triggerToast 
 }: NotesViewProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -87,16 +90,27 @@ export default function NotesView({
   };
 
   // Handle Delete Note
-  const handleDeleteNote = async (id: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa ghi chú này không?")) return;
+  const handleDeleteNote = (id: string) => {
+    const note = notes.find(n => n.id === id);
+    if (note) {
+      setNoteToDelete(note);
+      setShowDeleteConfirm(true);
+    }
+  };
+
+  const handleConfirmDeleteNote = async () => {
+    if (!noteToDelete) return;
     try {
-      await deleteNote(id);
+      await deleteNote(noteToDelete.id);
       triggerToast("Đã xóa ghi chú!");
       setSelectedNoteId(null);
       loadNotes();
     } catch (err) {
       console.error("Failed to delete note:", err);
       triggerToast("Lỗi xóa ghi chú!");
+    } finally {
+      setShowDeleteConfirm(false);
+      setNoteToDelete(null);
     }
   };
 
@@ -190,6 +204,21 @@ export default function NotesView({
           </div>
         )}
       </div>
+
+      {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING NOTES */}
+      <GenericConfirmModal 
+        isOpen={showDeleteConfirm}
+        title="Xóa ghi chú"
+        message={`Bạn có chắc chắn muốn xóa ghi chú "${noteToDelete?.title}" không?\n\nHành động này không thể hoàn tác và tất cả nội dung liên quan sẽ bị xóa vĩnh viễn.`}
+        confirmLabel="Xóa ghi chú"
+        cancelLabel="Hủy"
+        type="danger"
+        onConfirm={handleConfirmDeleteNote}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setNoteToDelete(null);
+        }}
+      />
     </div>
   );
 }

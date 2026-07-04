@@ -7,6 +7,7 @@ import {
   Bold,
   Italic
 } from "lucide-react";
+import GenericConfirmModal from "./GenericConfirmModal";
 
 interface RichTextEditorProps {
   noteId: string;
@@ -23,6 +24,9 @@ export default function RichTextEditor({
   onSave,
   triggerToast
 }: RichTextEditorProps) {
+  const [showWarningConfirm, setShowWarningConfirm] = useState(false);
+  const [codeToCopy, setCodeToCopy] = useState("");
+  const lastTargetRef = useRef<HTMLElement | null>(null);
   const [title, setTitle] = useState(initialTitle);
   const editorRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
@@ -153,9 +157,10 @@ export default function RichTextEditor({
       const isDangerous = dangerousKeywords.some(kw => codeText.toLowerCase().includes(kw));
 
       if (isDangerous) {
-        if (!window.confirm(`⚠️ CẢNH BÁO NGUY HIỂM:\nCâu lệnh này chứa từ khóa xóa phá hoại:\n"${codeText}"\n\nBạn có thực sự muốn Copy?`)) {
-          return;
-        }
+        setCodeToCopy(codeText);
+        lastTargetRef.current = target;
+        setShowWarningConfirm(true);
+        return;
       }
 
       try {
@@ -200,6 +205,35 @@ export default function RichTextEditor({
       if (editorRef.current) {
         await onSave(title, editorRef.current.innerHTML);
       }
+    }
+  };
+
+  const handleConfirmCopyDangerous = async () => {
+    if (!codeToCopy) return;
+    try {
+      await navigator.clipboard.writeText(codeToCopy);
+      
+      if (lastTargetRef.current) {
+        const target = lastTargetRef.current;
+        const originalText = target.innerText;
+        target.innerText = "Copied!";
+        target.classList.remove("bg-purple-600");
+        target.classList.add("bg-emerald-600");
+        
+        triggerToast("Đã sao chép lệnh!");
+
+        setTimeout(() => {
+          target.innerText = originalText;
+          target.classList.remove("bg-emerald-600");
+          target.classList.add("bg-purple-600");
+        }, 2000);
+      }
+    } catch (err) {
+      console.error("Copy failed:", err);
+    } finally {
+      setShowWarningConfirm(false);
+      setCodeToCopy("");
+      lastTargetRef.current = null;
     }
   };
 
@@ -297,6 +331,22 @@ export default function RichTextEditor({
           style={{ wordBreak: "break-word" }}
         />
       </div>
+
+      {/* CUSTOM WARNING CONFIRM MODAL FOR DANGEROUS COMMAND COPY */}
+      <GenericConfirmModal 
+        isOpen={showWarningConfirm}
+        title="Cảnh báo câu lệnh nguy hiểm"
+        message={`⚠️ CẢNH BÁO NGUY HIỂM:\nCâu lệnh này chứa từ khóa xóa phá hoại (ví dụ: rm -rf, drop table, drop database):\n\n"${codeToCopy}"\n\nBạn có thực sự muốn sao chép câu lệnh này không?`}
+        confirmLabel="Vẫn sao chép"
+        cancelLabel="Hủy"
+        type="warning"
+        onConfirm={handleConfirmCopyDangerous}
+        onCancel={() => {
+          setShowWarningConfirm(false);
+          setCodeToCopy("");
+          lastTargetRef.current = null;
+        }}
+      />
     </div>
   );
 }

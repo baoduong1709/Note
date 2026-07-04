@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./components/Sidebar";
 import BottomNav from "./components/BottomNav";
 import DashboardView from "./views/DashboardView";
 import NotesView from "./views/NotesView";
 import TasksView from "./views/TasksView";
-import DailyNotesView from "./views/DailyNotesView";
+import CalendarView from "./views/CalendarView";
 import SettingsView from "./views/SettingsView";
+import ShareView from "./views/ShareView";
 import AIChatPanel from "./components/AIChatPanel";
 import { initDatabase, getDatabase } from "./database/db";
 import { createNote, Note } from "./database/queries/notes";
 import { CheckCircle, Lock, ShieldCheck, Sparkles } from "lucide-react";
+import { initNotifications, checkAndNotifyDueTasks } from "./services/notificationService";
 
 export default function App() {
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [jiraConnected, setJiraConnected] = useState(true);
   const [toast, setToast] = useState({ message: "", show: false });
   const [dbReady, setDbReady] = useState(false);
   const [showAiSidebar, setShowAiSidebar] = useState(true);
@@ -37,45 +39,6 @@ export default function App() {
   const [isLocked, setIsLocked] = useState(false);
   const [inputPin, setInputPin] = useState("");
   const [pinError, setPinError] = useState(false);
-
-  // Auto check and create Daily Note for today
-  const checkAndCreateDailyNote = async () => {
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const db = await getDatabase();
-      const existing = await db.select<Note[]>(
-        "SELECT * FROM notes WHERE type = 'daily' AND title LIKE ?",
-        [`%${todayStr}%`]
-      );
-
-      if (existing.length === 0) {
-        const defaultContent = 
-          `# Daily Note - ${todayStr}\n\n` +
-          `## Todo hôm nay\n` +
-          `- [ ] Start working on main tasks\n\n` +
-          `## Đang làm\n\n` +
-          `## Đã xong\n\n` +
-          `## Command đã dùng hôm nay\n\n` +
-          `## Summary cuối ngày\n`;
-
-        const newDailyNote: Note = {
-          id: `daily-${todayStr}`,
-          workspace_id: "personal",
-          project_id: null,
-          title: `Daily Note - ${todayStr}`,
-          content: defaultContent,
-          type: "daily",
-          is_locked: 0,
-          is_pending_sync: 1
-        };
-
-        await createNote(newDailyNote);
-        console.log(`[DailyNote] Auto-created today's daily note: ${todayStr}`);
-      }
-    } catch (err) {
-      console.error("Failed to auto-create daily note:", err);
-    }
-  };
 
   // Auto check and create USER.md & MEMORY.md for Hermes Memory
   const checkAndCreateHermesNotes = async () => {
@@ -118,26 +81,58 @@ export default function App() {
     }
   };
 
+  const [authState, setAuthState] = useState(0);
+
   // Initialize database and check PIN Lock when app starts
   useEffect(() => {
     async function setupApp() {
       try {
         await initDatabase();
         setDbReady(true);
-        await checkAndCreateDailyNote();
         await checkAndCreateHermesNotes();
+        localStorage.removeItem("jira_config");
 
         // Check if PIN lock is enabled in localStorage
         const isPinEnabled = localStorage.getItem("pin_lock_enabled") === "true";
         if (isPinEnabled) {
           setIsLocked(true);
         }
+
+        // Initialize and check for due task notifications
+        await initNotifications();
+        await checkAndNotifyDueTasks();
+
+        // Cloud sync data pull on startup if logged in
+        const userEmail = localStorage.getItem("sync_user_email");
+        if (userEmail) {
+          const { pullCloudDataToLocal } = await import("./services/appSyncService");
+          const updated = await pullCloudDataToLocal();
+          if (updated) {
+            window.dispatchEvent(new CustomEvent("task-updated"));
+            window.dispatchEvent(new CustomEvent("notes-updated"));
+          }
+        }
       } catch (err) {
         console.error("App initialization failed:", err);
       }
     }
     setupApp();
-  }, []);
+
+    const handleAuth = () => {
+      setAuthState(prev => prev + 1);
+    };
+    window.addEventListener("auth-state-changed", handleAuth);
+
+    // Check for due tasks periodically in the background every 15 minutes
+    const intervalId = setInterval(() => {
+      checkAndNotifyDueTasks();
+    }, 15 * 60 * 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("auth-state-changed", handleAuth);
+    };
+  }, [authState]);
 
   // Listen for view changes from other components
   useEffect(() => {
@@ -203,13 +198,13 @@ export default function App() {
         );
       case "tasks":
         return <TasksView triggerToast={triggerToast} />;
-      case "daily":
-        return <DailyNotesView triggerToast={triggerToast} />;
+      case "calendar":
+        return <CalendarView triggerToast={triggerToast} />;
+      case "share":
+        return <ShareView triggerToast={triggerToast} />;
       case "settings":
         return (
           <SettingsView 
-            jiraConnected={jiraConnected} 
-            setJiraConnected={setJiraConnected}
             triggerToast={triggerToast}
             theme={theme}
             setTheme={setTheme}
@@ -223,8 +218,11 @@ export default function App() {
   // Lock Screen Overlay UI
   if (isLocked) {
     return (
-      <div className="h-screen w-screen bg-zinc-100 dark:bg-[#070709] flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200">
-        <div className="absolute inset-0 bg-gradient-to-tr from-purple-950/20 to-teal-950/20 opacity-40"></div>
+      <div className={`h-screen w-screen flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
+        {/* Animated aurora orbs on lock screen */}
+        <div className="aurora-orb aurora-orb-1"></div>
+        <div className="aurora-orb aurora-orb-2"></div>
+        <div className="aurora-orb aurora-orb-3"></div>
         <div className="glass-panel w-full max-w-sm rounded-2xl p-6 sm:p-8 space-y-6 border border-zinc-200 dark:border-white/5 relative z-10 shadow-2xl flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-purple-600/10 text-purple-400 flex items-center justify-center mb-2">
             <Lock className="w-6 h-6 animate-pulse" />
@@ -265,36 +263,52 @@ export default function App() {
   }
 
   return (
+    <>
     <div className="fixed inset-0 flex flex-row overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
-      {/* Aurora Background Glows */}
-      <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[45%] rounded-full bg-gradient-to-tr from-purple-400/20 to-teal-400/20 dark:from-purple-900/10 dark:to-teal-900/10 blur-[100px] pointer-events-none z-0"></div>
-      <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] rounded-full bg-gradient-to-br from-indigo-400/20 to-pink-400/20 dark:from-indigo-900/10 dark:to-pink-900/10 blur-[100px] pointer-events-none z-0"></div>
+      {/* Animated Aurora Floating Orbs - wrapped in absolute container to stay out of flex flow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="aurora-orb aurora-orb-1"></div>
+        <div className="aurora-orb aurora-orb-2"></div>
+        <div className="aurora-orb aurora-orb-3"></div>
+        <div className="aurora-orb aurora-orb-4"></div>
+        <div className="mesh-gradient-overlay"></div>
+      </div>
 
       {/* 1. SIDEBAR LEFT (PC/Web) */}
       <Sidebar 
         activeView={activeView} 
         setActiveView={setActiveView} 
-        jiraConnected={jiraConnected} 
       />
 
       {/* CONTAINER CHO GIAO DIỆN CHÍNH & AI CHAT PANEL */}
       <div className="flex-1 min-w-0 h-full min-h-0 flex flex-row overflow-hidden relative">
         
         {/* 2. MAIN VIEW CONTENT */}
-        <main key={activeView} className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6 pb-20 md:pb-6 view-enter-animate">
+        <main className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6 pb-20 md:pb-6">
           {/* Top Bar for Mobile */}
-          <div className="md:hidden flex items-center justify-between pb-3 border-b border-white/5 mb-3 shrink-0">
+          <div className="md:hidden flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/5 mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
-              <span className="text-xs font-bold text-white tracking-wide">AI NOTEBOOK</span>
+              <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-wide">AI NOTEBOOK</span>
             </div>
             <div className="text-[10px] text-teal-400 font-semibold">
               SQLite local ready
             </div>
           </div>
 
-          {/* Render Active Tab */}
-          {renderView()}
+          {/* Render Active Tab with Framer Motion transitions */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeView}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden"
+            >
+              {renderView()}
+            </motion.div>
+          </AnimatePresence>
         </main>
 
         {/* 3. AI CHAT PANEL (PC/Web only) */}
@@ -302,31 +316,33 @@ export default function App() {
           <AIChatPanel onClose={() => setShowAiSidebar(false)} />
         )}
       </div>
-
-      {/* 4. BOTTOM NAVIGATION BAR FOR MOBILE */}
-      <BottomNav activeView={activeView} setActiveView={setActiveView} />
-
-      {/* 5. TOAST MESSAGE */}
-      <div 
-        className={`toast fixed top-5 right-5 max-w-[min(420px,calc(100vw-2rem))] pointer-events-none glass-panel border border-teal-500/20 bg-teal-950/20 text-teal-400 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg z-50 ${
-          toast.show ? "show" : ""
-        }`}
-      >
-        <CheckCircle className="w-4 h-4" />
-        <span className="text-xs font-semibold">{toast.message}</span>
-      </div>
-
-      {/* 6. FLOATING OPEN AI SIDEBAR BUTTON */}
-      {!showAiSidebar && (
-        <button 
-          onClick={() => setShowAiSidebar(true)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2 py-3 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer"
-          title="Mở trợ lý AI"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-purple-200" />
-          <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">AI Chat</span>
-        </button>
-      )}
     </div>
+
+    {/* Fixed overlays - outside flex container to prevent layout interference */}
+    {/* 4. BOTTOM NAVIGATION BAR FOR MOBILE */}
+    <BottomNav activeView={activeView} setActiveView={setActiveView} />
+
+    {/* 5. TOAST MESSAGE */}
+    <div 
+      className={`toast toast-gradient fixed top-5 right-5 max-w-[min(420px,calc(100vw-2rem))] pointer-events-none glass-panel border-transparent bg-white/95 dark:bg-zinc-900/90 text-teal-600 dark:text-teal-400 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg z-50 ${
+        toast.show ? "show" : ""
+      }`}
+    >
+      <CheckCircle className="w-4 h-4 icon-glow" />
+      <span className="text-xs font-semibold relative z-10">{toast.message}</span>
+    </div>
+
+    {/* 6. FLOATING OPEN AI SIDEBAR BUTTON */}
+    {!showAiSidebar && (
+      <button 
+        onClick={() => setShowAiSidebar(true)}
+        className="fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2 py-3 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
+        title="Mở trợ lý AI"
+      >
+        <Sparkles className="w-3.5 h-3.5 text-purple-200 icon-glow" />
+        <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">AI Chat</span>
+      </button>
+    )}
+    </>
   );
 }

@@ -2,7 +2,7 @@ import { getDatabase } from "../db";
 
 export interface ActivityLog {
   id: string;
-  target_type: 'note' | 'task' | 'copy_block' | 'jira' | 'sync' | 'ai';
+  target_type: 'note' | 'task' | 'copy_block' | 'sync' | 'ai';
   target_id: string | null;
   action: string;
   description: string;

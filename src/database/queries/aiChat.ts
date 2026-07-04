@@ -60,6 +60,15 @@ export async function updateAISessionTitle(id: string, title: string): Promise<v
   }
 }
 
+export async function updateAIMessage(id: string, text: string): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.execute("UPDATE ai_messages SET text = ? WHERE id = ?", [text, id]);
+  } catch (err) {
+    console.error("Failed to update AI message:", err);
+  }
+}
+
 // 5. Get all messages for a specific session
 export async function getAIMessages(sessionId: string): Promise<AIMessage[]> {
   try {

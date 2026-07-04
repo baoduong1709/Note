@@ -52,6 +52,9 @@ export async function createNote(note: Note): Promise<void> {
   
   // Log activity
   await logActivity("note", note.id, "created", `Created new note: ${note.title}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Update note content and title
@@ -79,6 +82,9 @@ export async function updateNote(
 
   // Log activity
   await logActivity("note", id, "updated", `Updated note: ${title}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Delete note
@@ -91,6 +97,9 @@ export async function deleteNote(id: string): Promise<void> {
   
   // Log activity
   await logActivity("note", id, "deleted", `Deleted note: ${title}`);
+
+  // Cloud sync
+  import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
 // Search notes by title or content
