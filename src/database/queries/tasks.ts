@@ -150,10 +150,18 @@ export async function deleteTask(id: string): Promise<void> {
   import("../../services/appSyncService").then(m => m.pushLocalDataToCloud()).catch(console.error);
 }
 
+// Helper to get YYYY-MM-DD in local time
+function getLocalDateString(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const date = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${date}`;
+}
+
 // Get tasks due today or overdue
 export async function getTodayTasks(): Promise<Task[]> {
   const db = await getDatabase();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateString(new Date());
   return await db.select<Task[]>(
     "SELECT * FROM tasks WHERE status != 'done' AND (substr(due_date, 1, 10) <= ? OR due_date IS NULL) ORDER BY priority DESC",
     [today]
@@ -175,7 +183,7 @@ export async function getImportantTasks(): Promise<Task[]> {
   const db = await getDatabase();
   const twoDaysLater = new Date();
   twoDaysLater.setDate(twoDaysLater.getDate() + 2);
-  const dateLimit = twoDaysLater.toISOString().split('T')[0];
+  const dateLimit = getLocalDateString(twoDaysLater);
   
   return await db.select<Task[]>(
     `SELECT * FROM tasks 

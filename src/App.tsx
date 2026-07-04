@@ -13,6 +13,7 @@ import { initDatabase, getDatabase } from "./database/db";
 import { createNote, Note } from "./database/queries/notes";
 import { CheckCircle, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import { initNotifications, checkAndNotifyDueTasks } from "./services/notificationService";
+import { useShareWebSocket } from "./hooks/useShareWebSocket";
 
 export default function App() {
   const [activeView, setActiveView] = useState("dashboard");
@@ -82,6 +83,44 @@ export default function App() {
   };
 
   const [authState, setAuthState] = useState(0);
+  const [globalSyncId, setGlobalSyncId] = useState<string | null>(null);
+
+  // Compute and set global syncId when authentication state changes
+  useEffect(() => {
+    async function loadSyncId() {
+      const email = localStorage.getItem("sync_user_email");
+      if (email) {
+        const { generateSyncIdFromEmail } = await import("./services/shareService");
+        const id = await generateSyncIdFromEmail(email);
+        setGlobalSyncId(id);
+      } else {
+        setGlobalSyncId(null);
+      }
+    }
+    loadSyncId();
+  }, [authState]);
+
+  // Global WebSocket listener for real-time Share & Sync signaling
+  useShareWebSocket({
+    syncId: globalSyncId,
+    triggerToastGlobal: (msg) => {
+      triggerToast(msg);
+    }
+  });
+
+  // Global show-toast custom event listener
+  useEffect(() => {
+    const handleShowToast = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        triggerToast(customEvent.detail);
+      }
+    };
+    window.addEventListener("show-toast", handleShowToast);
+    return () => {
+      window.removeEventListener("show-toast", handleShowToast);
+    };
+  }, []);
 
   // Initialize database and check PIN Lock when app starts
   useEffect(() => {
@@ -110,6 +149,8 @@ export default function App() {
           if (updated) {
             window.dispatchEvent(new CustomEvent("task-updated"));
             window.dispatchEvent(new CustomEvent("notes-updated"));
+            window.dispatchEvent(new CustomEvent("calendar-updated"));
+            window.dispatchEvent(new CustomEvent("ai-chat-updated"));
           }
         }
       } catch (err) {

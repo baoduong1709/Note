@@ -6,6 +6,7 @@ import {
   Settings,
   Share2
 } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface BottomNavProps {
   activeView: string;
@@ -23,29 +24,37 @@ export default function BottomNav({ activeView, setActiveView }: BottomNavProps)
   ];
 
   return (
-    <div className="md:hidden h-16 glass-panel border-t border-zinc-200 dark:border-white/5 flex items-center justify-around z-20 px-3 bg-zinc-50/95 dark:bg-zinc-950/95 shadow-lg shrink-0 relative overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      {/* Subtle gradient shimmer overlay */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/[0.03] to-transparent pointer-events-none"></div>
-      
+    <div 
+      className="md:hidden fixed left-4 right-4 z-30 h-[50px] backdrop-blur-xl bg-white/75 dark:bg-zinc-950/75 border border-zinc-200/50 dark:border-white/10 rounded-2xl flex items-center justify-around px-2 shadow-2xl shadow-zinc-300/20 dark:shadow-black/50 transition-all duration-300"
+      style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
+    >
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeView === item.id;
         return (
-          <button
+          <motion.button
             key={item.id}
             type="button"
+            layout
             onClick={() => setActiveView(item.id)}
-            className={`flex flex-col items-center gap-1 transition-all relative ${
+            whileTap={{ scale: 0.92 }}
+            className={`flex items-center justify-center flex-1 h-full relative transition-colors duration-200 select-none z-10 ${
               isActive 
-                ? "text-purple-650 dark:text-purple-400 font-semibold scale-105" 
-                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                ? "text-purple-600 dark:text-purple-400 font-semibold" 
+                : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
-            <Icon className={`w-5 h-5 ${isActive ? "icon-glow" : ""}`} />
-            <span className="text-[9px]">{item.label}</span>
-            {/* Animated gradient dot indicator */}
-            {isActive && <span className="nav-dot-active absolute -bottom-1"></span>}
-          </button>
+            <Icon className={`w-[22px] h-[22px] ${isActive ? "filter drop-shadow-[0_0_6px_rgba(147,51,234,0.5)]" : ""}`} />
+            
+            {/* Sliding active pill background */}
+            {isActive && (
+              <motion.div
+                layoutId="mobileActivePill"
+                className="absolute w-[40px] h-[40px] rounded-xl -z-10 nav-active-gradient-border"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+          </motion.button>
         );
       })}
     </div>

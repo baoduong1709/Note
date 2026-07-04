@@ -16,6 +16,7 @@ import {
 } from "../database/queries/aiChat";
 
 interface Message {
+  id?: string;
   sender: "user" | "ai";
   text: string;
   isStreaming?: boolean;
@@ -69,53 +70,23 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     }
   };
 
-  const updateLastAIMessage = (patch: Partial<Message>) => {
-    setMessages(prev => {
-      const updated = [...prev];
-      const lastIdx = updated.length - 1;
-      if (lastIdx >= 0 && updated[lastIdx].sender === "ai") {
-        updated[lastIdx] = { ...updated[lastIdx], ...patch };
-      }
-      return updated;
-    });
+  const updateMessage = (id: string, patch: Partial<Message>) => {
+    setMessages(prev =>
+      prev.map(message =>
+        message.id === id ? { ...message, ...patch } : message
+      )
+    );
   };
 
-  const typeAssistantResponse = async (fullText: string, runId: number) => {
+  const finishAssistantResponse = (messageId: string, fullText: string, runId: number) => {
     if (streamRunRef.current !== runId) return;
 
-    let visibleText = "";
-
-    updateLastAIMessage({
-      text: "",
-      isStreaming: true,
-      thinking: "Đang soạn câu trả lời..."
-    });
-
-    for (let index = 0; index < fullText.length;) {
-      if (streamRunRef.current !== runId) return;
-
-      const remaining = fullText.length - index;
-      const char = fullText[index];
-      const chunkSize = char === "\n" ? 1 : remaining > 1200 ? 6 : remaining > 500 ? 4 : 2;
-
-      visibleText += fullText.slice(index, index + chunkSize);
-      index += chunkSize;
-
-      updateLastAIMessage({
-        text: visibleText,
-        isStreaming: true,
-        thinking: "Đang trả lời..."
-      });
-      scrollToBottom(true);
-
-      await new Promise(resolve => setTimeout(resolve, char === "\n" ? 35 : 12));
-    }
-
-    updateLastAIMessage({
+    updateMessage(messageId, {
       text: fullText,
       isStreaming: false,
       thinking: undefined
     });
+    setTimeout(() => scrollToBottom(), 0);
   };
 
   // 1. Initial Load: Get sessions list
@@ -143,13 +114,14 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           if (message.text !== m.text) {
             await updateAIMessage(m.id, message.text);
           }
-          return message;
+          return { ...message, id: m.id };
         })
       );
       setMessages(normalizedMessages);
     } else {
       setMessages([
         {
+          id: "welcome-message",
           sender: "ai",
           text: WELCOME_TEXT
         }
@@ -159,6 +131,13 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
   useEffect(() => {
     loadSessions();
+    const handleSyncUpdate = () => {
+      loadSessions();
+    };
+    window.addEventListener("ai-chat-updated", handleSyncUpdate);
+    return () => {
+      window.removeEventListener("ai-chat-updated", handleSyncUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -188,7 +167,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     await addAIMessage(msgId, newId, "ai", WELCOME_TEXT);
 
     setActiveSessionId(newId);
-    setMessages([{ sender: "ai", text: WELCOME_TEXT }]);
+    setMessages([{ id: msgId, sender: "ai", text: WELCOME_TEXT }]);
     
     // Reload sessions list
     const list = await getAISessions();
@@ -253,6 +232,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     // Save user message to database
     const userMsgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
     await addAIMessage(userMsgId, activeSessionId, "user", userQuery);
+    const aiMsgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
 
     // Build the conversational history to send to AI
     const historyMessages = messages.map(m => ({
@@ -261,27 +241,31 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     }));
     historyMessages.push({ role: "user", content: userQuery });
 
-    setMessages(prev => [...prev, { sender: "user", text: userQuery }]);
+    setMessages(prev => [
+      ...prev,
+      { id: userMsgId, sender: "user", text: userQuery },
+      { id: aiMsgId, sender: "ai", text: "", isStreaming: true, thinking: "Đang suy nghĩ..." }
+    ]);
     setInput("");
     setLoading(true);
 
     const requestRunId = ++streamRunRef.current;
-
-    // Add temporary AI streaming response placeholder
-    setMessages(prev => [...prev, { sender: "ai", text: "", isStreaming: true, thinking: "Đang suy nghĩ..." }]);
+    setTimeout(() => scrollToBottom(), 0);
 
     try {
       // Call actual AI service with history messages array
       const response = await askAI(historyMessages, false, (status) => {
         if (streamRunRef.current !== requestRunId) return;
-        updateLastAIMessage({ thinking: status, isStreaming: true });
+        updateMessage(aiMsgId, {
+          thinking: status.trim() || "Đang suy nghĩ...",
+          isStreaming: true
+        });
       });
       
       // Save AI response to database
-      const aiMsgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
       await addAIMessage(aiMsgId, activeSessionId, "ai", response);
 
-      await typeAssistantResponse(response, requestRunId);
+      finishAssistantResponse(aiMsgId, response, requestRunId);
 
       // Run background memory extraction (Hermes-style)
       extractAndSaveMemory(userQuery, response);
@@ -291,10 +275,9 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       const errMsg = err.message || "Lỗi kết nối API AI.";
       
       // Save error message to database
-      const aiMsgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
       await addAIMessage(aiMsgId, activeSessionId, "ai", errMsg);
 
-      await typeAssistantResponse(errMsg, requestRunId);
+      finishAssistantResponse(aiMsgId, errMsg, requestRunId);
     } finally {
       setLoading(false);
     }
@@ -661,10 +644,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           const isUser = msg.sender === "user";
           return isUser ? (
             <motion.div 
-              key={index}
-              initial={{ opacity: 0, scale: 0.96, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              key={msg.id || `user-${index}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               className="text-right"
             >
               <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">
@@ -673,17 +656,20 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             </motion.div>
           ) : (
             <div 
-              key={index}
-              className="bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm chat-bubble-animate"
+              key={msg.id || `ai-${index}`}
+              className="bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"
             >
               {msg.isStreaming ? (
-                <div className="space-y-2">
-                  {msg.thinking ? (
-                    <div className="flex items-center gap-1.5 text-purple-400">
-                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                      <span>{msg.thinking}</span>
-                    </div>
-                  ) : null}
+                <div className="space-y-3">
+                  <div className="min-h-8 flex items-center gap-2 rounded-md border border-purple-500/10 bg-purple-500/10 px-2.5 py-1.5 text-purple-700 dark:text-purple-300">
+                    <Sparkles className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{msg.thinking || "Đang suy nghĩ..."}</span>
+                    <span className="flex items-center gap-0.5 shrink-0" aria-hidden="true">
+                      <span className="w-1 h-1 rounded-full bg-current animate-pulse" />
+                      <span className="w-1 h-1 rounded-full bg-current animate-pulse" style={{ animationDelay: "120ms" }} />
+                      <span className="w-1 h-1 rounded-full bg-current animate-pulse" style={{ animationDelay: "240ms" }} />
+                    </span>
+                  </div>
                   {msg.text ? (
                     <div>
                       {renderMessageContent(msg.text)}

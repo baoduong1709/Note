@@ -47,9 +47,22 @@ export async function createCalendarEvent(event: CalendarEvent): Promise<void> {
       event.notes || null
     ]
   );
+
+  // Cloud sync
+  import("../../services/appSyncService")
+    .then((m) => {
+      m.trackUpsert("calendar_events", event.id);
+      m.pushLocalDataToCloud().catch(console.error);
+    })
+    .catch(console.error);
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
   const db = await getDatabase();
   await db.execute("DELETE FROM calendar_events WHERE id = ?", [id]);
+
+  // Track deletion for delta sync
+  const { trackDeletion, pushLocalDataToCloud } = await import("../../services/appSyncService");
+  trackDeletion('calendar_events', id);
+  pushLocalDataToCloud().catch(console.error);
 }

@@ -22,7 +22,7 @@ import {
   ShareData
 } from "../services/shareService";
 import { apiRequest, setAuthToken } from '../services/apiClient';
-import { useShareWebSocket } from '../hooks/useShareWebSocket';
+
 
 interface ShareViewProps {
   triggerToast: (message: string) => void;
@@ -47,18 +47,28 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [networkError, setNetworkError] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [imgTransform, setImgTransform] = useState({ scale: 1, x: 0, y: 0 });
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
 
   // Drag and drop / Paste states
   const [isDragging, setIsDragging] = useState(false);
 
-  // WebSocket: receive shares in real-time
-  useShareWebSocket({
-    syncId: syncId || null,
-    onNewShare: (share) => {
-      setShareHistory(prev => [share, ...prev]);
-      triggerToast(`Đã nhận dữ liệu mới từ ${share.userName || 'thiết bị khác'}!`);
-    },
-  });
+  // Listen to the global WebSocket share events dispatched from App.tsx level
+  useEffect(() => {
+    const handleWsNewShare = (e: Event) => {
+      const customEvent = e as CustomEvent<ShareData>;
+      if (customEvent.detail) {
+        const share = customEvent.detail;
+        setShareHistory(prev => [share, ...prev]);
+        triggerToast(`Đã nhận dữ liệu mới từ ${share.userName || 'thiết bị khác'}!`);
+      }
+    };
+    window.addEventListener('ws-new-share', handleWsNewShare);
+    return () => {
+      window.removeEventListener('ws-new-share', handleWsNewShare);
+    };
+  }, []);
 
   // Initialize and load user from storage and listen to global changes
   useEffect(() => {
@@ -282,8 +292,8 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         img.src = e.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
+          const MAX_WIDTH = 1920; // Full HD support
+          const MAX_HEIGHT = 1920;
           let width = img.width;
           let height = img.height;
 
@@ -308,9 +318,20 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
           }
 
           ctx.drawImage(img, 0, 0, width, height);
-          // Compress to JPEG with 0.6 quality for fast Web传输
-          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.6);
-          resolve(compressedBase64);
+          
+          // Use image/webp for better quality and compression ratio (fallback to image/jpeg if webp fails)
+          try {
+            const webpBase64 = canvas.toDataURL("image/webp", 0.85);
+            if (webpBase64.startsWith("data:image/webp")) {
+              resolve(webpBase64);
+              return;
+            }
+          } catch (err) {
+            console.warn("WebP compression failed, falling back to JPEG:", err);
+          }
+          
+          const jpegBase64 = canvas.toDataURL("image/jpeg", 0.85);
+          resolve(jpegBase64);
         };
         img.onerror = (err) => reject(err);
       };
@@ -738,7 +759,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                               src={item.content} 
                               alt="Shared" 
                               title="Kích đúp để phóng to"
-                              onDoubleClick={() => setZoomedImage(item.content)}
+                              onDoubleClick={() => {
+                                setZoomedImage(item.content);
+                                setImgTransform({ scale: 1, x: 0, y: 0 });
+                              }}
                               className="max-h-40 max-w-full rounded shadow-lg object-contain border border-zinc-200 dark:border-white/5 mb-2 cursor-zoom-in hover:opacity-90 transition-all" 
                             />
                             <div className="flex justify-end w-full gap-2">
@@ -848,16 +872,69 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       {/* Lightbox / Zoom Image Modal */}
       {zoomedImage && (
         <div 
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out select-none"
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out select-none overflow-hidden"
           onClick={() => setZoomedImage(null)}
+          onWheel={(e) => {
+            // Extract event properties immediately (before async state updates) to prevent React event pooling bugs
+            const rect = e.currentTarget.getBoundingClientRect();
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+            const deltaY = e.deltaY;
+            
+            const mouseX = clientX - (rect.left + rect.width / 2);
+            const mouseY = clientY - (rect.top + rect.height / 2);
+            const delta = deltaY < 0 ? 1 : -1;
+            const zoomSpeed = 0.15;
+
+            setImgTransform(prev => {
+              const nextScale = Math.min(Math.max(prev.scale + delta * zoomSpeed, 0.4), 8);
+              const factor = nextScale / prev.scale;
+              return {
+                scale: nextScale,
+                x: mouseX - (mouseX - prev.x) * factor,
+                y: mouseY - (mouseY - prev.y) * factor,
+              };
+            });
+          }}
+          onMouseMove={(e) => {
+            if (!isDraggingImage) return;
+            // Extract client coordinates immediately
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+            setImgTransform(prev => ({
+              ...prev,
+              x: clientX - dragStart.current.x,
+              y: clientY - dragStart.current.y
+            }));
+          }}
+          onMouseUp={() => setIsDraggingImage(false)}
+          onMouseLeave={() => setIsDraggingImage(false)}
         >
           <div className="relative max-w-full max-h-full flex flex-col items-center p-2">
             <img 
               src={zoomedImage} 
               alt="Zoomed Shared" 
-              className="max-w-[95vw] max-h-[85vh] rounded-lg shadow-2xl object-contain border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                if (imgTransform.scale <= 1) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingImage(true);
+                dragStart.current = { x: e.clientX - imgTransform.x, y: e.clientY - imgTransform.y };
+              }}
+              style={{ 
+                transform: `translate(${imgTransform.x}px, ${imgTransform.y}px) scale(${imgTransform.scale})`, 
+                transition: isDraggingImage ? 'none' : 'transform 0.08s ease-out',
+                transformOrigin: 'center center',
+                cursor: imgTransform.scale > 1 ? (isDraggingImage ? 'grabbing' : 'grab') : 'zoom-out'
+              }}
+              className="max-w-[95vw] max-h-[80vh] rounded-lg shadow-2xl object-contain border border-white/10"
             />
-            <div className="mt-4 flex gap-3">
+            
+            <div className="mt-6 flex gap-3 z-10" onClick={(e) => e.stopPropagation()}>
+              <span className="absolute top-2 right-2 bg-black/60 text-white font-mono text-[9px] px-2 py-0.5 rounded border border-white/10">
+                Tỉ lệ: {Math.round(imgTransform.scale * 100)}%
+              </span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

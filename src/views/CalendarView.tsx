@@ -202,6 +202,16 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
   }, []);
 
   useEffect(() => {
+    const handleSyncUpdate = () => {
+      loadEvents();
+    };
+    window.addEventListener("calendar-updated", handleSyncUpdate);
+    return () => {
+      window.removeEventListener("calendar-updated", handleSyncUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;

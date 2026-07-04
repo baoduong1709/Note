@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { 
   Zap, 
   CheckSquare, 
-  Terminal, 
   FileText, 
   AlertTriangle,
   Clock
@@ -220,63 +219,30 @@ export default function DashboardView({
             </div>
           </motion.section>
 
-          {/* Today Tasks and Commands side by side */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-1 min-h-0">
-            {/* Today Tasks Widget */}
-            <motion.div variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex flex-col">
-              <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
-                <CheckSquare className="w-3.5 h-3.5 text-teal-400 icon-glow" />
-                Today Tasks
-              </h3>
-              {todayTasks.length === 0 ? (
-                <p className="text-[10px] text-zinc-500 py-3 text-center">Không có việc cần làm hôm nay.</p>
-              ) : (
-                <div className="space-y-2 text-xs">
-                  {todayTasks.map(task => (
-                    <div key={task.id} className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 p-1.5 rounded">
-                      <input 
-                        type="checkbox" 
-                        checked={task.status === "done"}
-                        readOnly
-                        className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-purple-600 focus:ring-purple-600"
-                      />
-                      <span className="text-zinc-700 dark:text-zinc-300 truncate">{task.title}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-
-            {/* Recent Command Blocks Widget */}
-            <motion.div variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex flex-col">
-              <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5 text-purple-400 icon-glow" />
-                Command Block nổi bật
-              </h3>
+          {/* Today Tasks Widget */}
+          <motion.div variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex flex-col flex-1 min-h-0">
+            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
+              <CheckSquare className="w-3.5 h-3.5 text-teal-400 icon-glow" />
+              Today Tasks
+            </h3>
+            {todayTasks.length === 0 ? (
+              <p className="text-[10px] text-zinc-500 py-3 text-center">Không có việc cần làm hôm nay.</p>
+            ) : (
               <div className="space-y-2 text-xs">
-                <div className="bg-zinc-200/50 dark:bg-zinc-900/60 p-2.5 rounded border border-zinc-200 dark:border-white/5 flex flex-col gap-1.5">
-                  <code className="text-[10px] font-mono text-zinc-700 dark:text-zinc-300 truncate">kubectl port-forward svc/postgres 5434:5432</code>
-                  <div className="flex justify-end gap-2">
-                    <button 
-                      onClick={() => triggerToast("Nhập biến (Chức năng mẫu)")}
-                      className="text-[9px] text-purple-400 font-semibold hover:underline"
-                    >
-                      Nhập Biến
-                    </button>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText("kubectl port-forward svc/postgres 5434:5432 -n staging");
-                        triggerToast("Đã copy command!");
-                      }}
-                      className="text-[9px] bg-purple-600/20 text-purple-400 px-1.5 py-0.5 rounded font-bold"
-                    >
-                      Copy
-                    </button>
+                {todayTasks.map(task => (
+                  <div key={task.id} className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 p-1.5 rounded">
+                    <input 
+                      type="checkbox" 
+                      checked={task.status === "done"}
+                      readOnly
+                      className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-purple-600 focus:ring-purple-600"
+                    />
+                    <span className="text-zinc-700 dark:text-zinc-300 truncate">{task.title}</span>
                   </div>
-                </div>
+                ))}
               </div>
-            </motion.div>
-          </div>
+            )}
+          </motion.div>
         </div>
 
         {/* Right Columns (4 cols on Desktop) */}

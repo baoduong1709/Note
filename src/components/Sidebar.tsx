@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   FileText, 
   CheckSquare, 
   Calendar, 
@@ -15,6 +15,7 @@ import {
   Share2
 } from "lucide-react";
 import { getImportantTasks, updateTaskStatus, Task } from "../database/queries/tasks";
+import { clearStoredUser } from "../services/shareService";
 
 interface SidebarProps {
   activeView: string;
@@ -200,9 +201,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
           <div 
             onClick={() => {
               if (window.confirm("Bạn có chắc chắn muốn đăng xuất tài khoản Google không? Việc này sẽ tạm ngưng đồng bộ đám mây.")) {
-                localStorage.removeItem("sync_user_email");
-                localStorage.removeItem("sync_user_name");
-                localStorage.removeItem("sync_share_id");
+                clearStoredUser();
                 window.dispatchEvent(new CustomEvent("auth-state-changed"));
                 setActiveView("dashboard");
               }

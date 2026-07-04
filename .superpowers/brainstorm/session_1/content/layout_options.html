@@ -1,0 +1,286 @@
+<style>
+  .preview-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    margin-top: 1.5rem;
+  }
+  
+  .phone-mockup {
+    background: #0f0f12;
+    border: 6px solid #2d2d34;
+    border-radius: 36px;
+    width: 340px;
+    height: 180px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 12px;
+    margin: 0 auto;
+  }
+  
+  .phone-bg {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 120%, #1e152a 0%, #09090b 80%);
+    z-index: 1;
+  }
+  
+  .phone-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  /* Shared Glassmorphic Dock Base */
+  .glass-dock {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(20, 20, 25, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 6px 12px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+
+  .dock-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #888896;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+  }
+
+  .dock-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+    transition: transform 0.3s ease;
+  }
+
+  .dock-btn span {
+    font-size: 8px;
+    margin-top: 4px;
+    font-weight: 500;
+    transition: color 0.3s ease;
+  }
+
+  /* Style A: Sliding Pill Background */
+  .variant-a .dock-btn.active {
+    color: #a78bfa;
+  }
+  .variant-a .dock-btn.active svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.5));
+  }
+  .variant-a .active-pill-bg {
+    position: absolute;
+    inset: 4px 6px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(13, 148, 136, 0.1) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 14px;
+    z-index: -1;
+  }
+
+  /* Style B: Expanding Tab (Horizontal Pill) */
+  .variant-b .dock-btn {
+    padding: 8px 10px;
+    flex-direction: row;
+    gap: 6px;
+  }
+  .variant-b .dock-btn span {
+    display: none;
+    margin-top: 0;
+    font-size: 10px;
+  }
+  .variant-b .dock-btn.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #8b5cf6 0%, #0d9488 100%);
+    padding: 8px 14px;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  }
+  .variant-b .dock-btn.active span {
+    display: inline-block;
+  }
+
+  /* Style C: Glowing Ring Icon */
+  .variant-c .dock-btn.active {
+    color: #ffffff;
+  }
+  .variant-c .icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+  }
+  .variant-c .dock-btn.active .icon-wrap {
+    background: rgba(139, 92, 246, 0.12);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.4), 0 0 12px rgba(139, 92, 246, 0.3);
+  }
+  .variant-c .active-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #0d9488;
+    position: absolute;
+    bottom: -6px;
+    box-shadow: 0 0 6px #0d9488;
+  }
+
+  /* SVG Icons */
+  .icon-svg {
+    fill: none;
+    stroke: currentColor;
+  }
+</style>
+
+<h2>Hãy chọn thiết kế chi tiết cho Dock nổi (Option 1)</h2>
+<p class="subtitle">Dưới đây là 3 biến thể giao diện mẫu mô phỏng trên màn hình điện thoại di động.</p>
+
+<div class="options">
+  <!-- Option A -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Biến thể A: Nền kén động (Sliding Pill Background)</h3>
+      <p>Khi chọn một tab, có một hình nền kén (pill) màu gradient tím-teal mờ chạy phía sau tab đó. Layout gồm icon và text bên dưới truyền thống nhưng nhìn thanh thoát và gắn kết.</p>
+      
+      <div class="preview-container">
+        <div class="phone-mockup">
+          <div class="phone-bg"></div>
+          <div class="phone-content variant-a">
+            <div class="glass-dock">
+              <!-- Item 1 -->
+              <div class="dock-btn">
+                <svg viewBox="0 0 24 24" class="icon-svg"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                <span>Dash</span>
+              </div>
+              <!-- Item 2 -->
+              <div class="dock-btn">
+                <svg viewBox="0 0 24 24" class="icon-svg"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Notes</span>
+              </div>
+              <!-- Item 3 active -->
+              <div class="dock-btn active">
+                <div class="active-pill-bg"></div>
+                <svg viewBox="0 0 24 24" class="icon-svg"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>Lịch</span>
+              </div>
+              <!-- Item 4 -->
+              <div class="dock-btn">
+                <svg viewBox="0 0 24 24" class="icon-svg"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                <span>Share</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Biến thể B: Tab mở rộng (Expanding Dynamic Tab)</h3>
+      <p>Cách tiếp cận cực kỳ hiện đại: Bình thường chỉ hiển thị icon mờ để tối giản diện tích. Khi nhấn chọn một tab, tab đó sẽ tự động mở rộng sang hai bên, hiển thị chữ kèm nền gradient tím-teal đậm rực rỡ.</p>
+      
+      <div class="preview-container">
+        <div class="phone-mockup">
+          <div class="phone-bg"></div>
+          <div class="phone-content variant-b">
+            <div class="glass-dock">
+              <!-- Item 1 -->
+              <div class="dock-btn">
+                <svg viewBox="0 0 24 24" class="icon-svg"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                <span>Dash</span>
+              </div>
+              <!-- Item 2 -->
+              <div class="dock-btn">
+                <svg viewBox="0 0 24 24" class="icon-svg"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Notes</span>
+              </div>
+              <!-- Item 3 active -->
+              <div class="dock-btn active">
+                <svg viewBox="0 0 24 24" class="icon-svg"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>Lịch</span>
+              </div>
+              <!-- Item 4 -->
+              <div class="dock-btn">
+                <svg viewBox="0 0 24 24" class="icon-svg"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                <span>Share</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Biến thể C: Vòng sáng tối giản (Minimalist Glowing Ring)</h3>
+      <p>Thiết kế tinh tế tinh giản. Tab active sẽ có một vòng tròn viền phát sáng mỏng bọc quanh icon, đồng thời biểu thị một chấm sáng nhỏ (glowing dot) màu xanh ngọc ở bên dưới để giữ sự thanh lịch tối đa.</p>
+      
+      <div class="preview-container">
+        <div class="phone-mockup">
+          <div class="phone-bg"></div>
+          <div class="phone-content variant-c">
+            <div class="glass-dock">
+              <!-- Item 1 -->
+              <div class="dock-btn">
+                <div class="icon-wrap">
+                  <svg viewBox="0 0 24 24" class="icon-svg"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                </div>
+                <span>Dash</span>
+              </div>
+              <!-- Item 2 -->
+              <div class="dock-btn">
+                <div class="icon-wrap">
+                  <svg viewBox="0 0 24 24" class="icon-svg"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <span>Notes</span>
+              </div>
+              <!-- Item 3 active -->
+              <div class="dock-btn active">
+                <div class="icon-wrap">
+                  <svg viewBox="0 0 24 24" class="icon-svg"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <div class="active-dot"></div>
+                </div>
+                <span>Lịch</span>
+              </div>
+              <!-- Item 4 -->
+              <div class="dock-btn">
+                <div class="icon-wrap">
+                  <svg viewBox="0 0 24 24" class="icon-svg"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                </div>
+                <span>Share</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

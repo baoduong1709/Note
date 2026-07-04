@@ -9,23 +9,44 @@ class WebDatabase {
   async execute(query: string, values: any[] = []): Promise<any> {
     const q = query.trim().toLowerCase();
     
-    if (q.startsWith("insert into notes")) {
-      const notes = this.getTable("notes");
-      const [id, workspace_id, project_id, title, content, type, is_locked, is_pending_sync] = values;
-      notes.push({ 
+    // Helper to perform upsert (insert or replace) on mock tables
+    const upsertRecord = (tableName: string, newRecord: any) => {
+      const table = this.getTable(tableName);
+      const idx = table.findIndex((row: any) => row.id === newRecord.id);
+      if (idx !== -1) {
+        table[idx] = { ...table[idx], ...newRecord };
+      } else {
+        table.push(newRecord);
+      }
+      this.saveTable(tableName, table);
+    };
+
+    if (q.startsWith("insert into notes") || q.startsWith("insert or replace into notes")) {
+      // Handle insert or replace
+      const [id, workspace_id, project_id, title, content, type, is_locked, is_pending_sync, created_at, updated_at] = values;
+      const now = new Date().toISOString();
+      upsertRecord("notes", { 
         id, 
         workspace_id, 
         project_id, 
         title, 
         content, 
         type, 
-        is_locked, 
-        is_pending_sync, 
-        created_at: new Date().toISOString(), 
-        updated_at: new Date().toISOString() 
+        is_locked: is_locked || 0, 
+        is_pending_sync: is_pending_sync !== undefined ? is_pending_sync : 1, 
+        created_at: created_at || now, 
+        updated_at: updated_at || now 
       });
-      this.saveTable("notes", notes);
     } 
+    else if (q.startsWith("update notes set is_pending_sync = 0 where id = ?")) {
+      const [id, updated_at] = values;
+      const notes = this.getTable("notes");
+      const idx = notes.findIndex((n: any) => n.id === id && (!updated_at || n.updated_at === updated_at));
+      if (idx !== -1) {
+        notes[idx] = { ...notes[idx], is_pending_sync: 0 };
+      }
+      this.saveTable("notes", notes);
+    }
     else if (q.startsWith("update notes")) {
       const notes = this.getTable("notes");
       if (values.length === 6) {
@@ -44,10 +65,15 @@ class WebDatabase {
       this.saveTable("notes", notes);
     }
     else if (q.startsWith("delete from notes")) {
-      const id = values[0];
-      let notes = this.getTable("notes");
-      notes = notes.filter((n: any) => n.id !== id);
-      this.saveTable("notes", notes);
+      if (values.length === 0) {
+        // Truncate table
+        this.saveTable("notes", []);
+      } else {
+        const id = values[0];
+        let notes = this.getTable("notes");
+        notes = notes.filter((n: any) => n.id !== id);
+        this.saveTable("notes", notes);
+      }
     }
     else if (q.startsWith("update notes set content = ?, updated_at = ? where title = ?")) {
       const [content, updatedAt, title] = values;
@@ -58,13 +84,16 @@ class WebDatabase {
       }
       this.saveTable("notes", notes);
     }
-    else if (q.startsWith("insert into tasks")) {
-      const tasks = this.getTable("tasks");
+    else if (q.startsWith("insert into tasks") || q.startsWith("insert or replace into tasks")) {
       const includesExternalStatus = q.includes("external_status");
       const [id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url] = values;
       const external_status = includesExternalStatus ? values[11] : null;
       const is_pending_sync = includesExternalStatus ? values[12] : values[11];
-      tasks.push({ 
+      const created_at = includesExternalStatus ? values[13] : values[12];
+      const updated_at = includesExternalStatus ? values[14] : values[13];
+      
+      const now = new Date().toISOString();
+      upsertRecord("tasks", { 
         id, 
         note_id, 
         title, 
@@ -77,10 +106,18 @@ class WebDatabase {
         external_id, 
         external_url, 
         external_status,
-        is_pending_sync, 
-        created_at: new Date().toISOString(), 
-        updated_at: new Date().toISOString() 
+        is_pending_sync: is_pending_sync !== undefined ? is_pending_sync : 1, 
+        created_at: created_at || now, 
+        updated_at: updated_at || now 
       });
+    }
+    else if (q.startsWith("update tasks set is_pending_sync = 0 where id = ?")) {
+      const [id, updated_at] = values;
+      const tasks = this.getTable("tasks");
+      const idx = tasks.findIndex((t: any) => t.id === id && (!updated_at || t.updated_at === updated_at));
+      if (idx !== -1) {
+        tasks[idx] = { ...tasks[idx], is_pending_sync: 0 };
+      }
       this.saveTable("tasks", tasks);
     }
     else if (q.startsWith("update tasks set status = ?")) {
@@ -88,7 +125,7 @@ class WebDatabase {
       const tasks = this.getTable("tasks");
       const idx = tasks.findIndex((t: any) => t.id === id);
       if (idx !== -1) {
-        tasks[idx] = { ...tasks[idx], status, updated_at };
+        tasks[idx] = { ...tasks[idx], status, is_pending_sync: 1, updated_at };
       }
       this.saveTable("tasks", tasks);
     }
@@ -124,10 +161,15 @@ class WebDatabase {
       this.saveTable("tasks", tasks);
     }
     else if (q.startsWith("delete from tasks")) {
-      const id = values[0];
-      let tasks = this.getTable("tasks");
-      tasks = tasks.filter((t: any) => t.id !== id);
-      this.saveTable("tasks", tasks);
+      if (values.length === 0) {
+        // Truncate table
+        this.saveTable("tasks", []);
+      } else {
+        const id = values[0];
+        let tasks = this.getTable("tasks");
+        tasks = tasks.filter((t: any) => t.id !== id);
+        this.saveTable("tasks", tasks);
+      }
     }
     else if (q.startsWith("insert into activity_logs")) {
       const logs = this.getTable("activity_logs");
@@ -138,8 +180,7 @@ class WebDatabase {
     else if (q.startsWith("delete from activity_logs")) {
       this.saveTable("activity_logs", []);
     }
-    else if (q.startsWith("insert into calendar_events")) {
-      const events = this.getTable("calendar_events");
+    else if (q.startsWith("insert into calendar_events") || q.startsWith("insert or replace into calendar_events")) {
       const [
         id,
         title,
@@ -152,10 +193,12 @@ class WebDatabase {
         is_lunar_leap,
         repeat_yearly,
         is_important,
-        notes
+        notes,
+        created_at,
+        updated_at
       ] = values;
       const now = new Date().toISOString();
-      events.push({
+      upsertRecord("calendar_events", {
         id,
         title,
         event_type,
@@ -164,32 +207,38 @@ class WebDatabase {
         lunar_day,
         lunar_month,
         lunar_year,
-        is_lunar_leap,
-        repeat_yearly,
-        is_important,
+        is_lunar_leap: is_lunar_leap || 0,
+        repeat_yearly: repeat_yearly || 0,
+        is_important: is_important || 0,
         notes,
-        created_at: now,
-        updated_at: now
+        created_at: created_at || now,
+        updated_at: updated_at || now
       });
-      this.saveTable("calendar_events", events);
     }
     else if (q.startsWith("delete from calendar_events")) {
-      const id = values[0];
-      let events = this.getTable("calendar_events");
-      events = events.filter((event: any) => event.id !== id);
-      this.saveTable("calendar_events", events);
+      if (values.length === 0) {
+        this.saveTable("calendar_events", []);
+      } else {
+        const id = values[0];
+        let events = this.getTable("calendar_events");
+        events = events.filter((event: any) => event.id !== id);
+        this.saveTable("calendar_events", events);
+      }
     }
-    else if (q.startsWith("insert into ai_sessions")) {
-      const sessions = this.getTable("ai_sessions");
+    else if (q.startsWith("insert into ai_sessions") || q.startsWith("insert or replace into ai_sessions")) {
       const [id, title, created_at] = values;
-      sessions.push({ id, title, created_at });
-      this.saveTable("ai_sessions", sessions);
+      const now = new Date().toISOString();
+      upsertRecord("ai_sessions", { id, title, created_at: created_at || now });
     }
     else if (q.startsWith("delete from ai_sessions")) {
-      const id = values[0];
-      let sessions = this.getTable("ai_sessions");
-      sessions = sessions.filter((s: any) => s.id !== id);
-      this.saveTable("ai_sessions", sessions);
+      if (values.length === 0) {
+        this.saveTable("ai_sessions", []);
+      } else {
+        const id = values[0];
+        let sessions = this.getTable("ai_sessions");
+        sessions = sessions.filter((s: any) => s.id !== id);
+        this.saveTable("ai_sessions", sessions);
+      }
     }
     else if (q.startsWith("update ai_sessions set title = ?")) {
       const [title, id] = values;
@@ -200,11 +249,10 @@ class WebDatabase {
       }
       this.saveTable("ai_sessions", sessions);
     }
-    else if (q.startsWith("insert into ai_messages")) {
-      const messages = this.getTable("ai_messages");
+    else if (q.startsWith("insert into ai_messages") || q.startsWith("insert or replace into ai_messages")) {
       const [id, session_id, sender, text, created_at] = values;
-      messages.push({ id, session_id, sender, text, created_at });
-      this.saveTable("ai_messages", messages);
+      const now = new Date().toISOString();
+      upsertRecord("ai_messages", { id, session_id, sender, text, created_at: created_at || now });
     }
     else if (q.startsWith("update ai_messages set text = ?")) {
       const [text, id] = values;
@@ -216,24 +264,34 @@ class WebDatabase {
       this.saveTable("ai_messages", messages);
     }
     else if (q.startsWith("delete from ai_messages")) {
-      const sessionId = values[0];
-      let messages = this.getTable("ai_messages");
-      messages = messages.filter((m: any) => m.session_id !== sessionId);
-      this.saveTable("ai_messages", messages);
+      if (values.length === 0) {
+        this.saveTable("ai_messages", []);
+      } else {
+        const targetId = values[0];
+        let messages = this.getTable("ai_messages");
+        if (q.includes("where id = ?")) {
+          messages = messages.filter((m: any) => m.id !== targetId);
+        } else {
+          messages = messages.filter((m: any) => m.session_id !== targetId);
+        }
+        this.saveTable("ai_messages", messages);
+      }
     }
-    else if (q.startsWith("insert into ai_memories")) {
-      const memories = this.getTable("ai_memories");
+    else if (q.startsWith("insert into ai_memories") || q.startsWith("insert or replace into ai_memories")) {
       const [id, content, created_at] = values;
-      memories.push({ id, content, created_at });
-      this.saveTable("ai_memories", memories);
+      const now = new Date().toISOString();
+      upsertRecord("ai_memories", { id, content, created_at: created_at || now });
     }
     else if (q.startsWith("delete from ai_memories")) {
-      const id = values[0];
-      let memories = this.getTable("ai_memories");
-      memories = memories.filter((m: any) => m.id !== id);
-      this.saveTable("ai_memories", memories);
+      if (values.length === 0) {
+        this.saveTable("ai_memories", []);
+      } else {
+        const id = values[0];
+        let memories = this.getTable("ai_memories");
+        memories = memories.filter((m: any) => m.id !== id);
+        this.saveTable("ai_memories", memories);
+      }
     }
-    
     return true;
   }
 

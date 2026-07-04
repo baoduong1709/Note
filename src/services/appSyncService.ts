@@ -6,28 +6,153 @@ import { getTasks, Task } from "../database/queries/tasks";
 import { getCalendarEvents, CalendarEvent } from "../database/queries/calendarEvents";
 import { getAISessions, AISession } from "../database/queries/aiChat";
 import { generateSyncIdFromEmail, getStoredUser } from "./shareService";
-import { apiRequest, getAuthToken } from "./apiClient";
+import { apiRequest, clearAuthToken, getAuthToken, setAuthToken } from "./apiClient";
 
 // ---------------------------------------------------------------------------
 // Local deletion tracking for delta sync
 // ---------------------------------------------------------------------------
 
+type PendingDeletion = { table: string; id: string; deletedAt?: string };
+type PendingUpsert = { table: string; id: string; updatedAt?: string };
+
 // Track deleted records for sync
 function trackDeletion(table: string, id: string): void {
-  const deletions = JSON.parse(localStorage.getItem('sync_deletions') || '[]');
+  const deletions = getPendingDeletions();
   deletions.push({ table, id, deletedAt: new Date().toISOString() });
   localStorage.setItem('sync_deletions', JSON.stringify(deletions));
 }
 
-function getPendingDeletions(): Array<{ table: string; id: string }> {
-  return JSON.parse(localStorage.getItem('sync_deletions') || '[]');
+function getPendingDeletions(): PendingDeletion[] {
+  return readJsonArray<PendingDeletion>('sync_deletions');
 }
 
 function clearPendingDeletions(): void {
   localStorage.removeItem('sync_deletions');
 }
 
-export { trackDeletion };
+function readJsonArray<T>(key: string): T[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function trackUpsert(table: string, id: string): void {
+  const upserts = getPendingUpserts().filter(
+    (item) => !(item.table === table && item.id === id),
+  );
+  upserts.push({ table, id, updatedAt: new Date().toISOString() });
+  localStorage.setItem("sync_upserts", JSON.stringify(upserts));
+}
+
+function getPendingUpserts(): PendingUpsert[] {
+  return readJsonArray<PendingUpsert>("sync_upserts");
+}
+
+function clearPendingUpserts(): void {
+  localStorage.removeItem("sync_upserts");
+}
+
+function removeSentPendingUpserts(sent: PendingUpsert[]): void {
+  if (sent.length === 0) return;
+  const remaining = getPendingUpserts().filter(
+    (pending) =>
+      !sent.some(
+        (item) =>
+          item.table === pending.table &&
+          item.id === pending.id &&
+          item.updatedAt === pending.updatedAt,
+      ),
+  );
+  if (remaining.length > 0) {
+    localStorage.setItem("sync_upserts", JSON.stringify(remaining));
+  } else {
+    clearPendingUpserts();
+  }
+}
+
+function removeSentPendingDeletions(sent: PendingDeletion[]): void {
+  if (sent.length === 0) return;
+  const remaining = getPendingDeletions().filter(
+    (pending) =>
+      !sent.some(
+        (item) =>
+          item.table === pending.table &&
+          item.id === pending.id &&
+          item.deletedAt === pending.deletedAt,
+      ),
+  );
+  if (remaining.length > 0) {
+    localStorage.setItem("sync_deletions", JSON.stringify(remaining));
+  } else {
+    clearPendingDeletions();
+  }
+}
+
+async function ensureCloudAuth(): Promise<boolean> {
+  const user = getStoredUser();
+  if (!user) return false;
+
+  const existingToken = getAuthToken();
+  if (existingToken) {
+    const tokenEmail = getTokenEmail(existingToken);
+    if (tokenEmail && tokenEmail.trim().toLowerCase() === user.email.trim().toLowerCase()) {
+      return true;
+    }
+    clearAuthToken();
+  }
+
+  try {
+    const result = await apiRequest<{ success: boolean; token?: string }>("/api/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ email: user.email, name: user.name }),
+    });
+
+    if (result.success && result.token) {
+      setAuthToken(result.token);
+      return true;
+    }
+  } catch (err) {
+    console.warn("[AppSync] Unable to restore cloud auth token:", err);
+  }
+
+  return Boolean(getAuthToken());
+}
+
+function getTokenEmail(token: string): string | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded)) as { email?: string };
+    return decoded.email || null;
+  } catch {
+    return null;
+  }
+}
+
+function getAIChatBackfillKey(): string | null {
+  const user = getStoredUser();
+  if (!user) return null;
+  return `ai_chat_sync_backfill_done:${user.email.trim().toLowerCase()}`;
+}
+
+function isAIChatBackfillDone(): boolean {
+  const key = getAIChatBackfillKey();
+  return key ? localStorage.getItem(key) === "true" : true;
+}
+
+function markAIChatBackfillDone(): void {
+  const key = getAIChatBackfillKey();
+  if (key) {
+    localStorage.setItem(key, "true");
+  }
+}
+
+export { trackDeletion, trackUpsert, isAIChatBackfillDone, markAIChatBackfillDone };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,6 +217,15 @@ function setLastSyncTime(isoTimestamp: string): void {
 async function pushChanges(): Promise<void> {
   const db = await getDatabase();
   const changes: DeltaChange[] = [];
+  const sentUpserts: PendingUpsert[] = [];
+  const seenUpsertKeys = new Set<string>();
+  const addUpsertChange = (table: string, data: Record<string, any>) => {
+    if (!data.id) return;
+    const key = `${table}:${data.id}`;
+    if (seenUpsertKeys.has(key)) return;
+    seenUpsertKeys.add(key);
+    changes.push({ action: "upsert", table, data: { ...data } });
+  };
 
   // Collect pending notes
   const pendingNotes = await db.select<Note[]>(
@@ -109,9 +243,48 @@ async function pushChanges(): Promise<void> {
     changes.push({ action: "upsert", table: "tasks", data: { ...task } });
   }
 
+  const shouldBackfillAIChat = !isAIChatBackfillDone();
+  if (shouldBackfillAIChat) {
+    const aiSessions = await db.select<Record<string, any>[]>(
+      "SELECT * FROM ai_sessions ORDER BY created_at ASC",
+    );
+    for (const session of aiSessions) {
+      addUpsertChange("ai_sessions", session);
+    }
+
+    const aiMessages = await db.select<Record<string, any>[]>(
+      "SELECT * FROM ai_messages ORDER BY created_at ASC",
+    );
+    for (const message of aiMessages) {
+      addUpsertChange("ai_messages", message);
+    }
+  }
+
   // Calendar events, AI sessions, and AI messages don't have is_pending_sync.
-  // They are only synced via full sync. Future improvement: add is_pending_sync
-  // to these tables as well.
+  // They are tracked through localStorage pending-upsert markers.
+  const pendingUpserts = getPendingUpserts();
+  const trackedTables = new Set(["calendar_events", "ai_sessions", "ai_messages"]);
+  for (const item of pendingUpserts) {
+    if (!trackedTables.has(item.table)) continue;
+
+    const rows = await db.select<Record<string, any>[]>(
+      `SELECT * FROM ${item.table} WHERE id = ?`,
+      [item.id],
+    );
+    if (rows.length > 0) {
+      if (item.table === "ai_messages" && rows[0].session_id) {
+        const sessions = await db.select<Record<string, any>[]>(
+          "SELECT * FROM ai_sessions WHERE id = ?",
+          [rows[0].session_id],
+        );
+        if (sessions.length > 0) {
+          addUpsertChange("ai_sessions", sessions[0]);
+        }
+      }
+      addUpsertChange(item.table, rows[0]);
+      sentUpserts.push(item);
+    }
+  }
 
   // Collect pending deletions tracked locally
   const deletions = getPendingDeletions();
@@ -120,6 +293,9 @@ async function pushChanges(): Promise<void> {
   }
 
   if (changes.length === 0) {
+    if (shouldBackfillAIChat) {
+      markAIChatBackfillDone();
+    }
     console.log("[AppSync] No pending changes to push.");
     return;
   }
@@ -133,18 +309,25 @@ async function pushChanges(): Promise<void> {
 
   // Mark records as synced after successful push
   for (const note of pendingNotes) {
-    await db.execute("UPDATE notes SET is_pending_sync = 0 WHERE id = ?", [
+    await db.execute("UPDATE notes SET is_pending_sync = 0 WHERE id = ? AND updated_at = ?", [
       note.id,
+      note.updated_at || null,
     ]);
   }
   for (const task of pendingTasks) {
-    await db.execute("UPDATE tasks SET is_pending_sync = 0 WHERE id = ?", [
+    await db.execute("UPDATE tasks SET is_pending_sync = 0 WHERE id = ? AND updated_at = ?", [
       task.id,
+      task.updated_at || null,
     ]);
   }
 
-  // Clear deletion tracking after successful push
-  clearPendingDeletions();
+  // Clear only markers included in this request. New markers created while
+  // this request was in flight must stay queued for the next run.
+  removeSentPendingUpserts(sentUpserts);
+  removeSentPendingDeletions(deletions);
+  if (shouldBackfillAIChat) {
+    markAIChatBackfillDone();
+  }
 
   console.log("[AppSync] Delta push completed successfully.");
 }
@@ -290,6 +473,9 @@ async function pullChanges(): Promise<boolean> {
     };
     const localTable = tableMap[deletion.table];
     if (localTable) {
+      if (localTable === "ai_sessions") {
+        await db.execute("DELETE FROM ai_messages WHERE session_id = ?", [deletion.id]);
+      }
       await db.execute(`DELETE FROM ${localTable} WHERE id = ?`, [deletion.id]);
       hasChanges = true;
     }
@@ -311,6 +497,8 @@ async function fullPush(): Promise<void> {
   const tasks = await getTasks();
   const calendarEvents = await getCalendarEvents();
   const aiSessions = await getAISessions();
+  const db = await getDatabase();
+  const aiMessages = await db.select<any[]>("SELECT * FROM ai_messages ORDER BY created_at ASC");
 
   await apiRequest("/api/sync/push", {
     method: "POST",
@@ -319,15 +507,25 @@ async function fullPush(): Promise<void> {
       tasks,
       calendarEvents,
       aiSessions,
-      aiMessages: [],
+      aiMessages,
       lastUpdated: Date.now(),
     }),
   });
 
-  // Mark everything as synced
-  const db = await getDatabase();
-  await db.execute("UPDATE notes SET is_pending_sync = 0 WHERE is_pending_sync = 1");
-  await db.execute("UPDATE tasks SET is_pending_sync = 0 WHERE is_pending_sync = 1");
+  // Mark only records captured by this full-push snapshot. Anything changed
+  // while the request was in flight must remain pending for the queued delta run.
+  for (const note of notes) {
+    await db.execute("UPDATE notes SET is_pending_sync = 0 WHERE id = ? AND updated_at = ?", [
+      note.id,
+      note.updated_at || null,
+    ]);
+  }
+  for (const task of tasks) {
+    await db.execute("UPDATE tasks SET is_pending_sync = 0 WHERE id = ? AND updated_at = ?", [
+      task.id,
+      task.updated_at || null,
+    ]);
+  }
 
   localStorage.setItem("local_last_updated", Date.now().toString());
   console.log("[AppSync] Full push completed successfully.");
@@ -468,6 +666,8 @@ async function fullPull(): Promise<boolean> {
  */
 export async function syncAll(): Promise<boolean> {
   const isFirstSync = getLastSyncTime() === null;
+  const syncId = await getAppSyncId();
+  if (!syncId || !(await ensureCloudAuth())) return false;
 
   try {
     if (isFirstSync) {
@@ -490,6 +690,9 @@ export async function syncAll(): Promise<boolean> {
  * Pulls all data from server. If server has nothing, pushes local data first.
  */
 export async function fullSync(): Promise<boolean> {
+  const syncId = await getAppSyncId();
+  if (!syncId || !(await ensureCloudAuth())) return false;
+
   try {
     const pulled = await fullPull();
     if (!pulled) {
@@ -507,26 +710,45 @@ export async function fullSync(): Promise<boolean> {
 // Backward-compatible exports
 // ---------------------------------------------------------------------------
 
+let pushInFlight: Promise<void> | null = null;
+let pushQueued = false;
+
+async function pushLocalDataToCloudOnce(): Promise<void> {
+  const syncId = await getAppSyncId();
+  if (!syncId || !(await ensureCloudAuth())) return;
+
+  const isFirstSync = getLastSyncTime() === null;
+  if (isFirstSync) {
+    await fullPush();
+    setLastSyncTime(new Date().toISOString());
+  } else {
+    await pushChanges();
+  }
+}
+
 /**
  * Push local data to cloud.
  * Uses delta push if a previous sync exists, otherwise performs a full push.
  */
 export async function pushLocalDataToCloud(): Promise<void> {
-  const syncId = await getAppSyncId();
-  if (!syncId || !getAuthToken()) return;
+  pushQueued = true;
+  if (pushInFlight) return pushInFlight;
 
-  try {
-    const isFirstSync = getLastSyncTime() === null;
-    if (isFirstSync) {
-      await fullPush();
-      setLastSyncTime(new Date().toISOString());
-    } else {
-      await pushChanges();
+  pushInFlight = (async () => {
+    while (pushQueued) {
+      pushQueued = false;
+      try {
+        await pushLocalDataToCloudOnce();
+      } catch (err) {
+        console.error("[AppSync] Failed to push local data to Cloud:", err);
+      }
     }
-  } catch (err) {
-    console.error("[AppSync] Failed to push local data to Cloud:", err);
+  })().finally(() => {
+    pushInFlight = null;
+  });
+
+  return pushInFlight;
   }
-}
 
 /**
  * Pull cloud data to local.
@@ -534,7 +756,7 @@ export async function pushLocalDataToCloud(): Promise<void> {
  */
 export async function pullCloudDataToLocal(): Promise<boolean> {
   const syncId = await getAppSyncId();
-  if (!syncId || !getAuthToken()) return false;
+  if (!syncId || !(await ensureCloudAuth())) return false;
 
   try {
     const isFirstSync = getLastSyncTime() === null;

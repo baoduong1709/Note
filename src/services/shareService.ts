@@ -1,5 +1,5 @@
 // Share service - uses backend server API instead of jsonblob.com
-import { apiRequest } from './apiClient';
+import { apiRequest, clearAuthToken } from './apiClient';
 
 export interface ShareData {
   type: 'text' | 'image';
@@ -38,6 +38,10 @@ export function clearStoredUser(): void {
   localStorage.removeItem('sync_user_email');
   localStorage.removeItem('sync_user_name');
   localStorage.removeItem('sync_share_id');
+  localStorage.removeItem('last_sync_time');
+  localStorage.removeItem('sync_deletions');
+  localStorage.removeItem('sync_upserts');
+  clearAuthToken();
 }
 
 // Push share data to the server for the given sync ID

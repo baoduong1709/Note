@@ -50,6 +50,16 @@ export default function NotesView({
     loadNotes();
   }, [selectedNoteId]);
 
+  useEffect(() => {
+    const handleSyncUpdate = () => {
+      loadNotes();
+    };
+    window.addEventListener("notes-updated", handleSyncUpdate);
+    return () => {
+      window.removeEventListener("notes-updated", handleSyncUpdate);
+    };
+  }, []);
+
   // Handle Note Save (Triggered by MarkdownEditor)
   const handleNoteSave = async (title: string, content: string) => {
     if (!selectedNoteId) return;

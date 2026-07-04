@@ -16,9 +16,9 @@ export function initDatabase(): Database.Database {
 
   db = new Database(dbPath);
 
-  // Enable WAL mode for better concurrent read performance
+  // Disable foreign keys enforcement on server sync database
   db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  db.pragma('foreign_keys = OFF');
 
   // Create all tables
   db.exec(`

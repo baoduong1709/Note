@@ -1,16 +1,21 @@
-# Task 1 Report: Add Custom CSS Styles for Running Gradient Border and Glow
+# Task 1 Report: Update Main View Layout Spacing
 
 ## Status
 DONE
 
 ## Description
-Added the custom CSS styles for animated running gradient borders and hover glow effects to `src/index.css`. Following review feedback, updated the implementation to use a CSS mask-composite trick on `.premium-gradient-border` to prevent background bleed-through and defined `--primary-glow` and `--primary-glow-secondary` CSS variables in `:root` and `.dark` to avoid hardcoded colors.
+Modified `src/App.tsx` to add `pb-24` to the main view layout container's bottom padding in mobile view. This prevents the floating navigation bar (redesigned as a glassmorphic dock) from covering or obscuring the main page content on mobile screens.
+
+Specifically, added `pb-24 md:pb-6` to the `<main>` element class list:
+- `pb-24`: Adds bottom padding of 6rem (96px) on mobile viewports.
+- `md:pb-6`: Reverts back to normal bottom padding of 1.5rem (24px) on medium screens and larger, where the sidebar is shown instead of the mobile dock.
 
 ## Verification
-- Added `.premium-gradient-border` class with a pseudo-element rotating conic-gradient and CSS mask composite (`-webkit-mask`, `mask-composite: exclude`) for the running border effect without background bleed.
-- Added CSS variables `--primary-glow` and `--primary-glow-secondary` to `:root` and `.dark` themes.
-- Used the custom variables in `.premium-hover-glow:hover` for shadow glow.
-- Verified CSS syntax by compiling the project via `npm run build` successfully.
+- Verified compilation and code correctness by running `npm run build` which succeeded without errors.
+- Verified that the `<main>` element in [src/App.tsx](file:///c:/Project/Note/src/App.tsx) has:
+  ```tsx
+  <main className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6 pb-24 md:pb-6">
+  ```
 
 ## Commits
-None (Auto-commit disabled by user rules).
+- `e99a4cc` style: add bottom padding to main view layout in mobile view

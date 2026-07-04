@@ -1,6 +1,15 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { getDatabase } from '../database.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { broadcastSyncUpdate } from '../websocket.js';
+
+// Helper to generate deterministic syncId from user email
+function generateSyncIdFromEmail(email: string): string {
+  const cleanEmail = email.trim().toLowerCase();
+  const hash = crypto.createHash('sha256').update(cleanEmail).digest('hex');
+  return hash.substring(0, 32);
+}
 
 const router = Router();
 
@@ -173,6 +182,12 @@ router.post('/push', (req: Request, res: Response) => {
 
     syncTransaction();
 
+    // Trigger real-time sync broadcast to other devices
+    if (req.user && req.user.email) {
+      const syncId = generateSyncIdFromEmail(req.user.email);
+      broadcastSyncUpdate(syncId);
+    }
+
     res.json({
       success: true,
       data: {
@@ -284,6 +299,7 @@ router.post('/delta-push', (req: Request, res: Response) => {
     }
 
     const stats = { upserted: 0, deleted: 0, skipped: 0 };
+    const nowIso = new Date().toISOString();
 
     const deltaTransaction = db.transaction(() => {
       for (const change of changes) {
@@ -329,7 +345,7 @@ router.post('/delta-push', (req: Request, res: Response) => {
           // Always refresh updated_at for tables that have it
           const cols = SYNCABLE_TABLES[tableName];
           if (cols.includes('updated_at')) {
-            normalized.updated_at = new Date().toISOString();
+            normalized.updated_at = nowIso;
           }
 
           // Build column list from the table schema, only include columns that have values
@@ -354,6 +370,9 @@ router.post('/delta-push', (req: Request, res: Response) => {
           if (tableName === 'ai_messages') {
             // Only delete if the message's session belongs to the current user
             db.prepare(`DELETE FROM ai_messages WHERE id = ? AND session_id IN (SELECT id FROM ai_sessions WHERE user_id = ?)`).run(recordId, userId);
+          } else if (tableName === 'ai_sessions') {
+            db.prepare('DELETE FROM ai_messages WHERE session_id = ? AND session_id IN (SELECT id FROM ai_sessions WHERE user_id = ?)').run(recordId, userId);
+            db.prepare('DELETE FROM ai_sessions WHERE id = ? AND user_id = ?').run(recordId, userId);
           } else {
             db.prepare(`DELETE FROM ${tableName} WHERE id = ? AND user_id = ?`).run(recordId, userId);
           }
@@ -361,8 +380,8 @@ router.post('/delta-push', (req: Request, res: Response) => {
           // Record deletion in tombstones for other devices to pick up
           db.prepare(`
             INSERT OR REPLACE INTO sync_tombstones (id, user_id, table_name, deleted_at)
-            VALUES (?, ?, ?, datetime('now'))
-          `).run(recordId, userId, tableName);
+            VALUES (?, ?, ?, ?)
+          `).run(recordId, userId, tableName, nowIso);
 
           stats.deleted++;
         }
@@ -370,6 +389,12 @@ router.post('/delta-push', (req: Request, res: Response) => {
     });
 
     deltaTransaction();
+
+    // Trigger real-time sync broadcast to other devices
+    if (req.user && req.user.email) {
+      const syncId = generateSyncIdFromEmail(req.user.email);
+      broadcastSyncUpdate(syncId);
+    }
 
     res.json({
       success: true,
@@ -407,10 +432,6 @@ router.get('/delta-pull', (req: Request, res: Response) => {
       'SELECT * FROM calendar_events WHERE user_id = ? AND updated_at > ? ORDER BY updated_at DESC',
     ).all(userId, since);
 
-    const aiSessions = db.prepare(
-      'SELECT * FROM ai_sessions WHERE user_id = ? AND created_at > ? ORDER BY created_at DESC',
-    ).all(userId, since);
-
     // For ai_messages, fetch messages belonging to this user's sessions that are newer
     let aiMessages: any[] = [];
     const userSessionIds = (
@@ -423,6 +444,17 @@ router.get('/delta-pull', (req: Request, res: Response) => {
         `SELECT * FROM ai_messages WHERE session_id IN (${placeholders}) AND created_at > ? ORDER BY created_at ASC`,
       ).all(...userSessionIds, since);
     }
+
+    const changedSessionIds = Array.from(new Set([
+      ...(aiMessages as any[]).map((message) => message.session_id).filter(Boolean),
+    ]));
+    const aiSessions = changedSessionIds.length > 0
+      ? db.prepare(
+          `SELECT * FROM ai_sessions WHERE user_id = ? AND (created_at > ? OR id IN (${changedSessionIds.map(() => '?').join(',')})) ORDER BY created_at DESC`,
+        ).all(userId, since, ...changedSessionIds)
+      : db.prepare(
+          'SELECT * FROM ai_sessions WHERE user_id = ? AND created_at > ? ORDER BY created_at DESC',
+        ).all(userId, since);
 
     // Fetch tombstones (deletions) since the given timestamp
     const deletions = db.prepare(

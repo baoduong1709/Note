@@ -70,3 +70,19 @@ export function broadcastShare(syncId: string, shareData: any): void {
     }
   });
 }
+
+// Broadcast database sync signal to all other devices in the same syncId channel
+export function broadcastSyncUpdate(syncId: string): void {
+  const clients = channels.get(syncId);
+  if (!clients) return;
+  
+  const message = JSON.stringify({
+    type: 'sync_update',
+  });
+
+  clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}

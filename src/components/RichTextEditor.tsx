@@ -87,7 +87,15 @@ export default function RichTextEditor({
     }
   };
 
-  const handleEditorInput = () => {
+  const handleEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    
+    // If the input event came from a code block textarea, sync its value to DOM textContent
+    if (target && target.classList.contains("code-input")) {
+      const textarea = target as HTMLTextAreaElement;
+      textarea.textContent = textarea.value;
+    }
+
     if (editorRef.current) {
       triggerAutoSave(title, editorRef.current.innerHTML);
     }

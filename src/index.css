@@ -517,18 +517,6 @@ button:active:not(:disabled) {
   animation: aiGlowPulse 2s ease-in-out infinite;
 }
 
-/* --- 12. Bottom Nav Gradient Dot --- */
-@keyframes navDotPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.7; }
-}
-.nav-dot-active {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #8b5cf6, #0d9488);
-  animation: navDotPulse 2s ease-in-out infinite;
-}
 
 /* --- 13. Card Icon Gradient Glow --- */
 @keyframes iconGlowPulse {
@@ -584,4 +572,38 @@ button:active:not(:disabled) {
 .premium-hover-glow:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px -5px var(--primary-glow), 0 8px 10px -6px var(--primary-glow-secondary);
+}
+
+/* Scrollable container padding on mobile to clear floating bottom dock */
+@media (max-width: 767px) {
+  main .overflow-y-auto {
+    padding-bottom: 5rem !important;
+  }
+}
+
+/* Nav Active Button Running Gradient Border */
+@property --nav-gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.nav-active-gradient-border {
+  position: absolute !important;
+  border: 2.5px solid transparent;
+  background: 
+    linear-gradient(rgba(244, 244, 245, 0.75), rgba(244, 244, 245, 0.75)) padding-box, 
+    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #0d9488, #ec4899, #6366f1, #8b5cf6) border-box;
+  animation: navSpinAngle 3s linear infinite;
+}
+
+.dark .nav-active-gradient-border {
+  background: 
+    linear-gradient(rgba(9, 9, 11, 0.8), rgba(9, 9, 11, 0.8)) padding-box, 
+    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #0d9488, #ec4899, #6366f1, #8b5cf6) border-box;
+}
+
+@keyframes navSpinAngle {
+  0% { --nav-gradient-angle: 0deg; }
+  100% { --nav-gradient-angle: 360deg; }
 }
