@@ -46,7 +46,7 @@ export async function createNote(note: Note): Promise<void> {
       note.content || "",
       note.type || "quick",
       note.is_locked || 0,
-      note.is_pending_sync || 0
+      note.is_pending_sync ?? 1
     ]
   );
   
@@ -94,6 +94,10 @@ export async function deleteNote(id: string): Promise<void> {
   const title = note ? note.title : "Unknown Note";
   
   await db.execute("DELETE FROM notes WHERE id = ?", [id]);
+  
+  // Track deletion for delta sync
+  const { trackDeletion } = await import("../../services/appSyncService");
+  trackDeletion('notes', id);
   
   // Log activity
   await logActivity("note", id, "deleted", `Deleted note: ${title}`);

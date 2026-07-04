@@ -139,6 +139,10 @@ export async function deleteTask(id: string): Promise<void> {
   
   await db.execute("DELETE FROM tasks WHERE id = ?", [id]);
   
+  // Track deletion for delta sync
+  const { trackDeletion } = await import("../../services/appSyncService");
+  trackDeletion('tasks', id);
+  
   // Log activity
   await logActivity("task", id, "deleted", `Deleted task: ${title}`);
 

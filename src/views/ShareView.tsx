@@ -18,9 +18,11 @@ import {
   clearStoredUser, 
   generateSyncIdFromEmail, 
   sendShareData, 
-  receiveShareData,
+  receiveShareHistory,
   ShareData
 } from "../services/shareService";
+import { apiRequest, setAuthToken } from '../services/apiClient';
+import { useShareWebSocket } from '../hooks/useShareWebSocket';
 
 interface ShareViewProps {
   triggerToast: (message: string) => void;
@@ -40,16 +42,23 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   const [isSending, setIsSending] = useState(false);
 
   // Output states (Receive side)
-  const [receivedData, setReceivedData] = useState<ShareData | null>(null);
+  const [shareHistory, setShareHistory] = useState<ShareData[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [networkError, setNetworkError] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Drag and drop / Paste states
   const [isDragging, setIsDragging] = useState(false);
 
-  // Reference for auto-sync timer
-  const autoSyncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // WebSocket: receive shares in real-time
+  useShareWebSocket({
+    syncId: syncId || null,
+    onNewShare: (share) => {
+      setShareHistory(prev => [share, ...prev]);
+      triggerToast(`Đã nhận dữ liệu mới từ ${share.userName || 'thiết bị khác'}!`);
+    },
+  });
 
   // Initialize and load user from storage and listen to global changes
   useEffect(() => {
@@ -64,12 +73,9 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       if (updatedUser) {
         handleUserInit(updatedUser);
       } else {
-        if (autoSyncIntervalRef.current) {
-          clearInterval(autoSyncIntervalRef.current);
-        }
         setUser(null);
         setSyncId("");
-        setReceivedData(null);
+        setShareHistory([]);
       }
     };
 
@@ -84,9 +90,6 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
     return () => {
       window.removeEventListener("auth-state-changed", handleAuthChange);
       window.removeEventListener("trigger-google-login", handleTriggerLogin);
-      if (autoSyncIntervalRef.current) {
-        clearInterval(autoSyncIntervalRef.current);
-      }
     };
   }, []);
 
@@ -97,17 +100,8 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
     try {
       const id = await generateSyncIdFromEmail(userData.email);
       setSyncId(id);
-      // Fetch initial data immediately
+      // Fetch initial data immediately (history loaded on login)
       fetchData(id);
-      
-      // Start auto-refresh every 2.5 seconds
-      if (autoSyncIntervalRef.current) {
-        clearInterval(autoSyncIntervalRef.current);
-      }
-      autoSyncIntervalRef.current = setInterval(() => {
-        fetchData(id, false); // silent background sync
-      }, 2500);
-
     } catch (err) {
       console.error(err);
       triggerToast("Lỗi khởi tạo Sync ID!");
@@ -128,15 +122,35 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         await invoke("start_auth_server");
 
         // 2. Lắng nghe event trả về từ Rust
-        const unlisten = await listen("oauth-response", (event) => {
+        const unlisten = await listen("oauth-response", async (event) => {
           const payload = event.payload as string;
           const params = new URLSearchParams(payload);
           const email = params.get("email");
           const name = params.get("name");
+          const accessToken = params.get("access_token");
           
           if (email && name) {
             const decodedEmail = decodeURIComponent(email);
             const decodedName = decodeURIComponent(name);
+            
+            // Register/login with our server using Google access_token
+            if (accessToken) {
+              try {
+                const authResult = await apiRequest<{ success: boolean; token: string; user: any }>('/api/auth/google', {
+                  method: 'POST',
+                  body: JSON.stringify({ 
+                    credential: accessToken,
+                    email: decodedEmail,
+                    name: decodedName,
+                  }),
+                });
+                if (authResult.success && authResult.token) {
+                  setAuthToken(authResult.token);
+                }
+              } catch (err) {
+                console.error('Failed to authenticate with server:', err);
+              }
+            }
             
             storeUser(decodedEmail, decodedName);
             handleUserInit({ email: decodedEmail, name: decodedName });
@@ -154,8 +168,75 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         triggerToast("Đang mở trình duyệt Chrome để đăng nhập...");
 
       } else {
-        triggerToast("Vui lòng sử dụng Đăng nhập nhanh bằng Email thật ở dưới khi chạy trên trình duyệt web!");
-        setLoginStep('accounts');
+        // Web browser: Use OAuth 2.0 Implicit Flow with popup
+        const CLIENT_ID = "113610150516-jo77q0pv19qso8qg84a2h30hug4jga5s.apps.googleusercontent.com";
+        const REDIRECT_URI = window.location.origin + "/oauth-callback.html";
+        const SCOPE = "email profile";
+
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${encodeURIComponent(CLIENT_ID)}` +
+          `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+          `&response_type=token` +
+          `&scope=${encodeURIComponent(SCOPE)}` +
+          `&prompt=select_account`;
+
+        // Open popup
+        const width = 500, height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        const popup = window.open(authUrl, "google-login", `width=${width},height=${height},left=${left},top=${top}`);
+
+        if (!popup) {
+          triggerToast("Trình duyệt đã chặn popup. Vui lòng cho phép popup!");
+          setLoginStep('accounts');
+          return;
+        }
+
+        // Listen for message from callback page
+        const handleMessage = async (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return;
+          if (event.data?.type === "google-oauth-success") {
+            const { email, name, picture, accessToken } = event.data;
+            
+            // Register/login with our server using Google access_token
+            if (accessToken) {
+              try {
+                const authResult = await apiRequest<{ success: boolean; token: string; user: any }>('/api/auth/google', {
+                  method: 'POST',
+                  body: JSON.stringify({ 
+                    credential: accessToken,
+                    email,
+                    name,
+                    picture,
+                  }),
+                });
+                if (authResult.success && authResult.token) {
+                  setAuthToken(authResult.token);
+                }
+              } catch (err) {
+                console.error('Failed to authenticate with server:', err);
+              }
+            }
+            
+            storeUser(email, name);
+            handleUserInit({ email, name });
+            setShowLoginModal(false);
+            setLoginStep('accounts');
+            window.dispatchEvent(new CustomEvent("auth-state-changed"));
+            triggerToast(`Đăng nhập thành công: ${name}`);
+            window.removeEventListener("message", handleMessage);
+          }
+        };
+        window.addEventListener("message", handleMessage);
+
+        // Check if popup was closed without completing login
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            setLoginStep('accounts');
+            window.removeEventListener("message", handleMessage);
+          }
+        }, 1000);
       }
     } catch (err) {
       console.error("Lỗi khởi tạo OAuth:", err);
@@ -171,36 +252,16 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
     if (showLoading) setIsSyncing(true);
     setNetworkError(false);
     try {
-      const data = await receiveShareData(id);
-      if (data) {
-        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-        const isExpired = Date.now() - data.timestamp > ONE_DAY_MS;
-
-        if (isExpired && data.userEmail !== "system") {
-          // Dữ liệu đã quá 24 giờ -> Ghi đè thông báo hết hạn lên cloud để thực sự xóa
-          const systemMsg = "⚠️ Nội dung chia sẻ đã tự động bị xóa sau 24 giờ để bảo mật.";
-          setReceivedData({
-            type: 'text',
-            content: systemMsg,
-            timestamp: Date.now(),
-            userName: "Hệ thống",
-            userEmail: "system"
-          });
-          
-          await sendShareData(id, 'text', systemMsg, "system", "Hệ thống");
-          triggerToast("Dữ liệu chia sẻ đã hết hạn và tự động bị xóa!");
-        } else {
-          setReceivedData(prev => {
-            // Only update state and notify if timestamp is newer
-            if (!prev || data.timestamp > prev.timestamp) {
-              if (prev && data.content !== prev.content) {
-                triggerToast(`Đã nhận dữ liệu mới từ ${data.userName || 'thiết bị khác'}!`);
-              }
-              return data;
-            }
-            return prev;
-          });
-        }
+      const history = await receiveShareHistory(id);
+      if (history.length > 0) {
+        setShareHistory(prev => {
+          // Notify if there's new data
+          if (prev.length > 0 && history.length > prev.length) {
+            const newest = history[0];
+            triggerToast(`Đã nhận dữ liệu mới từ ${newest.userName || 'thiết bị khác'}!`);
+          }
+          return history;
+        });
       }
       setLastSyncTime(new Date());
     } catch (err) {
@@ -262,13 +323,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
 
 
   const handleLogout = () => {
-    if (autoSyncIntervalRef.current) {
-      clearInterval(autoSyncIntervalRef.current);
-    }
     clearStoredUser();
     setUser(null);
     setSyncId("");
-    setReceivedData(null);
+    setShareHistory([]);
     setSendText("");
     setSendImage(null);
     
@@ -371,14 +429,6 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       await sendShareData(syncId, type, content, user.email, user.name);
       
       triggerToast("Đã gửi chia sẻ thành công!");
-      // Instantly update Received data for the current device too
-      setReceivedData({
-        type,
-        content,
-        timestamp: Date.now(),
-        userEmail: user.email,
-        userName: user.name
-      });
       // Clear inputs
       setSendText("");
       setSendImage(null);
@@ -414,6 +464,23 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
     } catch (err) {
       console.error(err);
       triggerToast("Lỗi tải ảnh!");
+    }
+  };
+
+  // Copy Received Image to Clipboard
+  const handleCopyImage = async (base64: string) => {
+    try {
+      const response = await fetch(base64);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob
+        })
+      ]);
+      triggerToast("Đã sao chép ảnh vào Clipboard!");
+    } catch (err) {
+      console.error("Failed to copy image:", err);
+      triggerToast("Không hỗ trợ sao chép định dạng này!");
     }
   };
 
@@ -601,6 +668,24 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                       Cập nhật: {lastSyncTime.toLocaleTimeString()}
                     </span>
                   )}
+                  {shareHistory.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        if (!syncId) return;
+                        try {
+                          await apiRequest(`/api/share/${syncId}`, { method: 'DELETE' });
+                          setShareHistory([]);
+                          triggerToast("Đã xóa toàn bộ lịch sử chia sẻ!");
+                        } catch {
+                          triggerToast("Lỗi khi xóa lịch sử!");
+                        }
+                      }}
+                      className="p-1 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-500 transition-all"
+                      title="Xóa toàn bộ lịch sử"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => fetchData(syncId, true)}
                     disabled={isSyncing}
@@ -621,57 +706,64 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                   </div>
                 )}
 
-                {receivedData ? (
-                  <div className="flex-1 flex flex-col min-h-0 select-text">
-                    
-                    {/* Meta info of sender */}
-                    <div className="text-[9px] text-zinc-500 dark:text-zinc-400 mb-3 shrink-0 flex items-center justify-between border-b border-zinc-300 dark:border-white/5 pb-2 font-mono">
-                      <span>Người gửi: <strong>{receivedData.userName}</strong> ({receivedData.userEmail})</span>
-                      <span>{new Date(receivedData.timestamp).toLocaleTimeString()}</span>
-                    </div>
+                {shareHistory.length > 0 ? (
+                  <div className="flex-1 flex flex-col min-h-0 select-text overflow-y-auto space-y-3">
+                    {shareHistory.map((item, idx) => (
+                      <div key={idx} className="border border-zinc-200 dark:border-white/10 rounded-lg p-3 bg-white/5">
+                        {/* Meta info */}
+                        <div className="text-[9px] text-zinc-500 dark:text-zinc-400 mb-2 flex items-center justify-between border-b border-zinc-300 dark:border-white/5 pb-2 font-mono">
+                          <span>Người gửi: <strong>{item.userName}</strong></span>
+                          <span>{new Date(item.timestamp).toLocaleString()}</span>
+                        </div>
 
-                    {/* Content type handling */}
-                    {receivedData.type === 'text' ? (
-                      <div className="flex-1 flex flex-col select-text">
-                        <pre className="flex-1 whitespace-pre-wrap font-sans text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed overflow-y-auto select-text">
-                          {receivedData.content}
-                        </pre>
-                        
-                        <div className="pt-3 border-t border-zinc-300 dark:border-white/5 flex justify-end shrink-0">
-                          <button
-                            onClick={() => handleCopyText(receivedData.content)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[10px] transition-all cursor-pointer"
-                          >
-                            <Copy className="w-3 h-3" />
-                            Sao chép Text
-                          </button>
-                        </div>
+                        {/* Content */}
+                        {item.type === 'text' ? (
+                          <div className="select-text">
+                            <pre className="whitespace-pre-wrap font-sans text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed select-text mb-2">
+                              {item.content}
+                            </pre>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => handleCopyText(item.content)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[9px] transition-all cursor-pointer"
+                              >
+                                <Copy className="w-2.5 h-2.5" />
+                                Sao chép
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            <img 
+                              src={item.content} 
+                              alt="Shared" 
+                              title="Kích đúp để phóng to"
+                              onDoubleClick={() => setZoomedImage(item.content)}
+                              className="max-h-40 max-w-full rounded shadow-lg object-contain border border-zinc-200 dark:border-white/5 mb-2 cursor-zoom-in hover:opacity-90 transition-all" 
+                            />
+                            <div className="flex justify-end w-full gap-2">
+                              <button
+                                onClick={() => handleCopyImage(item.content)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[9px] transition-all cursor-pointer"
+                              >
+                                <Copy className="w-2.5 h-2.5" />
+                                Sao chép
+                              </button>
+                              <button
+                                onClick={() => handleDownloadImage(item.content)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-650 hover:bg-teal-500 text-white font-semibold text-[9px] transition-all cursor-pointer"
+                              >
+                                <Download className="w-2.5 h-2.5" />
+                                Tải về
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      // Image Display
-                      <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-                        <div className="flex-1 flex items-center justify-center overflow-hidden w-full p-2">
-                          <img 
-                            src={receivedData.content} 
-                            alt="Received Share" 
-                            className="max-h-60 max-w-full rounded shadow-lg object-contain border border-zinc-200 dark:border-white/5" 
-                          />
-                        </div>
-                        
-                        <div className="pt-3 w-full border-t border-zinc-300 dark:border-white/5 flex justify-end shrink-0">
-                          <button
-                            onClick={() => handleDownloadImage(receivedData.content)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-650 hover:bg-teal-500 text-white font-semibold text-[10px] transition-all cursor-pointer"
-                          >
-                            <Download className="w-3 h-3" />
-                            Tải hình ảnh về
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 ) : (
-                  // EMPTY RECEIVED STATE
+                  // EMPTY STATE
                   <div className="flex-1 flex flex-col items-center justify-center text-zinc-650 dark:text-zinc-500 text-center space-y-2 select-none">
                     <CloudLightning className="w-8 h-8 opacity-40 text-purple-400 animate-bounce" />
                     <div>
@@ -741,8 +833,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09z" />
                       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                     </svg>
-                    Đăng nhập qua Google Chrome
+                    Đăng nhập qua Google
                   </button>
+                  {/* Fallback container for Google Identity Services button on web */}
+                  <div id="google-signin-btn-web" className="flex justify-center mt-2"></div>
                 </div>
               </div>
             )}
@@ -751,6 +845,43 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         </div>
       )}
 
+      {/* Lightbox / Zoom Image Modal */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out select-none"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div className="relative max-w-full max-h-full flex flex-col items-center p-2">
+            <img 
+              src={zoomedImage} 
+              alt="Zoomed Shared" 
+              className="max-w-[95vw] max-h-[85vh] rounded-lg shadow-2xl object-contain border border-white/10"
+            />
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopyImage(zoomedImage);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-lg"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Sao chép ảnh
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownloadImage(zoomedImage);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-teal-650 hover:bg-teal-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-lg"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Tải ảnh về
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

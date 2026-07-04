@@ -57,7 +57,8 @@ export default function DashboardView({
         setTodayTasks(tasks.slice(0, 5)); // Show top 5 today tasks
 
         const notes = await getNotes();
-        setRecentNotes(notes.slice(0, 3)); // Show top 3 recent notes
+        const HIDDEN_NOTES = ['USER.md', 'MEMORY.md'];
+        setRecentNotes(notes.filter(n => !HIDDEN_NOTES.includes(n.title)).slice(0, 3)); // Show top 3 recent notes, exclude system files
 
         const imptTasks = await getImportantTasks();
         setImportantTasks(imptTasks);
@@ -116,7 +117,8 @@ export default function DashboardView({
       
       // Reload recent notes
       const notes = await getNotes();
-      setRecentNotes(notes.slice(0, 3));
+      const HIDDEN_NOTES = ['USER.md', 'MEMORY.md'];
+      setRecentNotes(notes.filter(n => !HIDDEN_NOTES.includes(n.title)).slice(0, 3));
     } catch (err) {
       console.error("Failed to save quick note:", err);
       triggerToast("Lỗi lưu ghi chú!");

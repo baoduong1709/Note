@@ -264,7 +264,7 @@ export default function App() {
 
   return (
     <>
-    <div className="fixed inset-0 flex flex-row overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
       {/* Animated Aurora Floating Orbs - wrapped in absolute container to stay out of flex flow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="aurora-orb aurora-orb-1"></div>
@@ -274,53 +274,57 @@ export default function App() {
         <div className="mesh-gradient-overlay"></div>
       </div>
 
-      {/* 1. SIDEBAR LEFT (PC/Web) */}
-      <Sidebar 
-        activeView={activeView} 
-        setActiveView={setActiveView} 
-      />
+      {/* ROW CONTAINER: Sidebar + Main Content (takes all available space) */}
+      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+        {/* 1. SIDEBAR LEFT (PC/Web) */}
+        <Sidebar 
+          activeView={activeView} 
+          setActiveView={setActiveView} 
+        />
 
-      {/* CONTAINER CHO GIAO DIỆN CHÍNH & AI CHAT PANEL */}
-      <div className="flex-1 min-w-0 h-full min-h-0 flex flex-row overflow-hidden relative">
-        
-        {/* 2. MAIN VIEW CONTENT */}
-        <main className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6 pb-20 md:pb-6">
-          {/* Top Bar for Mobile */}
-          <div className="md:hidden flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/5 mb-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
-              <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-wide">AI NOTEBOOK</span>
+        {/* CONTAINER CHO GIAO DIỆN CHÍNH & AI CHAT PANEL */}
+        <div className="flex-1 min-w-0 h-full min-h-0 flex flex-row overflow-hidden relative">
+          
+          {/* 2. MAIN VIEW CONTENT */}
+          <main className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6">
+            {/* Top Bar for Mobile */}
+            <div className="md:hidden flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/5 mb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
+                <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-wide">AI NOTEBOOK</span>
+              </div>
+              <div className="text-[10px] text-teal-400 font-semibold">
+                SQLite local ready
+              </div>
             </div>
-            <div className="text-[10px] text-teal-400 font-semibold">
-              SQLite local ready
-            </div>
-          </div>
 
-          {/* Render Active Tab with Framer Motion transitions */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeView}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden"
-            >
-              {renderView()}
-            </motion.div>
-          </AnimatePresence>
-        </main>
+            {/* Render Active Tab with Framer Motion transitions */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeView}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden"
+              >
+                {renderView()}
+              </motion.div>
+            </AnimatePresence>
+          </main>
 
-        {/* 3. AI CHAT PANEL (PC/Web only) */}
-        {showAiSidebar && (
-          <AIChatPanel onClose={() => setShowAiSidebar(false)} />
-        )}
+          {/* 3. AI CHAT PANEL (PC/Web only) */}
+          {showAiSidebar && (
+            <AIChatPanel onClose={() => setShowAiSidebar(false)} />
+          )}
+        </div>
       </div>
+
+      {/* 4. BOTTOM NAVIGATION BAR FOR MOBILE - inside flex-col flow, always at bottom */}
+      <BottomNav activeView={activeView} setActiveView={setActiveView} />
     </div>
 
     {/* Fixed overlays - outside flex container to prevent layout interference */}
-    {/* 4. BOTTOM NAVIGATION BAR FOR MOBILE */}
-    <BottomNav activeView={activeView} setActiveView={setActiveView} />
 
     {/* 5. TOAST MESSAGE */}
     <div 

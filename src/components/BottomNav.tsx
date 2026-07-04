@@ -23,7 +23,7 @@ export default function BottomNav({ activeView, setActiveView }: BottomNavProps)
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 glass-panel border-t border-zinc-200 dark:border-white/5 flex items-center justify-around z-20 px-3 bg-zinc-50/95 dark:bg-zinc-950/95 shadow-lg shrink-0 relative overflow-hidden">
+    <div className="md:hidden h-16 glass-panel border-t border-zinc-200 dark:border-white/5 flex items-center justify-around z-20 px-3 bg-zinc-50/95 dark:bg-zinc-950/95 shadow-lg shrink-0 relative overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Subtle gradient shimmer overlay */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/[0.03] to-transparent pointer-events-none"></div>
       

@@ -9,7 +9,7 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn start_auth_server(window: tauri::Window) -> Result<String, String> {
-    let client_id = "707739538605-9brboeeqaama99a168m86595la2099fn.apps.googleusercontent.com".to_string();
+    let client_id = "113610150516-jo77q0pv19qso8qg84a2h30hug4jga5s.apps.googleusercontent.com".to_string();
     
     std::thread::spawn(move || {
         let listener = std::net::TcpListener::bind("127.0.0.1:3000");
