@@ -4,7 +4,8 @@ import {
   CheckSquare, 
   FileText, 
   AlertTriangle,
-  Clock
+  Clock,
+  Save
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { createNote, getNotes, Note } from "../database/queries/notes";
@@ -130,107 +131,96 @@ export default function DashboardView({
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1"
+      className="flex-1 flex flex-col overflow-y-auto space-y-3 pr-1"
     >
       {/* Welcome Header */}
-      <div className="flex justify-between items-start shrink-0">
-        <div>
-          <h2 className="text-lg sm:text-xl font-extrabold tracking-tight gradient-text-animated">Chào buổi chiều, Bảo!</h2>
-          <p className="text-[10px] sm:text-xs text-zinc-650 dark:text-zinc-400 mt-0.5">Mọi sửa đổi sẽ tự động được lưu trữ local (Offline-first).</p>
-        </div>
+      <div className="flex items-center justify-between shrink-0">
+        <h2 className="text-base sm:text-lg font-extrabold tracking-tight gradient-text-animated">Chào Bảo</h2>
       </div>
 
       {/* Reminders Alert Section */}
-      <motion.section 
-        variants={cardVariants}
-        className={`glass-panel ${importantTasks.length > 0 ? "premium-gradient-border premium-gradient-border-urgent border-transparent" : "border-l-4 border-l-emerald-500"} rounded-xl p-4 relative overflow-hidden transition-all duration-300 shimmer-hover`}
-      >
-        {importantTasks.length > 0 ? (
-          <>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
-              <h3 className="text-xs font-bold text-red-650 dark:text-red-400 uppercase tracking-wider">Cần chú ý: Nhắc nhở việc quan trọng</h3>
-              <span className="text-[10px] bg-red-100 dark:bg-red-500/10 text-red-650 dark:text-red-400 px-2 py-0.5 rounded-full font-bold ml-1">{importantTasks.length} việc gấp</span>
+      {importantTasks.length > 0 && (
+        <motion.section
+          variants={cardVariants}
+          className="glass-panel rounded-lg p-3 relative overflow-hidden border-red-500/20"
+        >
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+              <h3 className="text-xs font-bold text-red-650 dark:text-red-400 uppercase tracking-wide truncate">Việc gấp</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {importantTasks.map(task => {
-                const isOverdue = task.due_date && new Date(task.due_date) < new Date(new Date().toDateString());
-                return (
-                  <div key={task.id} className="p-3 rounded-lg bg-red-50/40 dark:bg-red-950/10 border border-red-200/50 dark:border-red-500/10 flex flex-col justify-between gap-2 shadow-sm hover:scale-[1.01] transition-all">
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <span className="text-[7px] bg-red-500/10 text-red-600 dark:text-red-400 px-1 py-0.5 rounded font-bold uppercase tracking-wider">HIGH</span>
-                      </div>
-                      <p className="text-xs text-zinc-800 dark:text-zinc-200 font-semibold leading-normal break-words line-clamp-2">{task.title}</p>
+            <span className="text-[10px] bg-red-100 dark:bg-red-500/10 text-red-650 dark:text-red-400 px-2 py-0.5 rounded-full font-bold shrink-0">
+              {importantTasks.length}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {importantTasks.map(task => {
+              const isOverdue = task.due_date && new Date(task.due_date) < new Date(new Date().toDateString());
+              return (
+                <div key={task.id} className="flex items-center justify-between gap-2 rounded-md bg-red-50/40 dark:bg-red-950/10 border border-red-200/50 dark:border-red-500/10 px-2.5 py-2">
+                  <p className="text-xs text-zinc-800 dark:text-zinc-200 font-semibold leading-snug truncate min-w-0">{task.title}</p>
+                  {task.due_date && (
+                    <div className="flex items-center gap-1 text-[9px] text-zinc-550 dark:text-zinc-400 font-medium shrink-0">
+                      <Clock className={`w-3 h-3 ${isOverdue ? "text-red-500" : "text-zinc-400"}`} />
+                      <span className={isOverdue ? "text-red-600 dark:text-red-400 font-bold" : ""}>
+                        {isOverdue ? "Trễ" : task.due_date}
+                      </span>
                     </div>
-                    {task.due_date && (
-                      <div className="flex items-center gap-1 text-[9px] text-zinc-550 dark:text-zinc-400 font-medium">
-                        <Clock className={`w-3 h-3 ${isOverdue ? "text-red-500" : "text-zinc-400"}`} />
-                        <span className={isOverdue ? "text-red-600 dark:text-red-400 font-bold" : ""}>
-                          Hạn: {task.due_date} {isOverdue ? "(Trễ)" : ""}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <h3 className="text-xs font-semibold">Tất cả việc quan trọng đã được xử lý xong. Chúc bạn một ngày tốt lành!</h3>
-            </div>
-          </>
-        )}
-      </motion.section>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </motion.section>
+      )}
 
       {/* Widgets Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 flex-1 min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:flex-1 md:min-h-0">
         
         {/* Main Content Columns (8 cols on Desktop) */}
-        <div className="col-span-12 md:col-span-8 flex flex-col space-y-5 min-h-0">
+        <div className="col-span-12 md:col-span-8 flex flex-col space-y-3 min-h-0">
           
           {/* Quick Capture Panel */}
           <motion.section 
             variants={cardVariants}
-            className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "premium-gradient-border border-transparent" : "border-l-4 border-l-purple-500"} premium-hover-glow shimmer-hover rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300`}
+            className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "border-purple-500/40" : "border-white/5"} premium-hover-glow rounded-lg p-3 relative overflow-hidden transition-all duration-300`}
           >
-            <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-3 flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-2 flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-yellow-400 icon-glow" />
-              Quick Capture / Ghi nhanh note mới
+              Ghi nhanh
             </h3>
-            <textarea 
-              value={quickText}
-              onChange={(e) => setQuickText(e.target.value)}
-              onFocus={() => setIsQuickCaptureFocused(true)}
-              onBlur={() => setIsQuickCaptureFocused(false)}
-              placeholder="Nhập nhanh ghi chú ở đây... Bấm nút lưu để cất vào Inbox" 
-              className="w-full h-20 p-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 resize-none"
-            />
-            <div className="flex justify-end mt-2">
+            <div className="flex items-stretch gap-2">
+              <textarea
+                value={quickText}
+                onChange={(e) => setQuickText(e.target.value)}
+                onFocus={() => setIsQuickCaptureFocused(true)}
+                onBlur={() => setIsQuickCaptureFocused(false)}
+                placeholder="Ghi chú nhanh..."
+                className="w-full h-14 p-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 resize-none"
+              />
               <button 
                 onClick={handleQuickSave}
-                className="gradient-btn text-[10px] px-3.5 py-1.5 rounded-md font-semibold shadow-md shadow-purple-500/10"
+                disabled={!quickText.trim()}
+                className="gradient-btn disabled:opacity-40 disabled:cursor-not-allowed text-[10px] px-3 rounded-md font-semibold shadow-md shadow-purple-500/10 shrink-0 flex items-center gap-1.5"
               >
-                Lưu nhanh
+                <Save className="w-3 h-3" />
+                Lưu
               </button>
             </div>
           </motion.section>
 
           {/* Today Tasks Widget */}
-          <motion.div variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex flex-col flex-1 min-h-0">
-            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
+          <motion.div variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col min-h-0">
+            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2 flex items-center gap-2">
               <CheckSquare className="w-3.5 h-3.5 text-teal-400 icon-glow" />
-              Today Tasks
+              Hôm nay
             </h3>
             {todayTasks.length === 0 ? (
-              <p className="text-[10px] text-zinc-500 py-3 text-center">Không có việc cần làm hôm nay.</p>
+              <p className="text-[10px] text-zinc-500 py-2 text-center">Không có việc hôm nay.</p>
             ) : (
-              <div className="space-y-2 text-xs">
+              <div className="space-y-1 text-xs">
                 {todayTasks.map(task => (
-                  <div key={task.id} className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 p-1.5 rounded">
+                  <div key={task.id} className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-1 rounded">
                     <input 
                       type="checkbox" 
                       checked={task.status === "done"}
@@ -246,22 +236,22 @@ export default function DashboardView({
         </div>
 
         {/* Right Columns (4 cols on Desktop) */}
-        <div className="col-span-12 md:col-span-4 flex flex-col space-y-5 min-h-0">
+        <div className="col-span-12 md:col-span-4 flex flex-col space-y-3 min-h-0">
           {/* Recent Notes Widget */}
-          <motion.section variants={cardVariants} className="glass-panel premium-hover-glow shimmer-hover rounded-xl p-4 flex-1 flex flex-col">
-            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-3">Ghi chú gần đây</h3>
+          <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col">
+            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2">Gần đây</h3>
             {recentNotes.length === 0 ? (
-              <p className="text-[10px] text-zinc-500 py-3 text-center">Chưa có ghi chú nào.</p>
+              <p className="text-[10px] text-zinc-500 py-2 text-center">Chưa có ghi chú.</p>
             ) : (
-              <div className="space-y-2 text-xs">
-                {recentNotes.map(note => (
+              <div className="space-y-1.5 text-xs">
+                {recentNotes.map((note, index) => (
                   <div 
-                    key={note.id} 
+                    key={`${note.id}-${index}`} 
                     onClick={() => {
                       setSelectedNoteId(note.id);
                       setActiveView("notes");
                     }}
-                    className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200 dark:border-white/5 cursor-pointer transition-all flex items-center gap-2"
+                    className="px-2 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200 dark:border-white/5 cursor-pointer transition-all flex items-center gap-2"
                   >
                     <FileText className="w-3.5 h-3.5 text-purple-500 shrink-0" />
                     <span className="text-zinc-700 dark:text-zinc-300 truncate font-medium flex-1">{note.title}</span>

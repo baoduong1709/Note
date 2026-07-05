@@ -303,6 +303,13 @@ export default function App() {
     );
   }
 
+  const showCheckIcon = !toast.message.startsWith("⚠️") && 
+                        !toast.message.startsWith("🔄") && 
+                        !toast.message.startsWith("❌") && 
+                        !toast.message.startsWith("👋") &&
+                        !toast.message.startsWith("📋") &&
+                        !toast.message.startsWith("📥");
+
   return (
     <>
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
@@ -327,16 +334,14 @@ export default function App() {
         <div className="flex-1 min-w-0 h-full min-h-0 flex flex-row overflow-hidden relative">
           
           {/* 2. MAIN VIEW CONTENT */}
-          <main className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-4 sm:p-6">
+          <main className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-6">
             {/* Top Bar for Mobile */}
-            <div className="md:hidden flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/5 mb-3 shrink-0">
+            <div className="md:hidden flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/5 mb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
                 <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-wide">AI NOTEBOOK</span>
               </div>
-              <div className="text-[10px] text-teal-400 font-semibold">
-                SQLite local ready
-              </div>
+              <span className="h-2 w-2 rounded-full bg-teal-400 shadow-[0_0_12px_rgba(45,212,191,0.65)]" aria-label="Local database ready" />
             </div>
 
             {/* Render Active Tab with Framer Motion transitions */}
@@ -369,11 +374,11 @@ export default function App() {
 
     {/* 5. TOAST MESSAGE */}
     <div 
-      className={`toast toast-gradient fixed top-5 right-5 max-w-[min(420px,calc(100vw-2rem))] pointer-events-none glass-panel border-transparent bg-white/95 dark:bg-zinc-900/90 text-teal-600 dark:text-teal-400 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg z-50 ${
+      className={`toast toast-gradient pointer-events-none glass-panel border-transparent bg-white/95 dark:bg-zinc-900/90 text-teal-600 dark:text-teal-400 px-4 py-3 rounded-lg flex items-start gap-2.5 shadow-lg ${
         toast.show ? "show" : ""
       }`}
     >
-      <CheckCircle className="w-4 h-4 icon-glow" />
+      {showCheckIcon && <CheckCircle className="w-4 h-4 shrink-0 icon-glow mt-0.5" />}
       <span className="text-xs font-semibold relative z-10">{toast.message}</span>
     </div>
 

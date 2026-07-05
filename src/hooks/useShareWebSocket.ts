@@ -80,13 +80,6 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
               window.dispatchEvent(new CustomEvent('notes-updated'));
               window.dispatchEvent(new CustomEvent('calendar-updated'));
               window.dispatchEvent(new CustomEvent('ai-chat-updated'));
-              
-              // Show toast
-              if (triggerToastRef.current) {
-                triggerToastRef.current("🔄 Đã đồng bộ dữ liệu mới tự động!");
-              } else {
-                window.dispatchEvent(new CustomEvent('show-toast', { detail: "🔄 Đã đồng bộ dữ liệu mới tự động!" }));
-              }
             }
           }
         } catch (err) {

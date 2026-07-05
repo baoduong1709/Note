@@ -100,15 +100,32 @@
   position: relative;
 }
 
-/* Toast show/hide transition */
+/* Toast positioning & show/hide transition */
 .toast {
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: translateY(-16px) scale(0.98);
+  position: fixed !important;
+  top: 1.25rem;
+  left: 50%;
+  transform: translate(-50%, -1rem) scale(0.98);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
   opacity: 0;
+  width: calc(100vw - 2rem);
+  max-width: 420px;
+  z-index: 50;
 }
 .toast.show {
-  transform: translateY(0) scale(1);
+  transform: translate(-50%, 0) scale(1);
   opacity: 1;
+}
+@media (min-width: 768px) {
+  .toast {
+    left: auto;
+    right: 1.25rem;
+    transform: translate(0, -1rem) scale(0.98);
+    width: auto;
+  }
+  .toast.show {
+    transform: translate(0, 0) scale(1);
+  }
 }
 
 /* --- Premium Animations --- */
