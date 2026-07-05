@@ -136,7 +136,7 @@ export default function NotesView({
   const activeNote = notes.find(n => n.id === selectedNoteId) || null;
 
   return (
-    <div className="flex-1 flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden gap-5">
+    <div className="flex-1 flex flex-col sm:flex-row overflow-hidden gap-5">
       {/* Notes List Column */}
       <div className={`w-full sm:w-56 shrink-0 flex flex-col gap-3 ${selectedNoteId && isEditingMobile ? "hidden sm:flex" : "flex"}`}>
         <div className="flex justify-between items-center shrink-0">

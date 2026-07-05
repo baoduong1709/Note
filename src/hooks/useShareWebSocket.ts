@@ -27,12 +27,19 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
       wsRef.current = null;
     }
     
-    // Determine WebSocket URL based on runtime environment
-    const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = isTauri
-      ? 'ws://localhost:3001/ws'
-      : `${wsProtocol}//${window.location.host}/ws`;
+    // Determine WebSocket URL based on runtime environment and VITE_API_URL
+    const apiURL = import.meta.env.VITE_API_URL;
+    let wsUrl = '';
+    
+    if (apiURL) {
+      wsUrl = apiURL.replace(/^http/, 'ws') + '/ws';
+    } else {
+      const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = isTauri
+        ? 'ws://localhost:3001/ws'
+        : `${wsProtocol}//${window.location.host}/ws`;
+    }
     
     try {
       const ws = new WebSocket(wsUrl);

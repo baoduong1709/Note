@@ -605,9 +605,9 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                       <div className="sm:hidden flex flex-wrap gap-1 justify-start items-center w-full min-h-[6px] mt-0.5 overflow-hidden">
                         {dayEvents.slice(0, 4).map(event => {
                           let dotColor = "bg-purple-500";
-                          if (event.isBuiltInHoliday || event.type === "holiday" || event.event_type === "holiday") dotColor = "bg-emerald-500";
-                          else if (event.type === "birthday" || event.event_type === "birthday") dotColor = "bg-pink-500";
-                          else if (event.type === "anniversary" || event.event_type === "anniversary") dotColor = "bg-amber-500";
+                          if (event.isBuiltInHoliday || event.event_type === "holiday") dotColor = "bg-emerald-500";
+                          else if (event.event_type === "birthday") dotColor = "bg-pink-500";
+                          else if (event.event_type === "anniversary") dotColor = "bg-amber-500";
                           return (
                             <span 
                               key={event.id} 

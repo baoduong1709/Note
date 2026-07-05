@@ -4,6 +4,8 @@ export interface DatabaseConnection {
 }
 
 let dbInstance: DatabaseConnection | null = null;
+let initPromise: Promise<DatabaseConnection> | null = null;
+
 // Mock WebDatabase class simulating SQLite operations over LocalStorage for Browser mode
 class WebDatabase {
   async execute(query: string, values: any[] = []): Promise<any> {
@@ -432,8 +434,10 @@ class WebDatabase {
 // Initialize Database connection
 export async function initDatabase(): Promise<DatabaseConnection> {
   if (dbInstance) return dbInstance;
+  if (initPromise) return initPromise;
 
-  // Check if we are running in Tauri desktop environment or Web Browser
+  initPromise = (async () => {
+    // Check if we are running in Tauri desktop environment or Web Browser
   const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined;
 
   if (!isTauri) {
@@ -633,6 +637,9 @@ export async function initDatabase(): Promise<DatabaseConnection> {
     dbInstance = new WebDatabase();
     return dbInstance;
   }
+  })();
+
+  return initPromise;
 }
 
 // Get initialized database instance
