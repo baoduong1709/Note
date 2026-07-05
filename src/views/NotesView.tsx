@@ -23,6 +23,7 @@ export default function NotesView({
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isEditingMobile, setIsEditingMobile] = useState(false);
 
   const loadNotes = async () => {
     try {
@@ -70,13 +71,13 @@ export default function NotesView({
       setNotes(results.filter(isUserFacingNote));
     } catch (err) {
       console.error("Failed to save note:", err);
-      triggerToast("Lỗi lưu ghi chú!");
+      triggerToast("Lỗi tự động lưu!");
     }
   };
 
   // Handle Create Note
   const handleCreateNote = async () => {
-    const id = Math.random().toString(36).substring(2, 11);
+    const id = `note-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     const newNote: Note = {
       id,
       workspace_id: "personal",
@@ -92,6 +93,7 @@ export default function NotesView({
       await createNote(newNote);
       triggerToast("Đã tạo ghi chú mới!");
       setSelectedNoteId(id);
+      setIsEditingMobile(true);
       loadNotes();
     } catch (err) {
       console.error("Failed to create note:", err);
@@ -114,6 +116,7 @@ export default function NotesView({
       await deleteNote(noteToDelete.id);
       triggerToast("Đã xóa ghi chú!");
       setSelectedNoteId(null);
+      setIsEditingMobile(false);
       loadNotes();
     } catch (err) {
       console.error("Failed to delete note:", err);
@@ -135,7 +138,7 @@ export default function NotesView({
   return (
     <div className="flex-1 flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden gap-5">
       {/* Notes List Column */}
-      <div className="w-full sm:w-56 shrink-0 flex flex-col gap-3">
+      <div className={`w-full sm:w-56 shrink-0 flex flex-col gap-3 ${selectedNoteId && isEditingMobile ? "hidden sm:flex" : "flex"}`}>
         <div className="flex justify-between items-center shrink-0">
           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">DANH SÁCH NOTE</h3>
           <button 
@@ -167,7 +170,10 @@ export default function NotesView({
             return (
               <div 
                 key={note.id}
-                onClick={() => setSelectedNoteId(note.id)}
+                onClick={() => {
+                  setSelectedNoteId(note.id);
+                  setIsEditingMobile(true);
+                }}
                 className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-start justify-between group ${
                   isActive 
                     ? "bg-purple-50/50 dark:bg-white/5 border-purple-500/20 text-zinc-900 dark:text-white font-medium" 
@@ -198,16 +204,27 @@ export default function NotesView({
       </div>
 
       {/* Editor Frame */}
-      <div className="flex-1 glass-panel rounded-xl p-4 sm:p-5 flex flex-col overflow-hidden min-h-0">
+      <div className={`flex-1 glass-panel rounded-xl p-4 sm:p-5 flex flex-col overflow-hidden min-h-0 ${selectedNoteId && isEditingMobile ? "flex" : "hidden sm:flex"}`}>
         {activeNote ? (
-          <RichTextEditor 
-            key={activeNote.id}
-            noteId={activeNote.id}
-            initialTitle={activeNote.title}
-            initialContent={activeNote.content}
-            onSave={handleNoteSave}
-            triggerToast={triggerToast}
-          />
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Mobile Back Button */}
+            <div className="sm:hidden flex items-center pb-2 border-b border-black/5 dark:border-white/5 mb-3 shrink-0">
+              <button
+                onClick={() => setIsEditingMobile(false)}
+                className="text-[11px] font-bold text-purple-650 dark:text-purple-400 flex items-center gap-1 hover:underline cursor-pointer"
+              >
+                ← Quay lại danh sách note
+              </button>
+            </div>
+            <RichTextEditor 
+              key={activeNote.id}
+              noteId={activeNote.id}
+              initialTitle={activeNote.title}
+              initialContent={activeNote.content}
+              onSave={handleNoteSave}
+              triggerToast={triggerToast}
+            />
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-zinc-500 text-xs">
             Chọn một ghi chú bên trái hoặc bấm + để tạo ghi chú mới.

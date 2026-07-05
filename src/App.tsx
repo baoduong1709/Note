@@ -40,6 +40,18 @@ export default function App() {
   const [isLocked, setIsLocked] = useState(false);
   const [inputPin, setInputPin] = useState("");
   const [pinError, setPinError] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const handleDrawerToggle = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setIsMobileDrawerOpen(!!customEvent.detail?.open);
+    };
+    window.addEventListener("mobile-drawer-toggle", handleDrawerToggle);
+    return () => {
+      window.removeEventListener("mobile-drawer-toggle", handleDrawerToggle);
+    };
+  }, []);
 
   // Auto check and create USER.md & MEMORY.md for Hermes Memory
   const checkAndCreateHermesNotes = async () => {
@@ -359,9 +371,17 @@ export default function App() {
             </AnimatePresence>
           </main>
 
-          {/* 3. AI CHAT PANEL (PC/Web only) */}
+          {/* 3. AI CHAT PANEL (Mobile Drawer & Desktop Sidebar) */}
           {showAiSidebar && (
-            <AIChatPanel onClose={() => setShowAiSidebar(false)} />
+            <>
+              {/* Mobile/Tablet Backdrop Overlay */}
+              <div 
+                className="xl:hidden fixed inset-0 bg-black/45 backdrop-blur-[2px] z-40 transition-opacity duration-300"
+                onClick={() => setShowAiSidebar(false)}
+                aria-label="Close AI Assistant"
+              />
+              <AIChatPanel onClose={() => setShowAiSidebar(false)} />
+            </>
           )}
         </div>
       </div>
@@ -384,14 +404,28 @@ export default function App() {
 
     {/* 6. FLOATING OPEN AI SIDEBAR BUTTON */}
     {!showAiSidebar && (
-      <button 
-        onClick={() => setShowAiSidebar(true)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2 py-3 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
-        title="Mở trợ lý AI"
-      >
-        <Sparkles className="w-3.5 h-3.5 text-purple-200 icon-glow" />
-        <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">AI Chat</span>
-      </button>
+      <>
+        {/* Mobile View: Floating Action Button (FAB) */}
+        {!isMobileDrawerOpen && (
+          <button
+            onClick={() => setShowAiSidebar(true)}
+            className="sm:hidden fixed right-4 bottom-20 w-11 h-11 rounded-full bg-purple-650 text-white flex items-center justify-center shadow-xl border border-white/15 z-40 cursor-pointer ai-glow-pulse"
+            title="Mở trợ lý AI"
+          >
+            <Sparkles className="w-4 h-4 text-white icon-glow" />
+          </button>
+        )}
+
+        {/* Desktop View: Vertical side handle */}
+        <button 
+          onClick={() => setShowAiSidebar(true)}
+          className="hidden sm:flex fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2 py-3 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
+          title="Mở trợ lý AI"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-purple-200 icon-glow" />
+          <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">AI Chat</span>
+        </button>
+      </>
     )}
     </>
   );

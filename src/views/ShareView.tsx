@@ -53,6 +53,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
 
   // Drag and drop / Paste states
   const [isDragging, setIsDragging] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<"send" | "receive">("send");
 
   // Listen to the global WebSocket share events dispatched from App.tsx level
   useEffect(() => {
@@ -569,8 +570,34 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         // LOGGED IN STATE
         <div className="flex-1 flex flex-col xl:flex-row gap-5 min-h-0 overflow-y-auto xl:overflow-hidden select-text">
           
+          {/* Mobile Tab Switcher */}
+          <div className="xl:hidden flex p-1.5 bg-black/15 dark:bg-white/5 backdrop-blur rounded-xl border border-zinc-200/50 dark:border-white/5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveMobileTab("send")}
+              className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+                activeMobileTab === "send"
+                  ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                  : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
+              }`}
+            >
+              Gửi chia sẻ
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMobileTab("receive")}
+              className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+                activeMobileTab === "receive"
+                  ? "bg-purple-650 dark:bg-purple-600 text-white shadow-sm shadow-purple-500/25"
+                  : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
+              }`}
+            >
+              Nhận được ({shareHistory.length})
+            </button>
+          </div>
+
           {/* COLUMN 1: SEND CONTAINER */}
-          <div className="flex-1 flex flex-col space-y-4 min-h-0">
+          <div className={`flex-1 flex flex-col space-y-4 min-h-0 ${activeMobileTab === "send" ? "flex" : "hidden xl:flex"}`}>
             <div className="glass-panel rounded-xl p-4 sm:p-5 flex-1 flex flex-col space-y-4 min-h-[350px]">
               
               {/* Account Info Bar */}
@@ -676,7 +703,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
           </div>
 
           {/* COLUMN 2: RECEIVE CONTAINER */}
-          <div className="flex-1 flex flex-col space-y-4 min-h-0">
+          <div className={`flex-1 flex flex-col space-y-4 min-h-0 ${activeMobileTab === "receive" ? "flex" : "hidden xl:flex"}`}>
             <div className="glass-panel rounded-xl p-4 sm:p-5 flex-1 flex flex-col space-y-4 min-h-[350px]">
               
               {/* Header section with loading info */}

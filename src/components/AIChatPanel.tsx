@@ -539,7 +539,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   return (
-    <aside className="w-80 glass-panel border-l border-zinc-200 dark:border-white/5 flex flex-col h-full min-h-0 max-h-full shrink-0 z-10 transition-all duration-300 hidden xl:flex relative">
+    <aside className="fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm sm:w-96 xl:static xl:w-80 xl:z-10 xl:h-auto glass-panel border-l border-zinc-200 dark:border-white/5 flex flex-col h-full min-h-0 max-h-full shrink-0 shadow-2xl xl:shadow-none transition-all duration-300">
       
       {/* 1. AI Chat Header */}
       <div className="p-4 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between shrink-0">

@@ -174,6 +174,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
   const [repeatYearly, setRepeatYearly] = useState(true);
   const [isImportant, setIsImportant] = useState(true);
   const [notes, setNotes] = useState("");
+  const [showAddEventMobile, setShowAddEventMobile] = useState(false);
 
   const gridDays = useMemo(() => getCalendarGrid(currentMonth), [currentMonth]);
   const builtInHolidays = useMemo<DisplayCalendarEvent[]>(
@@ -210,6 +211,13 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
       window.removeEventListener("calendar-updated", handleSyncUpdate);
     };
   }, []);
+
+  useEffect(() => {
+    const event = new CustomEvent("mobile-drawer-toggle", {
+      detail: { open: showAddEventMobile }
+    });
+    window.dispatchEvent(event);
+  }, [showAddEventMobile]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -420,10 +428,10 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
           </p>
         </div>
 
-        <div className="w-full">
-          <div className="grid gap-1.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-100/70 dark:bg-zinc-900/60 p-1.5 shadow-sm 2xl:grid-cols-[auto_minmax(0,1fr)]">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <div className="grid grid-cols-2 rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0">
+        <div className="w-full text-xs">
+          <div className="grid gap-2 rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-100/70 dark:bg-zinc-900/60 p-2 shadow-sm 2xl:grid-cols-[auto_minmax(0,1fr)]">
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:grid grid-cols-2 rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setViewMode("month")}
@@ -448,11 +456,11 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 </button>
               </div>
 
-              <div className="rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0">
+              <div className="rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0 flex-1 sm:flex-none flex w-full">
                 <button
                   type="button"
                   onClick={handleToday}
-                  className="h-8 px-3 rounded-md bg-white dark:bg-zinc-800 text-[10px] font-bold text-zinc-900 dark:text-white shadow-sm flex items-center gap-1.5"
+                  className="h-8 px-3 rounded-md bg-white dark:bg-zinc-800 text-[10px] font-bold text-zinc-900 dark:text-white shadow-sm flex items-center justify-center gap-1.5 w-full transition-all active:scale-[0.98]"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Hôm nay
@@ -488,7 +496,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   pattern="[0-9]*"
                   value={currentMonth.getFullYear()}
                   onChange={(event) => handleYearInput(event.target.value)}
-                  className="h-full min-w-0 border-x border-zinc-200 bg-transparent px-1 text-center text-[10px] font-bold text-zinc-800 focus:outline-none dark:border-white/10 dark:text-zinc-200"
+                  className="h-full min-w-0 border-x border-zinc-200 bg-transparent px-1 text-center text-[10px] font-bold text-zinc-850 dark:text-zinc-200 focus:outline-none dark:border-white/10"
                   title="Chọn năm"
                   aria-label="Chọn năm"
                 />
@@ -507,7 +515,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 type="date"
                 value={jumpDate}
                 onChange={(event) => handleJumpDate(event.target.value)}
-                className="col-span-2 h-8 w-full sm:col-span-1 rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950/60 px-2 text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 focus:outline-none"
+                className="col-span-2 h-8 w-full sm:col-span-1 rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950/60 px-2 text-[10px] font-semibold text-zinc-850 dark:text-zinc-200 focus:outline-none"
                 title="Đi tới ngày"
                 aria-label="Đi tới ngày"
               />
@@ -517,7 +525,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 flex-1 min-h-0 overflow-y-auto xl:overflow-hidden">
-        <section className="glass-panel rounded-xl p-3 sm:p-4 flex flex-col min-h-[620px] xl:min-h-0 overflow-hidden">
+        <section className="glass-panel rounded-xl p-3 sm:p-4 flex flex-col min-h-[340px] sm:min-h-[620px] xl:min-h-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/5 pb-3 mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-purple-600/15 text-purple-650 dark:text-purple-300 flex items-center justify-center">
@@ -560,23 +568,24 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                       key={key}
                       type="button"
                       onClick={() => handleSelectDate(date)}
-                      className={`min-h-[86px] sm:min-h-[96px] rounded-lg border p-2 text-left flex flex-col gap-1 transition-all overflow-hidden ${
+                      className={`min-h-[56px] sm:min-h-[96px] rounded-lg border p-1.5 sm:p-2 text-left flex flex-col justify-between sm:justify-start gap-1 transition-all overflow-hidden ${
                         isSelected
                           ? "border-purple-500 bg-purple-500/10 shadow-sm shadow-purple-500/10"
                           : "border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 hover:border-purple-500/30"
                       } ${isCurrentMonth ? "" : "opacity-45"} ${isToday ? "ring-1 ring-teal-400/50" : ""}`}
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <span className={`text-sm font-bold ${isToday ? "text-teal-600 dark:text-teal-300" : "text-zinc-900 dark:text-zinc-100"}`}>
+                      <div className="flex items-start justify-between gap-1 w-full shrink-0">
+                        <span className={`text-[11px] sm:text-sm font-bold ${isToday ? "text-teal-600 dark:text-teal-300" : "text-zinc-900 dark:text-zinc-100"}`}>
                           {date.getDate()}
                         </span>
-                        <span className="shrink-0 text-right text-[8px] sm:text-[9px] leading-tight text-zinc-500 dark:text-zinc-500">
+                        <span className="shrink-0 text-right text-[7px] sm:text-[9px] leading-tight text-zinc-500 dark:text-zinc-500 font-mono">
                           {lunar.day === 1 ? `${lunar.day}/${lunar.month}` : lunar.day}
                           <span className="hidden sm:inline"> AL</span>
                         </span>
                       </div>
 
-                      <div className="space-y-1 overflow-hidden">
+                      {/* Desktop Event Text Labels */}
+                      <div className="hidden sm:block space-y-1 overflow-hidden w-full flex-1">
                         {dayEvents.slice(0, 3).map(event => (
                           <div
                             key={event.id}
@@ -589,6 +598,26 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                         ))}
                         {dayEvents.length > 3 && (
                           <div className="text-[9px] text-zinc-500 dark:text-zinc-400">+{dayEvents.length - 3} mục</div>
+                        )}
+                      </div>
+
+                      {/* Mobile Event Dot Indicators */}
+                      <div className="sm:hidden flex flex-wrap gap-1 justify-start items-center w-full min-h-[6px] mt-0.5 overflow-hidden">
+                        {dayEvents.slice(0, 4).map(event => {
+                          let dotColor = "bg-purple-500";
+                          if (event.isBuiltInHoliday || event.type === "holiday" || event.event_type === "holiday") dotColor = "bg-emerald-500";
+                          else if (event.type === "birthday" || event.event_type === "birthday") dotColor = "bg-pink-500";
+                          else if (event.type === "anniversary" || event.event_type === "anniversary") dotColor = "bg-amber-500";
+                          return (
+                            <span 
+                              key={event.id} 
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
+                              title={event.title}
+                            />
+                          );
+                        })}
+                        {dayEvents.length > 4 && (
+                          <span className="text-[7px] font-bold text-zinc-450">+</span>
                         )}
                       </div>
                     </button>
@@ -663,9 +692,19 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 <h4 className="text-xs font-bold text-zinc-950 dark:text-white">{formatSolarLong(selectedDate)}</h4>
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Âm lịch: {formatLunarDate(selectedLunar)}</p>
               </div>
-              <span className="rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-bold text-purple-650 dark:text-purple-300">
-                {selectedEvents.length} sự kiện
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowAddEventMobile(true)}
+                  className="sm:hidden flex items-center justify-center gap-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  Thêm
+                </button>
+                <span className="rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-bold text-purple-650 dark:text-purple-300">
+                  {selectedEvents.length} sự kiện
+                </span>
+              </div>
             </div>
 
             {selectedEvents.length > 0 ? (
@@ -703,13 +742,22 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 })}
               </div>
             ) : (
-              <p className="rounded-lg border border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 p-3 text-center text-[11px] text-zinc-500 dark:text-zinc-400">
-                Chưa có sự kiện nào trong ngày này.
-              </p>
+              <div className="flex flex-col items-center justify-center p-4 rounded-lg border border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 gap-2">
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  Chưa có sự kiện nào trong ngày này.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddEventMobile(true)}
+                  className="sm:hidden flex items-center gap-1 text-[10px] font-bold text-purple-650 dark:text-purple-400 hover:underline py-1 px-2 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> Ghi ngày quan trọng
+                </button>
+              </div>
             )}
           </section>
 
-          <form onSubmit={handleSaveEvent} className="glass-panel rounded-xl p-4 space-y-3">
+          <form onSubmit={handleSaveEvent} className="hidden sm:block glass-panel rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-white/5 pb-3">
               <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-300 flex items-center justify-center">
                 <Plus className="w-4 h-4" />
@@ -879,6 +927,195 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
           </form>
         </aside>
       </div>
+
+      {/* Mobile Slide-up Bottom Drawer Form */}
+      {showAddEventMobile && (
+        <div className="sm:hidden fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setShowAddEventMobile(false)} />
+          
+          <div className="relative w-full max-h-[85%] bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-white/10 rounded-t-2xl p-4 overflow-y-auto space-y-4 shadow-2xl z-50 select-text">
+            <div className="flex justify-between items-center pb-2 border-b border-zinc-250 dark:border-white/5">
+              <div>
+                <h4 className="text-xs font-bold text-zinc-950 dark:text-white">Ghi ngày quan trọng</h4>
+                <p className="text-[9px] text-zinc-500 dark:text-zinc-550">Sinh nhật, ngày lễ, kỷ niệm vào notebook.</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowAddEventMobile(false)}
+                className="text-[11px] font-bold text-purple-650 dark:text-purple-400 p-1 hover:underline cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+            
+            <form 
+              onSubmit={async (e) => {
+                await handleSaveEvent(e);
+                setShowAddEventMobile(false);
+              }} 
+              className="space-y-3"
+            >
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Tên sự kiện</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Ví dụ: Sinh nhật mẹ, Giỗ ông, Lễ kỷ niệm..."
+                  className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Loại</label>
+                  <select
+                    value={eventType}
+                    onChange={(event) => setEventType(event.target.value as CalendarEventType)}
+                    className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-850 dark:text-zinc-300 focus:outline-none"
+                  >
+                    {eventTypeOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Kiểu ngày</label>
+                  <select
+                    value={dateType}
+                    onChange={(event) => setDateType(event.target.value as CalendarDateType)}
+                    className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-850 dark:text-zinc-300 focus:outline-none"
+                  >
+                    <option value="solar">Dương lịch</option>
+                    <option value="lunar">Âm lịch</option>
+                  </select>
+                </div>
+              </div>
+
+              {dateType === "solar" ? (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Ngày dương</label>
+                  <input
+                    type="date"
+                    value={solarDate}
+                    onChange={(event) => {
+                      setSolarDate(event.target.value);
+                      const date = parseDateKey(event.target.value);
+                      setSelectedDate(date);
+                      setCurrentMonth(startOfMonth(date));
+                      const lunar = getDefaultLunarForm(date);
+                      setLunarDay(lunar.lunarDay);
+                      setLunarMonth(lunar.lunarMonth);
+                      setLunarYear(lunar.lunarYear);
+                      setIsLunarLeap(lunar.isLeap);
+                    }}
+                    className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Ngày âm</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={lunarDay}
+                      onChange={(event) => setLunarDay(event.target.value)}
+                      className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Tháng âm</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={lunarMonth}
+                      onChange={(event) => setLunarMonth(event.target.value)}
+                      className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Năm âm</label>
+                    <input
+                      type="number"
+                      min={1900}
+                      disabled={repeatYearly}
+                      value={lunarYear}
+                      onChange={(event) => setLunarYear(event.target.value)}
+                      className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-2 text-[10px] text-zinc-650 dark:text-zinc-400">
+                <label className="flex items-center gap-2 rounded-lg border border-zinc-200/60 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 px-2.5 py-2">
+                  <input
+                    type="checkbox"
+                    checked={repeatYearly}
+                    onChange={(event) => setRepeatYearly(event.target.checked)}
+                    className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
+                  />
+                  Lặp lại hằng năm
+                </label>
+
+                {dateType === "lunar" && (
+                  <label className="flex items-center gap-2 rounded-lg border border-zinc-200/60 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 px-2.5 py-2">
+                    <input
+                      type="checkbox"
+                      checked={isLunarLeap}
+                      onChange={(event) => setIsLunarLeap(event.target.checked)}
+                      className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
+                    />
+                    Tháng âm nhuận
+                  </label>
+                )}
+
+                <label className="flex items-center gap-2 rounded-lg border border-zinc-200/60 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 px-2.5 py-2">
+                  <input
+                    type="checkbox"
+                    checked={isImportant}
+                    onChange={(event) => setIsImportant(event.target.checked)}
+                    className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
+                  />
+                  Đánh dấu quan trọng
+                </label>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Ghi chú</label>
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Ghi chú thêm nếu cần..."
+                  className="w-full min-h-20 p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-3.5 py-2 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-[10px] font-bold text-zinc-700 dark:text-zinc-350 transition-all active:scale-[0.98]"
+                >
+                  Xóa form
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all shadow-md shadow-purple-500/10 flex items-center gap-1.5 active:scale-[0.98]"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Lưu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

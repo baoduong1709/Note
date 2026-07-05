@@ -10,6 +10,7 @@ interface TasksViewProps {
 export default function TasksView({ triggerToast }: TasksViewProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<"todo" | "in_progress" | "done">("todo");
 
   // Form states
   const [title, setTitle] = useState("");
@@ -207,10 +208,47 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </form>
       )}
 
+      {/* Mobile-only Kanban Column Tab Switcher */}
+      <div className="md:hidden flex p-1.5 bg-black/15 dark:bg-white/5 backdrop-blur rounded-xl border border-zinc-200/50 dark:border-white/5 shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab("todo")}
+          className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+            activeMobileTab === "todo"
+              ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm"
+              : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          Cần làm ({todoTasks.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab("in_progress")}
+          className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+            activeMobileTab === "in_progress"
+              ? "bg-purple-600/90 text-white shadow-sm shadow-purple-500/10"
+              : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          Đang làm ({inProgressTasks.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab("done")}
+          className={`flex-1 text-center py-2 text-[10px] font-bold rounded-lg transition-all ${
+            activeMobileTab === "done"
+              ? "bg-teal-600/90 text-white shadow-sm shadow-teal-500/10"
+              : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          Đã xong ({doneTasks.length})
+        </button>
+      </div>
+
       {/* Kanban Board Grid */}
       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 overflow-y-auto md:overflow-hidden min-h-0 pb-1">
         {/* 1. TODO COLUMN */}
-        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate">
+        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "todo" ? "flex" : "hidden md:flex"}`}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
@@ -257,7 +295,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </div>
 
         {/* 2. IN PROGRESS COLUMN */}
-        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate" style={{ animationDelay: "0.05s" }}>
+        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "in_progress" ? "flex" : "hidden md:flex"}`} style={{ animationDelay: "0.05s" }}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-purple-650 dark:text-purple-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
@@ -279,7 +317,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                 <button
                   type="button"
                   onClick={() => handleDelete(task.id)}
-                  className="absolute top-3 right-3 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-all"
+                  className="absolute top-3 right-3 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-550 hover:text-red-400 transition-all"
                   title="Xóa task"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -294,7 +332,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                       onClick={() => handleStatusChange(task.id, "done")}
                       className="text-[10px] bg-teal-500/10 hover:bg-teal-500/20 active:scale-95 text-teal-650 dark:text-teal-400 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 transition-all shadow-sm shadow-teal-500/5"
                     >
-                      <CheckCircle className="w-3 h-3" /> Done
+                      <CheckCircle className="w-3.5 h-3.5" /> Done
                     </button>
                   </div>
                 </div>
@@ -304,7 +342,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </div>
 
         {/* 3. DONE COLUMN */}
-        <div className="glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate" style={{ animationDelay: "0.1s" }}>
+        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "done" ? "flex" : "hidden md:flex"}`} style={{ animationDelay: "0.1s" }}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
