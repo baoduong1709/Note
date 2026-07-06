@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon } from "lucide-react";
 import { getDatabase } from "../database/db";
 import { createNote, getNotes, Note, updateNote } from "../database/queries/notes";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface SettingsViewProps {
   triggerToast: (message: string) => void;
@@ -20,6 +21,7 @@ export default function SettingsView({
   theme,
   setTheme
 }: SettingsViewProps) {
+  const { language, setLanguage } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // AI Form States
@@ -38,8 +40,7 @@ export default function SettingsView({
   const [pinCode, setPinCode] = useState("");
   const [showPinInput, setShowPinInput] = useState(false);
 
-  // Google Auth Client ID State
-  const [googleClientId, setGoogleClientId] = useState("");
+
 
   // Agent memory viewer
   const [userMemoryContent, setUserMemoryContent] = useState("");
@@ -245,15 +246,13 @@ export default function SettingsView({
       }
     }
 
-    // Load PIN
+    // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";
-    const code = localStorage.getItem("pin_lock_code") || "";
+    const code = localStorage.getItem("e2ee_passphrase") || localStorage.getItem("pin_lock_code") || "";
     setPinEnabled(enabled);
     setPinCode(code);
 
-    // Load Google Client ID
-    const savedClientId = localStorage.getItem("google_client_id") || "";
-    setGoogleClientId(savedClientId);
+
 
     loadAgentMemoryData();
   }, []);
@@ -280,34 +279,34 @@ export default function SettingsView({
     triggerToast("Đã lưu cấu hình trợ lý AI & Tìm kiếm thành công!");
   };
 
-  const handleSaveGoogleAuth = () => {
-    localStorage.setItem("google_client_id", googleClientId.trim());
-    window.dispatchEvent(new CustomEvent("auth-state-changed"));
-    triggerToast("Đã lưu Google Client ID thành công!");
-  };
+
 
   const handleTogglePin = () => {
     if (pinEnabled) {
       localStorage.setItem("pin_lock_enabled", "false");
+      localStorage.setItem("e2ee_enabled", "false");
+      localStorage.removeItem("e2ee_passphrase");
       localStorage.removeItem("pin_lock_code");
       setPinEnabled(false);
       setPinCode("");
-      triggerToast("Đã tắt bảo mật bằng mã PIN.");
+      triggerToast("Đã tắt khóa và mã hóa đầu cuối (E2EE).");
     } else {
       setShowPinInput(true);
     }
   };
 
   const handleSavePin = () => {
-    if (pinCode.length < 4) {
-      triggerToast("Mã PIN phải có ít nhất 4 chữ số!");
+    if (pinCode.length < 6) {
+      triggerToast("Mật khẩu mã hóa đầu cuối phải có ít nhất 6 ký tự!");
       return;
     }
     localStorage.setItem("pin_lock_enabled", "true");
-    localStorage.setItem("pin_lock_code", pinCode);
+    localStorage.setItem("e2ee_enabled", "true");
+    localStorage.setItem("e2ee_passphrase", pinCode);
+    localStorage.setItem("pin_lock_code", pinCode); // for backward compatibility/lock mechanism
     setPinEnabled(true);
     setShowPinInput(false);
-    triggerToast("Đã kích hoạt bảo mật mã PIN thành công!");
+    triggerToast("Đã kích hoạt khóa và mã hóa đầu cuối (E2EE) thành công!");
   };
 
   const handleExportJSON = async () => {
@@ -346,10 +345,10 @@ export default function SettingsView({
   };
 
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1 pb-10">
+    <div ref={containerRef} className="flex-1 flex flex-col overflow-y-auto space-y-6 pr-1 pb-10 view-enter-animate">
       <div>
-        <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white">Settings & Integrations</h3>
-        <p className="text-[10px] text-zinc-600 dark:text-zinc-500">Cấu hình trợ lý AI, tìm kiếm, bảo mật và sao lưu dữ liệu.</p>
+        <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white">{language === "vi" ? "Cài đặt & Tích hợp" : "Settings & Integrations"}</h3>
+        <p className="text-[10px] text-zinc-600 dark:text-zinc-500">{language === "vi" ? "Cấu hình trợ lý AI, tìm kiếm, bảo mật và sao lưu dữ liệu." : "Configure AI assistant, search, security, and data backup."}</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 max-w-6xl">
@@ -361,8 +360,8 @@ export default function SettingsView({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">AI Assistant Keys</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">Cấu hình kết nối để kích hoạt Trợ lý AI thông minh.</p>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Cài đặt khóa Trợ lý AI" : "AI Assistant Keys"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">{language === "vi" ? "Cấu hình kết nối để kích hoạt Trợ lý AI thông minh." : "Configure connection parameters to enable the smart AI Assistant."}</p>
             </div>
           </div>
 
@@ -373,10 +372,10 @@ export default function SettingsView({
                 type="text" 
                 value={aiBaseUrl} 
                 onChange={(e) => setAiBaseUrl(e.target.value)}
-                placeholder="Ví dụ: https://api.openai.com/v1 hoặc http://localhost:11434/v1" 
+                placeholder={language === "vi" ? "Ví dụ: https://api.openai.com/v1 hoặc http://localhost:11434/v1" : "e.g., https://api.openai.com/v1 or http://localhost:11434/v1"} 
                 className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs" 
               />
-              <span className="text-[9px] text-zinc-655 dark:text-zinc-500 mt-1 block">Hỗ trợ OpenAI, DeepSeek, Gemini (OpenAI endpoint), Ollama.</span>
+              <span className="text-[9px] text-zinc-655 dark:text-zinc-500 mt-1 block">{language === "vi" ? "Hỗ trợ OpenAI, DeepSeek, Gemini (OpenAI endpoint), Ollama." : "Supports OpenAI, DeepSeek, Gemini (OpenAI endpoint), Ollama."}</span>
             </div>
 
             <div>
@@ -385,7 +384,7 @@ export default function SettingsView({
                 type="text" 
                 value={aiModelName} 
                 onChange={(e) => setAiModelName(e.target.value)}
-                placeholder="Ví dụ: gpt-4o-mini, gpt-4o, gemini-1.5-flash, deepseek-chat..." 
+                placeholder={language === "vi" ? "Ví dụ: gpt-4o-mini, gpt-4o, gemini-1.5-flash, deepseek-chat..." : "e.g., gpt-4o-mini, gpt-4o, gemini-1.5-flash, deepseek-chat..."} 
                 className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
               />
             </div>
@@ -396,7 +395,7 @@ export default function SettingsView({
                 type="password" 
                 value={aiApiKey} 
                 onChange={(e) => setAiApiKey(e.target.value)}
-                placeholder={aiBaseUrl.includes("localhost") ? "Không cần Key đối với Local Ollama..." : "AI API Key..."} 
+                placeholder={aiBaseUrl.includes("localhost") ? (language === "vi" ? "Không cần Key đối với Local Ollama..." : "No Key needed for Local Ollama...") : "AI API Key..."} 
                 autoComplete="new-password"
                 className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
               />
@@ -405,9 +404,9 @@ export default function SettingsView({
               <button 
                 type="button"
                 onClick={handleSaveConfigs}
-                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10"
+                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10 cursor-pointer"
               >
-                Lưu cấu hình AI
+                {language === "vi" ? "Lưu cấu hình AI" : "Save AI Config"}
               </button>
             </div>
           </div>
@@ -420,22 +419,22 @@ export default function SettingsView({
               <Globe className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">Web Search Skills</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">Cấu hình dịch vụ tìm kiếm để trợ lý AI tra cứu thông tin trực tuyến.</p>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Cấu hình tìm kiếm Web" : "Web Search Skills"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">{language === "vi" ? "Cấu hình dịch vụ tìm kiếm để trợ lý AI tra cứu thông tin trực tuyến." : "Configure search services for AI Assistant web search."}</p>
             </div>
           </div>
 
           <div className="space-y-3 text-xs text-zinc-750 dark:text-zinc-350">
             <div>
-              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">Dịch vụ Tìm kiếm</label>
+              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">{language === "vi" ? "Dịch vụ Tìm kiếm" : "Search Service"}</label>
               <select 
                 value={searchProvider} 
                 onChange={(e) => setSearchProvider(e.target.value)}
-                className="w-full p-2.5 rounded glass-input text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/5" 
+                className="w-full p-2.5 rounded glass-input text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 cursor-pointer" 
               >
-                <option value="ddg">DuckDuckGo Lite (Miễn phí - Không cần Key)</option>
-                <option value="tavily">Tavily AI Search (Tốt nhất cho AI - Cần API Key)</option>
-                <option value="google">Google Custom Search (Cần API Key & CX ID)</option>
+                <option value="ddg">{language === "vi" ? "DuckDuckGo Lite (Miễn phí - Không cần Key)" : "DuckDuckGo Lite (Free - No Key Needed)"}</option>
+                <option value="tavily">{language === "vi" ? "Tavily AI Search (Tốt nhất cho AI - Cần API Key)" : "Tavily AI Search (Best for AI - API Key Required)"}</option>
+                <option value="google">{language === "vi" ? "Google Custom Search (Cần API Key & CX ID)" : "Google Custom Search (API Key & CX ID Required)"}</option>
               </select>
             </div>
 
@@ -446,10 +445,10 @@ export default function SettingsView({
                   type="password" 
                   value={searchApiKey} 
                   onChange={(e) => setSearchApiKey(e.target.value)}
-                  placeholder="Nhập Tavily API Key của bạn..." 
+                  placeholder={language === "vi" ? "Nhập Tavily API Key của bạn..." : "Enter your Tavily API Key..."} 
                   className="w-full p-2.5 rounded glass-input text-zinc-850 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
                 />
-                <span className="text-[9px] text-zinc-650 dark:text-zinc-500 mt-1 block">Đăng ký lấy API Key miễn phí (1000 lượt tìm kiếm/tháng) tại app.tavily.com</span>
+                <span className="text-[9px] text-zinc-650 dark:text-zinc-500 mt-1 block">{language === "vi" ? "Đăng ký lấy API Key miễn phí (1000 lượt tìm kiếm/tháng) tại app.tavily.com" : "Register for a free API Key (1000 searches/month) at app.tavily.com"}</span>
               </div>
             )}
 
@@ -461,7 +460,7 @@ export default function SettingsView({
                     type="password" 
                     value={googleApiKey} 
                     onChange={(e) => setGoogleApiKey(e.target.value)}
-                    placeholder="Nhập Google API Key..." 
+                    placeholder={language === "vi" ? "Nhập Google API Key..." : "Enter Google API Key..."} 
                     className="w-full p-2.5 rounded glass-input text-zinc-850 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
                   />
                 </div>
@@ -471,20 +470,20 @@ export default function SettingsView({
                     type="text" 
                     value={googleCx} 
                     onChange={(e) => setGoogleCx(e.target.value)}
-                    placeholder="Ví dụ: a1b2c3d4e5f6g7h8i" 
+                    placeholder={language === "vi" ? "Ví dụ: a1b2c3d4e5f6g7h8i" : "e.g., a1b2c3d4e5f6g7h8i"} 
                     className="w-full p-2.5 rounded glass-input text-zinc-855 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
                   />
                 </div>
-                <span className="text-[9px] text-zinc-650 dark:text-zinc-500 mt-1 block">Tạo Google Programmable Search Engine miễn phí (100 searches/ngày) tại cse.google.com</span>
+                <span className="text-[9px] text-zinc-650 dark:text-zinc-500 mt-1 block">{language === "vi" ? "Tạo Google Programmable Search Engine miễn phí (100 searches/ngày) tại cse.google.com" : "Create a free Google Programmable Search Engine (100 searches/day) at cse.google.com"}</span>
               </div>
             )}
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 type="button"
                 onClick={handleSaveConfigs}
-                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10"
+                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10 cursor-pointer"
               >
-                Lưu cấu hình Tìm kiếm
+                {language === "vi" ? "Lưu cấu hình Tìm kiếm" : "Save Search Config"}
               </button>
             </div>
           </div>
@@ -497,17 +496,17 @@ export default function SettingsView({
               <Brain className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">Agent Memory</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">Nguồn lưu duy nhất: USER.md cho thông tin cá nhân và MEMORY.md cho kỹ thuật/dự án.</p>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Bộ nhớ Trợ lý" : "Agent Memory"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">{language === "vi" ? "Nguồn lưu duy nhất: USER.md cho thông tin cá nhân và MEMORY.md cho kỹ thuật/dự án." : "Single source of truth: USER.md for personal data and MEMORY.md for tech info."}</p>
             </div>
             <button
               type="button"
               onClick={() => loadAgentMemoryData(true)}
               disabled={memoryLoading}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold transition-all disabled:opacity-50 text-[10px]"
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold transition-all disabled:opacity-50 text-[10px] cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${memoryLoading ? "animate-spin" : ""}`} />
-              Tải lại
+              {language === "vi" ? "Tải lại" : "Reload"}
             </button>
           </div>
 
@@ -515,7 +514,7 @@ export default function SettingsView({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">USER.md</h5>
-                <span className="text-[9px] text-zinc-600 dark:text-zinc-500">Thông tin cá nhân</span>
+                <span className="text-[9px] text-zinc-600 dark:text-zinc-500">{language === "vi" ? "Thông tin cá nhân" : "Personal Profile"}</span>
               </div>
               <pre className="max-h-64 min-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-300 dark:border-white/5 bg-zinc-100/80 dark:bg-zinc-950/55 p-3 text-[11px] leading-relaxed text-zinc-800 dark:text-zinc-300">
                 {userMemoryContent}
@@ -525,7 +524,7 @@ export default function SettingsView({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">MEMORY.md</h5>
-                <span className="text-[9px] text-zinc-600 dark:text-zinc-500">Kỹ thuật & dự án</span>
+                <span className="text-[9px] text-zinc-600 dark:text-zinc-500">{language === "vi" ? "Kỹ thuật & dự án" : "Tech & Project"}</span>
               </div>
               <pre className="max-h-64 min-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-300 dark:border-white/5 bg-zinc-100/80 dark:bg-zinc-950/55 p-3 text-[11px] leading-relaxed text-zinc-800 dark:text-zinc-300">
                 {techMemoryContent}
@@ -541,90 +540,53 @@ export default function SettingsView({
               <Lock className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">App PIN Security Lock</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">Khóa ứng dụng khi khởi chạy bằng mã PIN cá nhân.</p>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Mã hóa đầu cuối & Khóa" : "E2EE Encryption & Lock"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">{language === "vi" ? "Khóa ứng dụng khi khởi chạy và mã hóa dữ liệu cục bộ bằng mật khẩu E2EE." : "Lock the application and encrypt local database using an E2EE passphrase."}</p>
             </div>
           </div>
 
           <div className="flex items-center justify-between text-xs pt-1">
             <div>
-              <span className="text-zinc-700 dark:text-zinc-400 font-medium block">Kích hoạt khóa bằng mã PIN</span>
-              <span className="text-[10px] text-zinc-605 dark:text-zinc-500">Yêu cầu nhập mã PIN bảo mật khi mở ứng dụng.</span>
+              <span className="text-zinc-700 dark:text-zinc-400 font-medium block">{language === "vi" ? "Khóa & Mã hóa đầu cuối (E2EE)" : "E2EE Encryption & Lock"}</span>
+              <span className="text-[10px] text-zinc-605 dark:text-zinc-500">{language === "vi" ? "Yêu cầu nhập mật khẩu bảo mật và kích hoạt mã hóa dữ liệu cục bộ." : "Requires security passphrase and activates local database encryption."}</span>
             </div>
             <button 
               type="button"
               onClick={handleTogglePin}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                pinEnabled ? "bg-red-600/20 text-red-400 border border-red-500/10" : "bg-purple-600 text-white shadow-md shadow-purple-500/10"
+                pinEnabled ? "bg-red-600/20 text-red-400 border border-red-500/10" : "bg-purple-600 text-white shadow-md shadow-purple-500/10 cursor-pointer"
               }`}
             >
-              {pinEnabled ? "Tắt Khóa PIN" : "Kích hoạt"}
+              {pinEnabled ? (language === "vi" ? "Tắt Khóa E2EE" : "Disable E2EE Lock") : (language === "vi" ? "Kích hoạt" : "Enable")}
             </button>
           </div>
 
           {showPinInput && (
             <div className="p-3 bg-zinc-200/50 dark:bg-zinc-950/60 rounded border border-zinc-200 dark:border-white/5 space-y-3 max-w-sm">
-              <label className="block text-xs text-zinc-650 dark:text-zinc-400">Thiết lập mã PIN mới (Tối thiểu 4 chữ số)</label>
+              <label className="block text-xs text-zinc-650 dark:text-zinc-400">{language === "vi" ? "Thiết lập mật khẩu E2EE mới (Tối thiểu 6 ký tự)" : "Set new E2EE passphrase (Minimum 6 characters)"}</label>
               <div className="flex gap-2">
                 <input 
                   type="password" 
-                  maxLength={8}
                   value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Ví dụ: 1234"
-                  className="w-1/2 p-2 rounded glass-input text-zinc-800 dark:text-zinc-300 font-mono text-center tracking-widest"
+                  onChange={(e) => setPinCode(e.target.value)}
+                  placeholder={language === "vi" ? "Nhập mật khẩu E2EE..." : "Enter E2EE passphrase..."}
+                  className="flex-1 p-2 rounded glass-input text-zinc-800 dark:text-zinc-300 text-xs text-center"
                 />
                 <button 
                   type="button"
                   onClick={handleSavePin}
-                  className="bg-purple-600 text-white px-4 py-2 rounded text-xs font-semibold shadow-md shadow-purple-500/10"
+                  className="bg-purple-600 text-white px-4 py-2 rounded text-xs font-semibold shadow-md shadow-purple-500/10 cursor-pointer"
                 >
-                  Lưu PIN
+                  {language === "vi" ? "Lưu mật khẩu" : "Save Passphrase"}
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Google Sync Client ID Configuration */}
-        <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-4">
-          <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
-            <div className="w-8 h-8 rounded bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
-              <Globe className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">Google OAuth Client ID</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">Cấu hình OAuth Client ID để sử dụng Đăng nhập Google thật sự.</p>
-            </div>
-          </div>
 
-          <div className="space-y-3 text-xs text-zinc-750 dark:text-zinc-300">
-            <div>
-              <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">OAuth Web Client ID</label>
-              <input 
-                type="text" 
-                value={googleClientId} 
-                onChange={(e) => setGoogleClientId(e.target.value)}
-                placeholder="Ví dụ: 123456-abc.apps.googleusercontent.com" 
-                className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono" 
-              />
-              <span className="text-[9px] text-zinc-655 dark:text-zinc-500 mt-1.5 block leading-normal">
-                Để lấy Client ID: Vào Google Cloud Console &rarr; API & Services &rarr; Credentials &rarr; Create OAuth Client ID (loại Web Application). Thêm JavaScript Origin: <code>http://localhost:5173</code> (hoặc port chạy app dev).
-              </span>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button 
-                type="button"
-                onClick={handleSaveGoogleAuth}
-                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10"
-              >
-                Lưu Client ID
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* 3.5 Theme Settings Card */}
+        {/* 3.5 Theme & Language Settings Card */}
         <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-4">
           <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
             <div className="w-8 h-8 rounded bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
@@ -632,8 +594,8 @@ export default function SettingsView({
               <Moon className="w-4 h-4 hidden dark:block" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">Theme Settings</h4>
-              <p className="text-[9px] sm:text-[10px] text-zinc-500">Lựa chọn chế độ giao diện sáng hoặc tối cho ứng dụng.</p>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Giao diện & Ngôn ngữ" : "Theme & Language"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-500">{language === "vi" ? "Lựa chọn chế độ hiển thị và ngôn ngữ của ứng dụng." : "Choose the interface theme and display language."}</p>
             </div>
           </div>
 
@@ -641,41 +603,69 @@ export default function SettingsView({
             <button 
               type="button"
               onClick={() => setTheme("light")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                 theme === "light" 
                   ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/20" 
-                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800"
+                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300"
               }`}
             >
-              <Sun className="w-4 h-4" /> Giao diện Sáng
+              <Sun className="w-4 h-4" /> {language === "vi" ? "Giao diện Sáng" : "Light Theme"}
             </button>
             <button 
               type="button"
               onClick={() => setTheme("dark")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                 theme === "dark" 
                   ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/20" 
                   : "border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-white/5"
               }`}
             >
-              <Moon className="w-4 h-4" /> Giao diện Tối
+              <Moon className="w-4 h-4" /> {language === "vi" ? "Giao diện Tối" : "Dark Theme"}
             </button>
+          </div>
+
+          <div className="pt-2 border-t border-zinc-200 dark:border-white/5 flex items-center justify-between">
+            <span className="text-xs text-zinc-700 dark:text-zinc-400 font-medium">{language === "vi" ? "Ngôn ngữ hệ thống" : "System Language"}</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setLanguage("vi")}
+                className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                  language === "vi"
+                    ? "bg-purple-600 text-white border-purple-500 shadow-sm"
+                    : "border-zinc-200 dark:border-white/5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
+                }`}
+              >
+                Tiếng Việt
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                  language === "en"
+                    ? "bg-purple-600 text-white border-purple-500 shadow-sm"
+                    : "border-zinc-200 dark:border-white/5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
+                }`}
+              >
+                English
+              </button>
+            </div>
           </div>
         </div>
 
         {/* 4. Data Backup Card */}
         <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-3 flex flex-col justify-between">
           <div>
-            <h4 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider mb-1.5">Backup & Export</h4>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">Tải xuống toàn bộ cơ sở dữ liệu SQLite cục bộ dưới dạng tệp tin sao lưu JSON.</p>
+            <h4 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider mb-1.5">{language === "vi" ? "Sao lưu & Xuất dữ liệu" : "Backup & Export"}</h4>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">{language === "vi" ? "Tải xuống toàn bộ cơ sở dữ liệu SQLite cục bộ dưới dạng tệp tin sao lưu JSON." : "Download the entire local SQLite database as a JSON backup file."}</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button 
               type="button"
               onClick={handleExportJSON}
-              className="flex items-center gap-1.5 px-4 py-2 rounded bg-zinc-205 hover:bg-zinc-300 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-700 transition-all text-xs font-semibold shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 rounded bg-zinc-205 hover:bg-zinc-300 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-700 transition-all text-xs font-semibold shadow-sm cursor-pointer"
             >
-              <Download className="w-4 h-4" /> Tải về Backup JSON
+              <Download className="w-4 h-4" /> {language === "vi" ? "Tải về Backup JSON" : "Download Backup JSON"}
             </button>
           </div>
         </div>

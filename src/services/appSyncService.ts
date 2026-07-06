@@ -7,6 +7,59 @@ import { getCalendarEvents, CalendarEvent } from "../database/queries/calendarEv
 import { getAISessions, AISession } from "../database/queries/aiChat";
 import { generateSyncIdFromEmail, getStoredUser } from "./shareService";
 import { apiRequest, clearAuthToken, getAuthToken, setAuthToken } from "./apiClient";
+import { encryptText, decryptText, isEncrypted } from "../utils/crypto";
+
+function getE2eePassphrase(): string | null {
+  const enabled = localStorage.getItem("e2ee_enabled") === "true";
+  const passphrase = localStorage.getItem("e2ee_passphrase");
+  return enabled && passphrase ? passphrase : null;
+}
+
+async function encryptRecord(table: string, data: Record<string, any>, passphrase: string | null): Promise<Record<string, any>> {
+  if (!passphrase) return data;
+  const cloned = { ...data };
+  try {
+    if (table === "notes") {
+      cloned.title = await encryptText(cloned.title, passphrase);
+      cloned.content = await encryptText(cloned.content || "", passphrase);
+    } else if (table === "tasks") {
+      cloned.title = await encryptText(cloned.title, passphrase);
+    } else if (table === "calendar_events") {
+      cloned.title = await encryptText(cloned.title, passphrase);
+      cloned.notes = await encryptText(cloned.notes || "", passphrase);
+    } else if (table === "ai_sessions") {
+      cloned.title = await encryptText(cloned.title || "", passphrase);
+    } else if (table === "ai_messages") {
+      cloned.text = await encryptText(cloned.text || "", passphrase);
+    }
+  } catch (e) {
+    console.error(`[AppSync] Encryption of ${table} failed:`, e);
+  }
+  return cloned;
+}
+
+async function decryptRecord(table: string, data: Record<string, any>, passphrase: string | null): Promise<Record<string, any>> {
+  if (!passphrase) return data;
+  const cloned = { ...data };
+  try {
+    if (table === "notes") {
+      cloned.title = await decryptText(cloned.title || "", passphrase);
+      cloned.content = await decryptText(cloned.content || "", passphrase);
+    } else if (table === "tasks") {
+      cloned.title = await decryptText(cloned.title || "", passphrase);
+    } else if (table === "calendar_events") {
+      cloned.title = await decryptText(cloned.title || "", passphrase);
+      cloned.notes = await decryptText(cloned.notes || "", passphrase);
+    } else if (table === "ai_sessions") {
+      cloned.title = await decryptText(cloned.title || "", passphrase);
+    } else if (table === "ai_messages") {
+      cloned.text = await decryptText(cloned.text || "", passphrase);
+    }
+  } catch (e) {
+    console.warn(`[AppSync] Decryption of ${table} failed:`, e);
+  }
+  return cloned;
+}
 
 // ---------------------------------------------------------------------------
 // Local deletion tracking for delta sync
@@ -219,12 +272,16 @@ async function pushChanges(): Promise<void> {
   const changes: DeltaChange[] = [];
   const sentUpserts: PendingUpsert[] = [];
   const seenUpsertKeys = new Set<string>();
-  const addUpsertChange = (table: string, data: Record<string, any>) => {
+
+  const passphrase = getE2eePassphrase();
+
+  const addUpsertChange = async (table: string, data: Record<string, any>) => {
     if (!data.id) return;
     const key = `${table}:${data.id}`;
     if (seenUpsertKeys.has(key)) return;
     seenUpsertKeys.add(key);
-    changes.push({ action: "upsert", table, data: { ...data } });
+    const encryptedData = await encryptRecord(table, data, passphrase);
+    changes.push({ action: "upsert", table, data: encryptedData });
   };
 
   // Collect pending notes
@@ -232,7 +289,7 @@ async function pushChanges(): Promise<void> {
     "SELECT * FROM notes WHERE is_pending_sync = 1",
   );
   for (const note of pendingNotes) {
-    changes.push({ action: "upsert", table: "notes", data: { ...note } });
+    await addUpsertChange("notes", note);
   }
 
   // Collect pending tasks
@@ -240,7 +297,7 @@ async function pushChanges(): Promise<void> {
     "SELECT * FROM tasks WHERE is_pending_sync = 1",
   );
   for (const task of pendingTasks) {
-    changes.push({ action: "upsert", table: "tasks", data: { ...task } });
+    await addUpsertChange("tasks", task);
   }
 
   const shouldBackfillAIChat = !isAIChatBackfillDone();
@@ -249,14 +306,14 @@ async function pushChanges(): Promise<void> {
       "SELECT * FROM ai_sessions ORDER BY created_at ASC",
     );
     for (const session of aiSessions) {
-      addUpsertChange("ai_sessions", session);
+      await addUpsertChange("ai_sessions", session);
     }
 
     const aiMessages = await db.select<Record<string, any>[]>(
       "SELECT * FROM ai_messages ORDER BY created_at ASC",
     );
     for (const message of aiMessages) {
-      addUpsertChange("ai_messages", message);
+      await addUpsertChange("ai_messages", message);
     }
   }
 
@@ -278,10 +335,10 @@ async function pushChanges(): Promise<void> {
           [rows[0].session_id],
         );
         if (sessions.length > 0) {
-          addUpsertChange("ai_sessions", sessions[0]);
+          await addUpsertChange("ai_sessions", sessions[0]);
         }
       }
-      addUpsertChange(item.table, rows[0]);
+      await addUpsertChange(item.table, rows[0]);
       sentUpserts.push(item);
     }
   }
@@ -361,22 +418,24 @@ async function pullChanges(): Promise<boolean> {
 
   const db = await getDatabase();
   let hasChanges = false;
+  const passphrase = getE2eePassphrase();
 
   // Upsert notes
   for (const note of notes) {
+    const decrypted = await decryptRecord("notes", note, passphrase);
     await db.execute(
       `INSERT OR REPLACE INTO notes (id, workspace_id, project_id, title, content, type, is_locked, is_pending_sync, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
-        note.id,
-        note.workspace_id || null,
-        note.project_id || null,
-        note.title || "",
-        note.content || "",
-        note.type || null,
-        note.is_locked ?? 0,
-        note.created_at || new Date().toISOString(),
-        note.updated_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.workspace_id || null,
+        decrypted.project_id || null,
+        decrypted.title || "",
+        decrypted.content || "",
+        decrypted.type || null,
+        decrypted.is_locked ?? 0,
+        decrypted.created_at || new Date().toISOString(),
+        decrypted.updated_at || new Date().toISOString(),
       ],
     );
     hasChanges = true;
@@ -384,24 +443,25 @@ async function pullChanges(): Promise<boolean> {
 
   // Upsert tasks
   for (const task of tasks) {
+    const decrypted = await decryptRecord("tasks", task, passphrase);
     await db.execute(
       `INSERT OR REPLACE INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, external_status, is_pending_sync, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
-        task.id,
-        task.note_id || null,
-        task.title || "",
-        task.status || "todo",
-        task.priority || "medium",
-        task.due_date || null,
-        task.workspace_id || null,
-        task.project_id || null,
-        task.source || "local",
-        task.external_id || null,
-        task.external_url || null,
-        task.external_status || null,
-        task.created_at || new Date().toISOString(),
-        task.updated_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.note_id || null,
+        decrypted.title || "",
+        decrypted.status || "todo",
+        decrypted.priority || "medium",
+        decrypted.due_date || null,
+        decrypted.workspace_id || null,
+        decrypted.project_id || null,
+        decrypted.source || "local",
+        decrypted.external_id || null,
+        decrypted.external_url || null,
+        decrypted.external_status || null,
+        decrypted.created_at || new Date().toISOString(),
+        decrypted.updated_at || new Date().toISOString(),
       ],
     );
     hasChanges = true;
@@ -409,24 +469,25 @@ async function pullChanges(): Promise<boolean> {
 
   // Upsert calendar events
   for (const event of calendarEvents) {
+    const decrypted = await decryptRecord("calendar_events", event, passphrase);
     await db.execute(
       `INSERT OR REPLACE INTO calendar_events (id, title, event_type, date_type, solar_date, lunar_day, lunar_month, lunar_year, is_lunar_leap, repeat_yearly, is_important, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        event.id,
-        event.title || "",
-        event.event_type || "other",
-        event.date_type || "solar",
-        event.solar_date || null,
-        event.lunar_day ?? null,
-        event.lunar_month ?? null,
-        event.lunar_year ?? null,
-        event.is_lunar_leap ?? 0,
-        event.repeat_yearly ?? 1,
-        event.is_important ?? 1,
-        event.notes || null,
-        event.created_at || new Date().toISOString(),
-        event.updated_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.title || "",
+        decrypted.event_type || "other",
+        decrypted.date_type || "solar",
+        decrypted.solar_date || null,
+        decrypted.lunar_day ?? null,
+        decrypted.lunar_month ?? null,
+        decrypted.lunar_year ?? null,
+        decrypted.is_lunar_leap ?? 0,
+        decrypted.repeat_yearly ?? 1,
+        decrypted.is_important ?? 1,
+        decrypted.notes || null,
+        decrypted.created_at || new Date().toISOString(),
+        decrypted.updated_at || new Date().toISOString(),
       ],
     );
     hasChanges = true;
@@ -434,13 +495,14 @@ async function pullChanges(): Promise<boolean> {
 
   // Upsert AI sessions
   for (const session of aiSessions) {
+    const decrypted = await decryptRecord("ai_sessions", session, passphrase);
     await db.execute(
       `INSERT OR REPLACE INTO ai_sessions (id, title, created_at)
        VALUES (?, ?, ?)`,
       [
-        session.id,
-        session.title || "New Chat",
-        session.created_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.title || "New Chat",
+        decrypted.created_at || new Date().toISOString(),
       ],
     );
     hasChanges = true;
@@ -448,15 +510,16 @@ async function pullChanges(): Promise<boolean> {
 
   // Upsert AI messages
   for (const msg of aiMessages) {
+    const decrypted = await decryptRecord("ai_messages", msg, passphrase);
     await db.execute(
       `INSERT OR REPLACE INTO ai_messages (id, session_id, sender, text, created_at)
        VALUES (?, ?, ?, ?, ?)`,
       [
-        msg.id,
-        msg.session_id || null,
-        msg.sender || "user",
-        msg.text || "",
-        msg.created_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.session_id || null,
+        decrypted.sender || "user",
+        decrypted.text || "",
+        decrypted.created_at || new Date().toISOString(),
       ],
     );
     hasChanges = true;
@@ -500,14 +563,22 @@ async function fullPush(): Promise<void> {
   const db = await getDatabase();
   const aiMessages = await db.select<any[]>("SELECT * FROM ai_messages ORDER BY created_at ASC");
 
+  const passphrase = getE2eePassphrase();
+
+  const encryptedNotes = await Promise.all(notes.map(n => encryptRecord("notes", n, passphrase)));
+  const encryptedTasks = await Promise.all(tasks.map(t => encryptRecord("tasks", t, passphrase)));
+  const encryptedEvents = await Promise.all(calendarEvents.map(e => encryptRecord("calendar_events", e, passphrase)));
+  const encryptedSessions = await Promise.all(aiSessions.map(s => encryptRecord("ai_sessions", s, passphrase)));
+  const encryptedMessages = await Promise.all(aiMessages.map(m => encryptRecord("ai_messages", m, passphrase)));
+
   await apiRequest("/api/sync/push", {
     method: "POST",
     body: JSON.stringify({
-      notes,
-      tasks,
-      calendarEvents,
-      aiSessions,
-      aiMessages,
+      notes: encryptedNotes,
+      tasks: encryptedTasks,
+      calendarEvents: encryptedEvents,
+      aiSessions: encryptedSessions,
+      aiMessages: encryptedMessages,
       lastUpdated: Date.now(),
     }),
   });
@@ -547,6 +618,7 @@ async function fullPull(): Promise<boolean> {
   if (!cloudData.notes && !cloudData.tasks) return false;
 
   const db = await getDatabase();
+  const passphrase = getE2eePassphrase();
 
   // Clear existing local data
   await db.execute("DELETE FROM ai_messages");
@@ -557,93 +629,98 @@ async function fullPull(): Promise<boolean> {
 
   // Insert notes from cloud
   for (const note of cloudData.notes || []) {
+    const decrypted = await decryptRecord("notes", note, passphrase);
     await db.execute(
       `INSERT INTO notes (id, workspace_id, project_id, title, content, type, is_locked, is_pending_sync, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
-        note.id,
-        note.workspace_id || null,
-        note.project_id || null,
-        note.title || "",
-        note.content || "",
-        note.type || null,
-        note.is_locked ?? 0,
-        note.created_at || new Date().toISOString(),
-        note.updated_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.workspace_id || null,
+        decrypted.project_id || null,
+        decrypted.title || "",
+        decrypted.content || "",
+        decrypted.type || null,
+        decrypted.is_locked ?? 0,
+        decrypted.created_at || new Date().toISOString(),
+        decrypted.updated_at || new Date().toISOString(),
       ],
     );
   }
 
   // Insert tasks from cloud
   for (const task of cloudData.tasks || []) {
+    const decrypted = await decryptRecord("tasks", task, passphrase);
     await db.execute(
       `INSERT INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, external_status, is_pending_sync, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
-        task.id,
-        task.note_id || null,
-        task.title || "",
-        task.status || "todo",
-        task.priority || "medium",
-        task.due_date || null,
-        task.workspace_id || null,
-        task.project_id || null,
-        task.source || "local",
-        task.external_id || null,
-        task.external_url || null,
-        task.external_status || null,
-        task.created_at || new Date().toISOString(),
-        task.updated_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.note_id || null,
+        decrypted.title || "",
+        decrypted.status || "todo",
+        decrypted.priority || "medium",
+        decrypted.due_date || null,
+        decrypted.workspace_id || null,
+        decrypted.project_id || null,
+        decrypted.source || "local",
+        decrypted.external_id || null,
+        decrypted.external_url || null,
+        decrypted.external_status || null,
+        decrypted.created_at || new Date().toISOString(),
+        decrypted.updated_at || new Date().toISOString(),
       ],
     );
   }
 
   // Insert calendar events from cloud
   for (const event of cloudData.calendarEvents || []) {
+    const decrypted = await decryptRecord("calendar_events", event, passphrase);
     await db.execute(
       `INSERT INTO calendar_events (id, title, event_type, date_type, solar_date, lunar_day, lunar_month, lunar_year, is_lunar_leap, repeat_yearly, is_important, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        event.id,
-        event.title || "",
-        event.event_type || "other",
-        event.date_type || "solar",
-        event.solar_date || null,
-        event.lunar_day ?? null,
-        event.lunar_month ?? null,
-        event.lunar_year ?? null,
-        event.is_lunar_leap ?? 0,
-        event.repeat_yearly ?? 1,
-        event.is_important ?? 1,
-        event.notes || null,
-        event.created_at || new Date().toISOString(),
-        event.updated_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.title || "",
+        decrypted.event_type || "other",
+        decrypted.date_type || "solar",
+        decrypted.solar_date || null,
+        decrypted.lunar_day ?? null,
+        decrypted.lunar_month ?? null,
+        decrypted.lunar_year ?? null,
+        decrypted.is_lunar_leap ?? 0,
+        decrypted.repeat_yearly ?? 1,
+        decrypted.is_important ?? 1,
+        decrypted.notes || null,
+        decrypted.created_at || new Date().toISOString(),
+        decrypted.updated_at || new Date().toISOString(),
       ],
     );
   }
 
   // Insert AI sessions from cloud
   for (const session of cloudData.aiSessions || []) {
+    const decrypted = await decryptRecord("ai_sessions", session, passphrase);
     await db.execute(
       `INSERT INTO ai_sessions (id, title, created_at) VALUES (?, ?, ?)`,
       [
-        session.id,
-        session.title || "New Chat",
-        session.created_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.title || "New Chat",
+        decrypted.created_at || new Date().toISOString(),
       ],
     );
   }
 
   // Insert AI messages from cloud
   for (const msg of cloudData.aiMessages || []) {
+    const decrypted = await decryptRecord("ai_messages", msg, passphrase);
     await db.execute(
       `INSERT INTO ai_messages (id, session_id, sender, text, created_at) VALUES (?, ?, ?, ?, ?)`,
       [
-        msg.id,
-        msg.session_id || null,
-        msg.sender || "user",
-        msg.text || "",
-        msg.created_at || new Date().toISOString(),
+        decrypted.id,
+        decrypted.session_id || null,
+        decrypted.sender || "user",
+        decrypted.text || "",
+        decrypted.created_at || new Date().toISOString(),
       ],
     );
   }
@@ -748,7 +825,142 @@ export async function pushLocalDataToCloud(): Promise<void> {
   });
 
   return pushInFlight;
+}
+
+/**
+ * Scans the local SQLite database for E2EE encrypted records,
+ * decrypts them using the provided passphrase, and updates them to plaintext.
+ * Returns true if any records were successfully decrypted.
+ */
+export async function decryptLocalDatabase(passphrase: string): Promise<boolean> {
+  const db = await getDatabase();
+  let decryptedCount = 0;
+
+  // 1. Decrypt notes
+  const notes = await db.select<Note[]>("SELECT * FROM notes");
+  for (const note of notes) {
+    if (isEncrypted(note.title) || isEncrypted(note.content)) {
+      try {
+        const decryptedTitle = isEncrypted(note.title) 
+          ? await decryptText(note.title, passphrase) 
+          : note.title;
+        const decryptedContent = isEncrypted(note.content) 
+          ? await decryptText(note.content || "", passphrase) 
+          : note.content;
+        
+        await db.execute(
+          "UPDATE notes SET title = ?, content = ? WHERE id = ?",
+          [decryptedTitle, decryptedContent, note.id]
+        );
+        decryptedCount++;
+      } catch (err) {
+        console.warn(`[AppSync] Failed to decrypt note ${note.id}:`, err);
+      }
+    }
   }
+
+  // 2. Decrypt tasks
+  const tasks = await db.select<Task[]>("SELECT * FROM tasks");
+  for (const task of tasks) {
+    if (isEncrypted(task.title)) {
+      try {
+        const decryptedTitle = await decryptText(task.title, passphrase);
+        await db.execute(
+          "UPDATE tasks SET title = ? WHERE id = ?",
+          [decryptedTitle, task.id]
+        );
+        decryptedCount++;
+      } catch (err) {
+        console.warn(`[AppSync] Failed to decrypt task ${task.id}:`, err);
+      }
+    }
+  }
+
+  // 3. Decrypt calendar events
+  const events = await db.select<CalendarEvent[]>("SELECT * FROM calendar_events");
+  for (const event of events) {
+    if (isEncrypted(event.title) || isEncrypted(event.notes)) {
+      try {
+        const decryptedTitle = isEncrypted(event.title)
+          ? await decryptText(event.title, passphrase)
+          : event.title;
+        const decryptedNotes = isEncrypted(event.notes)
+          ? await decryptText(event.notes || "", passphrase)
+          : event.notes;
+        
+        await db.execute(
+          "UPDATE calendar_events SET title = ?, notes = ? WHERE id = ?",
+          [decryptedTitle, decryptedNotes, event.id]
+        );
+        decryptedCount++;
+      } catch (err) {
+        console.warn(`[AppSync] Failed to decrypt calendar event ${event.id}:`, err);
+      }
+    }
+  }
+
+  // 4. Decrypt AI sessions
+  const sessions = await db.select<AISession[]>("SELECT * FROM ai_sessions");
+  for (const session of sessions) {
+    if (isEncrypted(session.title)) {
+      try {
+        const decryptedTitle = await decryptText(session.title || "", passphrase);
+        await db.execute(
+          "UPDATE ai_sessions SET title = ? WHERE id = ?",
+          [decryptedTitle, session.id]
+        );
+        decryptedCount++;
+      } catch (err) {
+        console.warn(`[AppSync] Failed to decrypt AI session ${session.id}:`, err);
+      }
+    }
+  }
+
+  // 5. Decrypt AI messages
+  const messages = await db.select<any[]>("SELECT * FROM ai_messages");
+  for (const msg of messages) {
+    if (isEncrypted(msg.text)) {
+      try {
+        const decryptedText = await decryptText(msg.text, passphrase);
+        await db.execute(
+          "UPDATE ai_messages SET text = ? WHERE id = ?",
+          [decryptedText, msg.id]
+        );
+        decryptedCount++;
+      } catch (err) {
+        console.warn(`[AppSync] Failed to decrypt AI message ${msg.id}:`, err);
+      }
+    }
+  }
+
+  console.log(`[AppSync] Decrypted ${decryptedCount} local records successfully.`);
+  return decryptedCount > 0;
+}
+
+/**
+ * Check if there is any E2EE encrypted data in the local database.
+ */
+export async function hasEncryptedDataInLocal(): Promise<boolean> {
+  const db = await getDatabase();
+  
+  // Check notes
+  const noteSample = await db.select<Note[]>("SELECT title, content FROM notes LIMIT 100");
+  if (noteSample.some(n => isEncrypted(n.title) || isEncrypted(n.content))) return true;
+
+  // Check tasks
+  const taskSample = await db.select<Task[]>("SELECT title FROM tasks LIMIT 100");
+  if (taskSample.some(t => isEncrypted(t.title))) return true;
+
+  // Check calendar events
+  const eventSample = await db.select<CalendarEvent[]>("SELECT title, notes FROM calendar_events LIMIT 100");
+  if (eventSample.some(e => isEncrypted(e.title) || isEncrypted(e.notes))) return true;
+
+  // Check AI messages
+  const msgSample = await db.select<any[]>("SELECT text FROM ai_messages LIMIT 100");
+  if (msgSample.some(m => isEncrypted(m.text))) return true;
+
+  return false;
+}
 
 /**
  * Pull cloud data to local.

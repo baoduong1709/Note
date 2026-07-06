@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLanguage } from "../contexts/LanguageContext";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -6,7 +7,6 @@ import {
   CheckSquare, 
   Calendar, 
   Settings, 
-  BrainCircuit,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
@@ -23,6 +23,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
+  const { t } = useLanguage();
   const [importantTasks, setImportantTasks] = useState<Task[]>([]);
   const [isOpenReminders, setIsOpenReminders] = useState(false);
 
@@ -68,22 +69,26 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
   };
 
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "notes", label: "Notes Editor", icon: FileText },
-    { id: "tasks", label: "Tasks & Kanban", icon: CheckSquare },
-    { id: "calendar", label: "Lịch", icon: Calendar },
-    { id: "share", label: "Quick Share", icon: Share2 },
+    { id: "dashboard", label: t("sidebar.dashboard"), icon: LayoutDashboard },
+    { id: "notes", label: t("sidebar.notes"), icon: FileText },
+    { id: "tasks", label: t("sidebar.tasks"), icon: CheckSquare },
+    { id: "calendar", label: t("sidebar.calendar"), icon: Calendar },
+    { id: "share", label: t("sidebar.share"), icon: Share2 },
   ];
 
   return (
     <aside className="w-64 glass-panel border-r border-zinc-200 dark:border-white/5 flex flex-col h-full min-h-0 max-h-full z-10 shrink-0 hidden md:flex">
       {/* Header Logo with animated gradient */}
       <div className="p-5 flex items-center gap-3 relative">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-teal-500 flex items-center justify-center shadow-lg shadow-purple-500/20 logo-gradient-spin">
-          <BrainCircuit className="w-5 h-5 text-white" />
+        <div className="w-9 h-9 rounded-xl bg-zinc-950 dark:bg-black border border-white/10 flex items-center justify-center shadow-lg shadow-purple-500/10 relative overflow-hidden group shrink-0 p-1">
+          {/* Subtle spinning background glow */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/30 to-blue-500/30 opacity-60 blur-sm group-hover:scale-110 transition-all duration-500"></div>
+          <img src="/logo.png" className="w-full h-full object-contain rounded-lg z-10 relative" alt="Logo" />
         </div>
         <div>
-          <h1 className="font-bold text-sm tracking-wide text-zinc-900 dark:text-white">AI NOTEBOOK</h1>
+          <h1 className="font-bold text-sm tracking-wide text-zinc-900 dark:text-white flex items-center gap-0.5">
+            AI <span className="font-extrabold bg-gradient-to-r from-purple-600 to-blue-400 bg-clip-text text-transparent">NOTEBOOK</span>
+          </h1>
           <span className="text-[9px] text-zinc-650 dark:text-zinc-400 uppercase tracking-widest font-bold">Personal Work v2</span>
         </div>
       </div>
@@ -113,7 +118,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
                 <Icon className={`w-4 h-4 ${isActive ? "icon-glow" : ""}`} />
                 <span>{item.label}</span>
                 {item.id === "tasks" && importantTasks.length > 0 && (
-                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse animate-duration-1000" title={`Có ${importantTasks.length} việc quan trọng cần xử lý!`} />
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse animate-duration-1000" title={t("sidebar.urgentTasksTitle", { count: importantTasks.length })} />
                 )}
               </motion.button>
             );
@@ -134,7 +139,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
             >
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse" />
-                <span>{importantTasks.length} việc khẩn cấp</span>
+                <span>{t("sidebar.urgentTasks", { count: importantTasks.length })}</span>
               </div>
               {isOpenReminders ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
@@ -148,7 +153,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
                       type="button"
                       onClick={() => handleCompleteTask(task.id)}
                       className="w-3.5 h-3.5 rounded border border-red-300 dark:border-red-500/20 bg-white dark:bg-zinc-950 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 shrink-0 mt-0.5"
-                      title="Hoàn thành công việc"
+                      title={t("sidebar.completeTask")}
                     >
                       <Check className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
@@ -164,7 +169,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
                       </p>
                       {task.due_date && (
                         <span className="text-[8px] text-red-500 font-bold block mt-0.5 flex items-center gap-0.5">
-                          <Clock className="w-2 h-2" /> Hạn: {task.due_date}
+                          <Clock className="w-2 h-2" /> {t("sidebar.dueDate", { date: task.due_date })}
                         </span>
                       )}
                     </div>
@@ -193,7 +198,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
           }`}
         >
           <Settings className={`w-4 h-4 ${activeView === "settings" ? "icon-glow" : ""}`} />
-          <span>Settings & Integrations</span>
+          <span>{t("sidebar.settings")}</span>
         </motion.button>
 
         {/* Global Google login profile box */}
@@ -217,7 +222,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
                 {localStorage.getItem("sync_user_name")}
               </p>
               <span className="text-[8px] text-teal-400 font-semibold block">
-                Cloud Sync: Enabled
+                {t("sidebar.syncEnabled")}
               </span>
             </div>
           </div>
@@ -243,10 +248,10 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
             </div>
             <div className="flex-1 overflow-hidden">
               <p className="text-[10px] font-bold text-zinc-800 dark:text-zinc-300 group-hover:text-purple-500 transition-colors">
-                Sign in with Google
+                {t("sidebar.signinGoogle")}
               </p>
               <span className="text-[8px] text-zinc-500 block">
-                Chế độ offline cục bộ
+                {t("sidebar.offlineMode")}
               </span>
             </div>
           </div>

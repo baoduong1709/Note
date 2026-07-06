@@ -10,7 +10,8 @@ import {
   RotateCcw,
   Star,
   Sun,
-  Trash2
+  Trash2,
+  Check
 } from "lucide-react";
 import {
   CalendarDateType,
@@ -22,33 +23,11 @@ import {
 } from "../database/queries/calendarEvents";
 import { vietnamHolidays } from "../data/vietnamHolidays";
 import { formatLunarDate, lunarToSolar, solarToLunar } from "../utils/lunarCalendar";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface CalendarViewProps {
   triggerToast: (message: string) => void;
 }
-
-const weekdays = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-const monthNames = [
-  "Tháng 1",
-  "Tháng 2",
-  "Tháng 3",
-  "Tháng 4",
-  "Tháng 5",
-  "Tháng 6",
-  "Tháng 7",
-  "Tháng 8",
-  "Tháng 9",
-  "Tháng 10",
-  "Tháng 11",
-  "Tháng 12"
-];
-
-const eventTypeOptions: Array<{ value: CalendarEventType; label: string }> = [
-  { value: "birthday", label: "Sinh nhật" },
-  { value: "holiday", label: "Ngày lễ" },
-  { value: "anniversary", label: "Kỷ niệm" },
-  { value: "other", label: "Quan trọng" }
-];
 
 type DisplayCalendarEvent = CalendarEvent & { isBuiltInHoliday?: boolean };
 type CalendarViewMode = "month" | "year";
@@ -99,8 +78,8 @@ function getCalendarGrid(monthDate: Date): Date[] {
   });
 }
 
-function formatSolarLong(date: Date): string {
-  return date.toLocaleDateString("vi-VN", {
+function formatSolarLong(date: Date, locale: string = "vi-VN"): string {
+  return date.toLocaleDateString(locale, {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
@@ -121,8 +100,8 @@ function eventIcon(event: CalendarEvent) {
   return Star;
 }
 
-function eventTypeLabel(event: CalendarEvent): string {
-  return eventTypeOptions.find(option => option.value === event.event_type)?.label || "Quan trọng";
+function eventTypeLabel(event: CalendarEvent, options: Array<{ value: CalendarEventType; label: string }>): string {
+  return options.find(option => option.value === event.event_type)?.label || "Quan trọng";
 }
 
 function eventOccursOnDate(event: CalendarEvent, date: Date): boolean {
@@ -156,9 +135,56 @@ function getDefaultLunarForm(date: Date) {
 }
 
 export default function CalendarView({ triggerToast }: CalendarViewProps) {
+  const { t, language } = useLanguage();
   const today = useMemo(() => new Date(), []);
   const jumpDateRef = useRef<HTMLInputElement>(null);
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(today));
+
+  const weekdays = language === "vi" 
+    ? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] 
+    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const monthNames = language === "vi"
+    ? [
+        "Tháng 1",
+        "Tháng 2",
+        "Tháng 3",
+        "Tháng 4",
+        "Tháng 5",
+        "Tháng 6",
+        "Tháng 7",
+        "Tháng 8",
+        "Tháng 9",
+        "Tháng 10",
+        "Tháng 11",
+        "Tháng 12"
+      ]
+    : [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December"
+      ];
+
+  const eventTypeOptions: Array<{ value: CalendarEventType; label: string }> = [
+    { value: "birthday", label: t("calendar.eventTypeBirthday") },
+    { value: "holiday", label: t("calendar.eventTypeHoliday") },
+    { value: "anniversary", label: t("calendar.eventTypeAnniversary") },
+    { value: "other", label: language === "vi" ? "Quan trọng" : "Important" }
+  ];
+
+  const getEventLabel = (event: CalendarEvent): string => {
+    return eventTypeLabel(event, eventTypeOptions);
+  };
+
   const [selectedDate, setSelectedDate] = useState(today);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [jumpDate, setJumpDate] = useState(toDateKey(today));
@@ -332,7 +358,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
   const handleSaveEvent = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!title.trim()) {
-      triggerToast("Vui lòng nhập tên sự kiện.");
+      triggerToast(language === "vi" ? "Vui lòng nhập tên sự kiện." : "Please enter event name.");
       return;
     }
 
@@ -364,14 +390,14 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
           normalizedLunarMonth < 1 ||
           normalizedLunarMonth > 12
         ) {
-          triggerToast("Ngày âm lịch không hợp lệ.");
+          triggerToast(language === "vi" ? "Ngày âm lịch không hợp lệ." : "Invalid lunar date.");
           return;
         }
 
         if (!repeatYearly) {
           const oneTimeLunarYear = Number(lunarYear);
           if (!Number.isInteger(oneTimeLunarYear) || oneTimeLunarYear < 1900) {
-            triggerToast("Vui lòng nhập năm âm lịch hợp lệ.");
+            triggerToast(language === "vi" ? "Vui lòng nhập năm âm lịch hợp lệ." : "Please enter a valid lunar year.");
             return;
           }
           normalizedLunarYear = oneTimeLunarYear;
@@ -398,33 +424,33 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
         notes: notes.trim() || null
       });
 
-      triggerToast("Đã lưu ngày quan trọng.");
+      triggerToast(t("calendar.saveSuccess"));
       resetForm();
       await loadEvents();
     } catch (err: any) {
       console.error(err);
-      triggerToast(err.message || "Lỗi lưu sự kiện lịch.");
+      triggerToast(err.message || t("calendar.saveError"));
     }
   };
 
   const handleDeleteEvent = async (id: string) => {
     try {
       await deleteCalendarEvent(id);
-      triggerToast("Đã xóa sự kiện.");
+      triggerToast(t("calendar.deleteSuccess"));
       await loadEvents();
     } catch (err) {
       console.error(err);
-      triggerToast("Lỗi xóa sự kiện.");
+      triggerToast(t("calendar.deleteError"));
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden space-y-4">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden space-y-4 view-enter-animate">
       <div className="flex flex-col gap-3 shrink-0">
         <div>
-          <h3 className="text-xs sm:text-sm font-bold text-zinc-950 dark:text-white">Lịch âm dương</h3>
+          <h3 className="text-xs sm:text-sm font-bold text-zinc-950 dark:text-white">{t("calendar.title")}</h3>
           <p className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400">
-            Theo dõi ngày dương, ngày âm, sinh nhật và các ngày lễ quan trọng.
+            {t("calendar.description")}
           </p>
         </div>
 
@@ -441,7 +467,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                       : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white"
                   }`}
                 >
-                  Tháng
+                  {t("calendar.month")}
                 </button>
                 <button
                   type="button"
@@ -452,7 +478,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                       : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white"
                   }`}
                 >
-                  Năm
+                  {t("calendar.year")}
                 </button>
               </div>
 
@@ -463,7 +489,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   className="h-8 px-3 rounded-md bg-white dark:bg-zinc-800 text-[10px] font-bold text-zinc-900 dark:text-white shadow-sm flex items-center justify-center gap-1.5 w-full transition-all active:scale-[0.98]"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Hôm nay
+                  {t("calendar.today")}
                 </button>
               </div>
             </div>
@@ -516,8 +542,8 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 value={jumpDate}
                 onChange={(event) => handleJumpDate(event.target.value)}
                 className="col-span-2 h-8 w-full sm:col-span-1 rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950/60 px-2 text-[10px] font-semibold text-zinc-850 dark:text-zinc-200 focus:outline-none"
-                title="Đi tới ngày"
-                aria-label="Đi tới ngày"
+                title={t("calendar.goToDate")}
+                aria-label={t("calendar.goToDate")}
               />
             </div>
           </div>
@@ -533,16 +559,16 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-zinc-950 dark:text-white">
-                  {viewMode === "month" ? `Tháng ${currentMonth.getMonth() + 1}` : "Cả năm"} {currentMonth.getFullYear()}
+                  {viewMode === "month" ? (language === "vi" ? `Tháng ${currentMonth.getMonth() + 1}` : monthNames[currentMonth.getMonth()]) : (language === "vi" ? "Cả năm" : "Whole Year")} {currentMonth.getFullYear()}
                 </h4>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-500">
-                  {viewMode === "month" ? "Dương lịch lớn, âm lịch nhỏ trong từng ô ngày." : "Bấm vào một tháng để mở lịch chi tiết."}
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  {viewMode === "month" ? t("calendar.calendarGuide") : (language === "vi" ? "Bấm vào một tháng để mở lịch chi tiết." : "Click a month to open detailed calendar.")}
                 </p>
               </div>
             </div>
             <div className="hidden sm:flex items-center gap-3 text-[10px] text-zinc-500 dark:text-zinc-400">
-              <span className="flex items-center gap-1"><Sun className="w-3 h-3 text-amber-400" /> Dương</span>
-              <span className="flex items-center gap-1"><Moon className="w-3 h-3 text-purple-400" /> Âm</span>
+              <span className="flex items-center gap-1"><Sun className="w-3 h-3 text-amber-400" /> {t("calendar.sun")}</span>
+              <span className="flex items-center gap-1"><Moon className="w-3 h-3 text-purple-400" /> {t("calendar.moon")}</span>
             </div>
           </div>
 
@@ -597,7 +623,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                           </div>
                         ))}
                         {dayEvents.length > 3 && (
-                          <div className="text-[9px] text-zinc-500 dark:text-zinc-400">+{dayEvents.length - 3} mục</div>
+                          <div className="text-[9px] text-zinc-500 dark:text-zinc-400">+{dayEvents.length - 3} {language === "vi" ? "mục" : "items"}</div>
                         )}
                       </div>
 
@@ -653,7 +679,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h5 className="text-xs font-bold text-zinc-950 dark:text-white">{monthName}</h5>
-                        <p className="text-[9px] text-zinc-500 dark:text-zinc-500">{monthEvents.length} mục</p>
+                        <p className="text-[9px] text-zinc-500 dark:text-zinc-400">{t("calendar.eventsCount", { count: monthEvents.length })}</p>
                       </div>
                       <span className="rounded-full bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 text-[9px] font-bold text-zinc-600 dark:text-zinc-300">
                         {monthIndex + 1}
@@ -667,15 +693,15 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                           className={`truncate rounded border px-1.5 py-0.5 text-[9px] font-semibold ${eventColor(event)}`}
                           title={event.title}
                         >
-                          {event.date_type === "lunar" ? "ÂL " : ""}
+                          {event.date_type === "lunar" ? (language === "vi" ? "ÂL " : "Lunar ") : ""}
                           {event.title}
                         </div>
                       ))}
                       {monthEvents.length === 0 && (
-                        <div className="text-[10px] text-zinc-500 dark:text-zinc-500">Không có mục nổi bật.</div>
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-450">{language === "vi" ? "Không có mục nổi bật." : "No prominent events."}</div>
                       )}
                       {monthEvents.length > 5 && (
-                        <div className="text-[9px] text-zinc-500 dark:text-zinc-400">+{monthEvents.length - 5} mục khác</div>
+                        <div className="text-[9px] text-zinc-500 dark:text-zinc-400">+{monthEvents.length - 5} {language === "vi" ? "mục khác" : "more items"}</div>
                       )}
                     </div>
                   </button>
@@ -689,8 +715,8 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
           <section className="glass-panel rounded-xl p-4 space-y-3">
             <div className="flex items-start justify-between gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
               <div>
-                <h4 className="text-xs font-bold text-zinc-950 dark:text-white">{formatSolarLong(selectedDate)}</h4>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Âm lịch: {formatLunarDate(selectedLunar)}</p>
+                <h4 className="text-xs font-bold text-zinc-900 dark:text-white">{formatSolarLong(selectedDate, language === "vi" ? "vi-VN" : "en-US")}</h4>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">{t("calendar.lunarDate")}{formatLunarDate(selectedLunar)}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
@@ -699,10 +725,10 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   className="sm:hidden flex items-center justify-center gap-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all shadow-sm active:scale-[0.98] cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
-                  Thêm
+                  {t("calendar.addBtn")}
                 </button>
                 <span className="rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-bold text-purple-650 dark:text-purple-300">
-                  {selectedEvents.length} sự kiện
+                  {t("calendar.eventsCount", { count: selectedEvents.length })}
                 </span>
               </div>
             </div>
@@ -721,8 +747,8 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                             {event.is_important === 1 && <Star className="w-3 h-3 fill-current shrink-0" />}
                           </div>
                           <p className="text-[9px] opacity-80">
-                            {event.isBuiltInHoliday ? "Lễ Việt Nam" : eventTypeLabel(event)} · {event.date_type === "lunar" ? "Âm lịch" : "Dương lịch"}
-                            {event.repeat_yearly === 1 ? " · Lặp hằng năm" : ""}
+                            {event.isBuiltInHoliday ? t("calendar.holidayViet") : getEventLabel(event)} · {event.date_type === "lunar" ? t("calendar.dateTypeLunar") : t("calendar.dateTypeSolar")}
+                            {event.repeat_yearly === 1 ? ` · ${t("calendar.repeatAnnual")}` : ""}
                           </p>
                           {event.notes ? <p className="mt-1 text-[10px] opacity-90 break-words">{event.notes}</p> : null}
                         </div>
@@ -731,7 +757,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                             type="button"
                             onClick={() => handleDeleteEvent(event.id)}
                             className="p-1 rounded hover:bg-red-500/10 hover:text-red-400 transition-all"
-                            title="Xóa sự kiện"
+                            title={t("calendar.deleteEvent")}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -744,14 +770,15 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
             ) : (
               <div className="flex flex-col items-center justify-center p-4 rounded-lg border border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 gap-2">
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Chưa có sự kiện nào trong ngày này.
+                  {t("calendar.noEvents")}
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowAddEventMobile(true)}
                   className="sm:hidden flex items-center gap-1 text-[10px] font-bold text-purple-650 dark:text-purple-400 hover:underline py-1 px-2 cursor-pointer"
+                  title={t("calendar.addEvent")}
                 >
-                  <Plus className="w-3 h-3" /> Ghi ngày quan trọng
+                  <Plus className="w-3 h-3" /> {t("calendar.addEvent")}
                 </button>
               </div>
             )}
@@ -763,25 +790,25 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-zinc-950 dark:text-white">Ghi ngày quan trọng</h4>
-                <p className="text-[9px] text-zinc-500 dark:text-zinc-500">Sinh nhật, ngày lễ, kỷ niệm theo âm hoặc dương lịch.</p>
+                <h4 className="text-xs font-bold text-zinc-950 dark:text-white">{t("calendar.formTitle")}</h4>
+                <p className="text-[9px] text-zinc-500 dark:text-zinc-500">{t("calendar.formDesc")}</p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Tên sự kiện</label>
+              <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.eventName")}</label>
               <input
                 type="text"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Ví dụ: Sinh nhật mẹ, Giỗ ông, Lễ kỷ niệm..."
+                placeholder={t("calendar.eventNamePlaceholder")}
                 className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Loại</label>
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.eventType")}</label>
                 <select
                   value={eventType}
                   onChange={(event) => setEventType(event.target.value as CalendarEventType)}
@@ -794,21 +821,21 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Kiểu ngày</label>
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.dateType")}</label>
                 <select
                   value={dateType}
                   onChange={(event) => setDateType(event.target.value as CalendarDateType)}
                   className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
                 >
-                  <option value="solar">Dương lịch</option>
-                  <option value="lunar">Âm lịch</option>
+                  <option value="solar">{t("calendar.dateTypeSolar")}</option>
+                  <option value="lunar">{t("calendar.dateTypeLunar")}</option>
                 </select>
               </div>
             </div>
 
             {dateType === "solar" ? (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Ngày dương</label>
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.dateSolar")}</label>
                 <input
                   type="date"
                   value={solarDate}
@@ -829,7 +856,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
             ) : (
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Ngày âm</label>
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.dateLunar")}</label>
                   <input
                     type="number"
                     min={1}
@@ -840,7 +867,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Tháng âm</label>
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{language === "vi" ? "Tháng âm" : "Lunar Month"}</label>
                   <input
                     type="number"
                     min={1}
@@ -851,7 +878,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Năm âm</label>
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{language === "vi" ? "Năm âm" : "Lunar Year"}</label>
                   <input
                     type="number"
                     min={1900}
@@ -872,7 +899,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   onChange={(event) => setRepeatYearly(event.target.checked)}
                   className="rounded border-zinc-300 dark:border-zinc-700 text-purple-600 focus:ring-purple-600"
                 />
-                Lặp lại hằng năm
+                {t("calendar.repeatAnnual")}
               </label>
 
               {dateType === "lunar" && (
@@ -881,9 +908,9 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     type="checkbox"
                     checked={isLunarLeap}
                     onChange={(event) => setIsLunarLeap(event.target.checked)}
-                    className="rounded border-zinc-300 dark:border-zinc-700 text-purple-600 focus:ring-purple-600"
+                    className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
                   />
-                  Tháng âm nhuận
+                  {language === "vi" ? "Tháng âm nhuận" : "Leap Month"}
                 </label>
               )}
 
@@ -892,18 +919,18 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   type="checkbox"
                   checked={isImportant}
                   onChange={(event) => setIsImportant(event.target.checked)}
-                  className="rounded border-zinc-300 dark:border-zinc-700 text-purple-600 focus:ring-purple-600"
+                  className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
                 />
-                Đánh dấu quan trọng
+                {t("calendar.markImportant")}
               </label>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">Ghi chú</label>
+              <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.notes")}</label>
               <textarea
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                placeholder="Ghi chú thêm nếu cần..."
+                placeholder={t("calendar.notesPlaceholder")}
                 className="w-full min-h-20 p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none resize-none"
               />
             </div>
@@ -914,14 +941,14 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 onClick={resetForm}
                 className="px-3 py-2 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 transition-all"
               >
-                Xóa form
+                {t("calendar.resetForm")}
               </button>
               <button
                 type="submit"
                 className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-[10px] font-semibold text-white transition-all shadow-md shadow-purple-500/10 flex items-center gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Lưu
+                <Check className="w-3.5 h-3.5" />
+                {t("calendar.save")}
               </button>
             </div>
           </form>
@@ -936,15 +963,15 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
           <div className="relative w-full max-h-[85%] bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-white/10 rounded-t-2xl p-4 overflow-y-auto space-y-4 shadow-2xl z-50 select-text">
             <div className="flex justify-between items-center pb-2 border-b border-zinc-250 dark:border-white/5">
               <div>
-                <h4 className="text-xs font-bold text-zinc-950 dark:text-white">Ghi ngày quan trọng</h4>
-                <p className="text-[9px] text-zinc-500 dark:text-zinc-550">Sinh nhật, ngày lễ, kỷ niệm vào notebook.</p>
+                <h4 className="text-xs font-bold text-zinc-950 dark:text-white">{t("calendar.formTitle")}</h4>
+                <p className="text-[9px] text-zinc-500 dark:text-zinc-550">{t("calendar.formDesc")}</p>
               </div>
               <button 
                 type="button"
                 onClick={() => setShowAddEventMobile(false)}
                 className="text-[11px] font-bold text-purple-650 dark:text-purple-400 p-1 hover:underline cursor-pointer"
               >
-                Đóng
+                {t("calendar.closeBtn")}
               </button>
             </div>
             
@@ -956,12 +983,12 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
               className="space-y-3"
             >
               <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Tên sự kiện</label>
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.eventName")}</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Ví dụ: Sinh nhật mẹ, Giỗ ông, Lễ kỷ niệm..."
+                  placeholder={t("calendar.eventNamePlaceholder")}
                   className="w-full p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none"
                   required
                 />
@@ -969,11 +996,11 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Loại</label>
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.eventType")}</label>
                   <select
                     value={eventType}
                     onChange={(event) => setEventType(event.target.value as CalendarEventType)}
-                    className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-850 dark:text-zinc-300 focus:outline-none"
+                    className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-855 dark:text-zinc-300 focus:outline-none" // wait, original used text-zinc-850
                   >
                     {eventTypeOptions.map(option => (
                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -982,21 +1009,21 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Kiểu ngày</label>
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.dateType")}</label>
                   <select
                     value={dateType}
                     onChange={(event) => setDateType(event.target.value as CalendarDateType)}
-                    className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-850 dark:text-zinc-300 focus:outline-none"
+                    className="w-full p-2.5 rounded glass-input bg-white dark:bg-zinc-900 text-xs text-zinc-855 dark:text-zinc-300 focus:outline-none" // wait, original used text-zinc-850
                   >
-                    <option value="solar">Dương lịch</option>
-                    <option value="lunar">Âm lịch</option>
+                    <option value="solar">{t("calendar.dateTypeSolar")}</option>
+                    <option value="lunar">{t("calendar.dateTypeLunar")}</option>
                   </select>
                 </div>
               </div>
 
               {dateType === "solar" ? (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Ngày dương</label>
+                  <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.dateSolar")}</label>
                   <input
                     type="date"
                     value={solarDate}
@@ -1017,7 +1044,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Ngày âm</label>
+                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.dateLunar")}</label>
                     <input
                       type="number"
                       min={1}
@@ -1028,7 +1055,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Tháng âm</label>
+                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{language === "vi" ? "Tháng âm" : "Lunar Month"}</label>
                     <input
                       type="number"
                       min={1}
@@ -1039,7 +1066,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Năm âm</label>
+                    <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{language === "vi" ? "Năm âm" : "Lunar Year"}</label>
                     <input
                       type="number"
                       min={1900}
@@ -1060,7 +1087,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     onChange={(event) => setRepeatYearly(event.target.checked)}
                     className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
                   />
-                  Lặp lại hằng năm
+                  {t("calendar.repeatAnnual")}
                 </label>
 
                 {dateType === "lunar" && (
@@ -1071,7 +1098,7 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                       onChange={(event) => setIsLunarLeap(event.target.checked)}
                       className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
                     />
-                    Tháng âm nhuận
+                    {language === "vi" ? "Tháng âm nhuận" : "Leap Month"}
                   </label>
                 )}
 
@@ -1082,16 +1109,16 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     onChange={(event) => setIsImportant(event.target.checked)}
                     className="rounded border-zinc-300 dark:border-zinc-700 text-purple-650 focus:ring-purple-650"
                   />
-                  Đánh dấu quan trọng
+                  {t("calendar.markImportant")}
                 </label>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">Ghi chú</label>
+                <label className="text-[10px] font-semibold text-zinc-650 dark:text-zinc-400">{t("calendar.notes")}</label>
                 <textarea
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Ghi chú thêm nếu cần..."
+                  placeholder={t("calendar.notesPlaceholder")}
                   className="w-full min-h-20 p-2.5 rounded glass-input text-xs text-zinc-800 dark:text-zinc-300 focus:outline-none resize-none"
                 />
               </div>
@@ -1102,14 +1129,14 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                   onClick={resetForm}
                   className="px-3.5 py-2 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-[10px] font-bold text-zinc-700 dark:text-zinc-350 transition-all active:scale-[0.98]"
                 >
-                  Xóa form
+                  {t("calendar.resetForm")}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all shadow-md shadow-purple-500/10 flex items-center gap-1.5 active:scale-[0.98]"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Lưu
+                  <Check className="w-3.5 h-3.5" />
+                  {t("calendar.save")}
                 </button>
               </div>
             </form>

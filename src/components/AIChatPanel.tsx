@@ -4,6 +4,7 @@ import { Send, Sparkles, X, History, Plus, Trash2 } from "lucide-react";
 import { askAI, extractAndSaveMemory } from "../services/aiService";
 import CopyBlock from "./CopyBlock";
 import GenericConfirmModal from "./GenericConfirmModal";
+import { useLanguage } from "../contexts/LanguageContext";
 import { 
   getAISessions, 
   createAISession, 
@@ -27,21 +28,21 @@ interface AIChatPanelProps {
   onClose: () => void;
 }
 
-const WELCOME_TEXT = "Chào Bảo! Tôi là Notebook Agent của bạn. Tôi có thể đọc/tạo note, đọc/tạo task, lưu ngày quan trọng và dùng web search khi cần dữ liệu mới.";
-
-const normalizeWelcomeMessage = (message: Message): Message => {
-  if (
-    message.text.includes("Notebook Agent") &&
-    (message.text.includes("Daily Note") || message.text.includes("Jira"))
-  ) {
-    return { ...message, text: WELCOME_TEXT };
-  }
-
-  return message;
-};
+// Helper to normalise welcome message across updates
 
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+  const { t } = useLanguage();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const normalizeWelcomeMessage = (message: Message): Message => {
+    if (
+      (message.text.includes("Notebook Agent") || message.text.includes("Trợ lý Sổ tay") || message.text.includes("Notebook Assistant")) &&
+      (message.text.includes("note") || message.text.includes("ghi chú") || message.text.includes("task") || message.text.includes("công việc"))
+    ) {
+      return { ...message, text: t("aiChat.welcomeText") };
+    }
+    return message;
+  };
   const [sessionIdToDelete, setSessionIdToDelete] = useState<string | null>(null);
   
   // Session States
@@ -123,7 +124,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         {
           id: "welcome-message",
           sender: "ai",
-          text: WELCOME_TEXT
+          text: t("aiChat.welcomeText")
         }
       ]);
     }
@@ -158,16 +159,16 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const handleNewChat = async () => {
     streamRunRef.current += 1;
     const newId = `session-${Date.now()}`;
-    const defaultTitle = "Phiên chat mới";
+    const defaultTitle = t("aiChat.newChatTitle");
     
     await createAISession(newId, defaultTitle);
     
     // Add default initial message to SQLite
     const msgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
-    await addAIMessage(msgId, newId, "ai", WELCOME_TEXT);
+    await addAIMessage(msgId, newId, "ai", t("aiChat.welcomeText"));
 
     setActiveSessionId(newId);
-    setMessages([{ id: msgId, sender: "ai", text: WELCOME_TEXT }]);
+    setMessages([{ id: msgId, sender: "ai", text: t("aiChat.welcomeText") }]);
     
     // Reload sessions list
     const list = await getAISessions();
@@ -549,12 +550,12 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             type="button"
             onClick={() => setShowHistory(!showHistory)}
             className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer ${showHistory ? "text-purple-650 dark:text-purple-400" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"}`}
-            title="Lịch sử chat"
+            title={t("aiChat.historyTitle")}
           >
             <History className="w-4 h-4" />
           </button>
           
-          <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider select-none">NOTEBOOK AGENT</h3>
+          <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider select-none">{t("aiChat.agentTitle")}</h3>
         </div>
         
         <div className="flex items-center gap-1">
@@ -563,7 +564,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             type="button"
             onClick={handleNewChat}
             className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer mr-1"
-            title="Cuộc trò chuyện mới"
+            title={t("aiChat.newChatTitle")}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -572,7 +573,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             type="button"
             onClick={onClose}
             className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer"
-            title="Đóng trợ lý AI"
+            title={t("aiChat.closeAssistant")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -583,13 +584,13 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       {showHistory ? (
         <div className="flex-1 flex flex-col bg-zinc-50/95 dark:bg-zinc-950/95 absolute inset-x-0 bottom-0 top-[49px] z-20">
           <div className="p-3 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-zinc-200/50 dark:bg-zinc-900/40 shrink-0">
-            <span className="text-[10px] uppercase font-bold text-zinc-550 dark:text-zinc-400 tracking-wider">Lịch sử cuộc hội thoại</span>
+            <span className="text-[10px] uppercase font-bold text-zinc-550 dark:text-zinc-400 tracking-wider">{t("aiChat.historyHeader")}</span>
             <button 
               type="button"
               onClick={() => setShowHistory(false)}
               className="text-[10px] text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-semibold"
             >
-              Đóng
+              {t("common.close")}
             </button>
           </div>
           
@@ -612,7 +613,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                     type="button"
                     onClick={(e) => handleDeleteSession(e, s.id)}
                     className="opacity-0 group-hover/item:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all cursor-pointer"
-                    title="Xóa lịch sử"
+                    title={t("aiChat.deleteHistory")}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -621,7 +622,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             })}
             
             {sessions.length === 0 && (
-              <p className="text-center text-zinc-600 py-10">Không có lịch sử trò chuyện.</p>
+              <p className="text-center text-zinc-600 py-10">{t("aiChat.noHistory")}</p>
             )}
           </div>
 
@@ -632,7 +633,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
               onClick={handleNewChat}
               className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-all"
             >
-              <Plus className="w-4 h-4" /> Bắt đầu Chat mới
+              <Plus className="w-4 h-4" /> {t("aiChat.startNewChat")}
             </button>
           </div>
         </div>
@@ -699,7 +700,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
             disabled={loading}
-            placeholder={loading ? "Agent đang trả lời..." : "Hỏi hoặc tạo note, task, ngày quan trọng..."} 
+            placeholder={loading ? t("aiChat.placeholderActive") : t("aiChat.placeholderIdle")} 
             className="w-full pl-3 pr-10 py-2.5 rounded-lg bg-transparent border-none text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-500 dark:placeholder-zinc-600 focus:outline-none disabled:opacity-50"
           />
           <button 
@@ -716,10 +717,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING CHAT SESSION */}
       <GenericConfirmModal 
         isOpen={showDeleteConfirm}
-        title="Xóa lịch sử chat"
-        message="Bạn có chắc chắn muốn xóa phiên chat này và toàn bộ lịch sử tin nhắn liên quan? Hành động này không thể khôi phục."
-        confirmLabel="Xóa phiên chat"
-        cancelLabel="Hủy"
+        title={t("aiChat.deleteSessionTitle")}
+        message={t("aiChat.deleteSessionMessage")}
+        confirmLabel={t("aiChat.deleteSessionConfirm")}
+        cancelLabel={t("common.cancel")}
         type="danger"
         onConfirm={handleConfirmDeleteSession}
         onCancel={() => {

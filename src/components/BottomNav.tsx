@@ -7,6 +7,7 @@ import {
   Share2
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface BottomNavProps {
   activeView: string;
@@ -14,13 +15,14 @@ interface BottomNavProps {
 }
 
 export default function BottomNav({ activeView, setActiveView }: BottomNavProps) {
+  const { t } = useLanguage();
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "notes", label: "Notes", icon: FileText },
-    { id: "tasks", label: "Tasks", icon: CheckSquare },
-    { id: "calendar", label: "Lịch", icon: Calendar },
-    { id: "share", label: "Share", icon: Share2 },
-    { id: "settings", label: "Settings", icon: Settings },
+    { id: "dashboard", label: t("bottomNav.dashboard"), icon: LayoutDashboard },
+    { id: "notes", label: t("bottomNav.notes"), icon: FileText },
+    { id: "tasks", label: t("bottomNav.tasks"), icon: CheckSquare },
+    { id: "calendar", label: t("bottomNav.calendar"), icon: Calendar },
+    { id: "share", label: t("bottomNav.share"), icon: Share2 },
+    { id: "settings", label: t("bottomNav.settings"), icon: Settings },
   ];
 
   return (

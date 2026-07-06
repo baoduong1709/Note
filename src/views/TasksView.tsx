@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Play, CheckCircle, Clock } from "lucide-react";
+import { Plus, Trash2, Play, CheckCircle, Clock, X } from "lucide-react";
 import { getTasks, createTask, updateTaskStatus, deleteTask, Task } from "../database/queries/tasks";
 import GenericConfirmModal from "../components/GenericConfirmModal";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface TasksViewProps {
   triggerToast: (message: string) => void;
 }
 
 export default function TasksView({ triggerToast }: TasksViewProps) {
+  const { t, language } = useLanguage();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<"todo" | "in_progress" | "done">("todo");
@@ -28,7 +30,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
     const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return value;
 
-    return date.toLocaleString("vi-VN", {
+    return date.toLocaleString(language === "vi" ? "vi-VN" : "en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -38,9 +40,9 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   };
 
   const getTaskTimeLabel = (task: Task) => {
-    if (task.due_date) return `Hạn ${formatTaskDateTime(task.due_date)}`;
-    if (task.created_at) return `Tạo ${formatTaskDateTime(task.created_at)}`;
-    return "Chưa đặt thời gian";
+    if (task.due_date) return `${language === "vi" ? "Hạn" : "Due"} ${formatTaskDateTime(task.due_date)}`;
+    if (task.created_at) return `${language === "vi" ? "Tạo" : "Created"} ${formatTaskDateTime(task.created_at)}`;
+    return language === "vi" ? "Chưa đặt thời gian" : "No due date set";
   };
 
   const isTaskOverdue = (task: Task) => {
@@ -71,12 +73,12 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   const handleStatusChange = async (id: string, newStatus: Task["status"]) => {
     try {
       await updateTaskStatus(id, newStatus);
-      triggerToast(`Đã chuyển trạng thái sang: ${newStatus}`);
+      triggerToast(language === "vi" ? `Đã chuyển trạng thái sang: ${newStatus}` : `Status changed to: ${newStatus}`);
       loadTasks();
       window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err) {
       console.error("Failed to update status:", err);
-      triggerToast("Lỗi cập nhật trạng thái!");
+      triggerToast(language === "vi" ? "Lỗi cập nhật trạng thái!" : "Failed to update status!");
     }
   };
 
@@ -92,12 +94,12 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
     if (!taskToDelete) return;
     try {
       await deleteTask(taskToDelete.id);
-      triggerToast("Đã xóa task!");
+      triggerToast(t("tasks.deleteSuccess"));
       loadTasks();
       window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err) {
       console.error("Failed to delete task:", err);
-      triggerToast("Lỗi xóa task!");
+      triggerToast(t("tasks.deleteError"));
     } finally {
       setShowDeleteConfirm(false);
       setTaskToDelete(null);
@@ -126,7 +128,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
 
     try {
       await createTask(newTask);
-      triggerToast("Đã tạo task mới!");
+      triggerToast(t("tasks.createSuccess"));
       setTitle("");
       setDueDate("");
       setShowAddForm(false);
@@ -134,7 +136,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       window.dispatchEvent(new CustomEvent("task-updated"));
     } catch (err) {
       console.error("Failed to create task:", err);
-      triggerToast("Lỗi tạo task!");
+      triggerToast(t("tasks.createError"));
     }
   };
 
@@ -143,20 +145,22 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   const doneTasks = tasks.filter(t => t.status === "done");
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden space-y-4">
+    <div className="flex-1 flex flex-col overflow-hidden space-y-4 view-enter-animate">
       {/* Top Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>
-          <h3 className="text-xs sm:text-sm font-bold text-zinc-950 dark:text-white">Quản lý Công việc</h3>
-          <p className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400">Kanban local cho toàn bộ công việc trong notebook.</p>
+          <h3 className="text-xs sm:text-sm font-bold text-zinc-955 dark:text-white">{t("tasks.title")}</h3>
+          <p className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400">{t("tasks.description")}</p>
         </div>
 
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
+          className="relative group overflow-hidden bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-500 hover:to-blue-400 text-white text-xs px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all duration-300 shadow-md shadow-purple-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.97] border border-white/10"
         >
-          <Plus className="w-3.5 h-3.5" />
-          {showAddForm ? "Hủy bỏ" : "Thêm Task"}
+          {/* Subtle inner reflection flare */}
+          <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></span>
+          {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+          {showAddForm ? t("tasks.cancel") : t("tasks.addTask")}
         </button>
       </div>
 
@@ -165,30 +169,30 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         <form onSubmit={handleAddTask} className="glass-panel p-4 rounded-xl space-y-3 shrink-0 text-xs text-zinc-700 dark:text-zinc-300">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="sm:col-span-2">
-              <label className="block text-zinc-400 mb-1">Tên công việc</label>
+              <label className="block text-zinc-400 mb-1">{t("tasks.taskName")}</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ví dụ: deploy code lên staging..."
+                placeholder={t("tasks.taskPlaceholder")}
                 className="w-full p-2 rounded glass-input text-zinc-300"
                 required
               />
             </div>
             <div>
-              <label className="block text-zinc-400 mb-1">Độ ưu tiên</label>
+              <label className="block text-zinc-400 mb-1">{t("tasks.priority")}</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Task["priority"])}
                 className="w-full p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none"
               >
-                <option value="low">Thấp (Low)</option>
-                <option value="medium">Trung bình (Medium)</option>
-                <option value="high">Cao (High)</option>
+                <option value="low">{t("tasks.priorityLow")}</option>
+                <option value="medium">{t("tasks.priorityMedium")}</option>
+                <option value="high">{t("tasks.priorityHigh")}</option>
               </select>
             </div>
             <div>
-              <label className="block text-zinc-400 mb-1">Hạn chót (ngày & giờ)</label>
+              <label className="block text-zinc-400 mb-1">{t("tasks.dueDate")}</label>
               <input
                 type="datetime-local"
                 value={dueDate}
@@ -202,7 +206,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
               type="submit"
               className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white px-4 py-1.5 rounded font-semibold shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
             >
-              Tạo Task
+              {t("tasks.createTask")}
             </button>
           </div>
         </form>
@@ -219,7 +223,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
               : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
           }`}
         >
-          Cần làm ({todoTasks.length})
+          {t("tasks.columnTodo")} ({todoTasks.length})
         </button>
         <button
           type="button"
@@ -230,7 +234,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
               : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
           }`}
         >
-          Đang làm ({inProgressTasks.length})
+          {t("tasks.columnInProgress")} ({inProgressTasks.length})
         </button>
         <button
           type="button"
@@ -241,7 +245,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
               : "text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200"
           }`}
         >
-          Đã xong ({doneTasks.length})
+          {t("tasks.columnDone")} ({doneTasks.length})
         </button>
       </div>
 
@@ -252,40 +256,46 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
-              Cần làm (Todo)
+              {t("tasks.columnTodo")}
             </h4>
             <span className="text-[9px] bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">{todoTasks.length}</span>
           </div>
-          <div className="space-y-3 pr-1 overflow-y-auto flex-1 min-h-[150px]">
+
+          <div className="flex-1 space-y-2.5 overflow-y-auto pr-1 select-none min-h-0">
             {todoTasks.map(task => (
-              <div
-                key={task.id}
-                className="p-4 pb-3 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 space-y-3 hover:border-purple-500/20 transition-all relative group"
+              <div 
+                key={task.id} 
+                className={`p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 ${
+                  isTaskOverdue(task) ? "shadow-md shadow-red-500/5 !border-red-500/20" : "premium-hover-glow"
+                }`}
               >
-                <p className="text-xs text-zinc-800 dark:text-white font-medium pr-6 leading-relaxed">{task.title}</p>
-                <div className={`flex items-center gap-1.5 text-[10px] ${isTaskOverdue(task) ? "text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>
-                  <Clock className="w-3 h-3" />
-                  <span>{getTaskTimeLabel(task)}</span>
-                </div>
+                <h5 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug break-words text-left">{task.title}</h5>
+                <span className="text-[9px] text-zinc-500 block mt-1 flex items-center gap-0.5">
+                  <Clock className={`w-3.5 h-3.5 ${isTaskOverdue(task) ? "text-red-500 font-bold" : "text-zinc-400"}`} />
+                  <span className={isTaskOverdue(task) ? "text-red-600 dark:text-red-400 font-bold" : ""}>
+                    {getTaskTimeLabel(task)}
+                  </span>
+                </span>
+                
                 <button
                   type="button"
                   onClick={() => handleDelete(task.id)}
-                  className="absolute top-3 right-3 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-550 hover:text-red-400 transition-all"
-                  title="Xóa task"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all absolute right-2 top-2 cursor-pointer"
+                  title={t("tasks.deleteTask")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className={`px-1 rounded uppercase tracking-wider font-bold ${
-                    task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-                  }`}>{task.priority}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold ${
+                    task.priority === "high" ? "bg-red-500/10 text-red-400" : task.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
+                  }`}>{task.priority === "high" ? t("tasks.priorityHighTag") : task.priority === "medium" ? t("tasks.priorityMediumTag") : t("tasks.priorityLowTag")}</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => handleStatusChange(task.id, "in_progress")}
                       className="text-[10px] bg-purple-500/10 hover:bg-purple-500/20 active:scale-95 text-purple-650 dark:text-purple-400 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 transition-all shadow-sm shadow-purple-500/5"
                     >
-                      <Play className="w-3 h-3" /> Start
+                      <Play className="w-3 h-3" /> {t("tasks.actionStart")}
                     </button>
                   </div>
                 </div>
@@ -295,44 +305,50 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </div>
 
         {/* 2. IN PROGRESS COLUMN */}
-        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "in_progress" ? "flex" : "hidden md:flex"}`} style={{ animationDelay: "0.05s" }}>
+        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "in_progress" ? "flex" : "hidden md:flex"}`}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-purple-650 dark:text-purple-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-              Đang làm (In Progress)
+              {t("tasks.columnInProgress")}
             </h4>
             <span className="text-[9px] bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">{inProgressTasks.length}</span>
           </div>
-          <div className="space-y-3 pr-1 overflow-y-auto flex-1 min-h-[150px]">
+
+          <div className="flex-1 space-y-2.5 overflow-y-auto pr-1 select-none min-h-0">
             {inProgressTasks.map(task => (
-              <div
-                key={task.id}
-                className="p-4 pb-3 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 space-y-3 hover:border-purple-500/20 transition-all relative group"
+              <div 
+                key={task.id} 
+                className={`p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 ${
+                  isTaskOverdue(task) ? "shadow-md shadow-red-500/5 !border-red-500/20" : "premium-hover-glow"
+                }`}
               >
-                <p className="text-xs text-zinc-800 dark:text-white font-medium pr-6 leading-relaxed">{task.title}</p>
-                <div className={`flex items-center gap-1.5 text-[10px] ${isTaskOverdue(task) ? "text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>
-                  <Clock className="w-3 h-3" />
-                  <span>{getTaskTimeLabel(task)}</span>
-                </div>
+                <h5 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug break-words text-left">{task.title}</h5>
+                <span className="text-[9px] text-zinc-500 block mt-1 flex items-center gap-0.5">
+                  <Clock className={`w-3.5 h-3.5 ${isTaskOverdue(task) ? "text-red-500 font-bold" : "text-zinc-400"}`} />
+                  <span className={isTaskOverdue(task) ? "text-red-600 dark:text-red-400 font-bold" : ""}>
+                    {getTaskTimeLabel(task)}
+                  </span>
+                </span>
+                
                 <button
                   type="button"
                   onClick={() => handleDelete(task.id)}
-                  className="absolute top-3 right-3 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-550 hover:text-red-400 transition-all"
-                  title="Xóa task"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all absolute right-2 top-2 cursor-pointer"
+                  title={t("tasks.deleteTask")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className={`px-1 rounded uppercase tracking-wider font-bold ${
-                    task.priority === "high" ? "bg-red-500/10 text-red-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
-                  }`}>{task.priority}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold ${
+                    task.priority === "high" ? "bg-red-500/10 text-red-400" : task.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
+                  }`}>{task.priority === "high" ? t("tasks.priorityHighTag") : task.priority === "medium" ? t("tasks.priorityMediumTag") : t("tasks.priorityLowTag")}</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => handleStatusChange(task.id, "done")}
                       className="text-[10px] bg-teal-500/10 hover:bg-teal-500/20 active:scale-95 text-teal-650 dark:text-teal-400 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 transition-all shadow-sm shadow-teal-500/5"
                     >
-                      <CheckCircle className="w-3.5 h-3.5" /> Done
+                      <CheckCircle className="w-3.5 h-3.5" /> {t("tasks.actionDone")}
                     </button>
                   </div>
                 </div>
@@ -342,41 +358,43 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
         </div>
 
         {/* 3. DONE COLUMN */}
-        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "done" ? "flex" : "hidden md:flex"}`} style={{ animationDelay: "0.1s" }}>
+        <div className={`glass-panel rounded-xl p-3 flex flex-col h-full overflow-hidden kanban-col-animate ${activeMobileTab === "done" ? "flex" : "hidden md:flex"}`}>
           <div className="flex justify-between items-center mb-3 shrink-0">
             <h4 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Đã xong (Done)
+              {t("tasks.columnDone")}
             </h4>
             <span className="text-[9px] bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">{doneTasks.length}</span>
           </div>
-          <div className="space-y-3 pr-1 overflow-y-auto flex-1 min-h-[150px]">
+
+          <div className="flex-1 space-y-2.5 overflow-y-auto pr-1 select-none min-h-0">
             {doneTasks.map(task => (
-              <div
-                key={task.id}
-                className="p-4 pb-3 rounded-lg bg-zinc-100/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 opacity-60 relative group"
+              <div 
+                key={task.id} 
+                className="p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 opacity-75 hover:opacity-100 transition-opacity"
               >
-                <p className="text-xs text-zinc-550 dark:text-zinc-400 line-through pr-6 leading-relaxed">{task.title}</p>
-                <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-                  <Clock className="w-3 h-3" />
+                <h5 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug line-through break-words text-left">{task.title}</h5>
+                <span className="text-[9px] text-zinc-500 block mt-1 flex items-center gap-0.5">
+                  <Clock className="w-3.5 h-3.5 text-zinc-400" />
                   <span>{getTaskTimeLabel(task)}</span>
-                </div>
+                </span>
+                
                 <button
                   type="button"
                   onClick={() => handleDelete(task.id)}
-                  className="absolute top-3 right-3 p-1 opacity-0 group-hover:opacity-100 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-all"
-                  title="Xóa task"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all absolute right-2 top-2 cursor-pointer"
+                  title={t("tasks.deleteTask")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-500 px-1 rounded uppercase tracking-wider font-bold">Done</span>
+                  <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-500 px-1 rounded uppercase tracking-wider font-bold">{t("tasks.doneLabel")}</span>
                   <button
                     type="button"
                     onClick={() => handleStatusChange(task.id, "todo")}
                     className="text-[10px] bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:scale-95 text-zinc-650 dark:text-zinc-300 px-2.5 py-1 rounded-md font-bold transition-all"
                   >
-                    Re-open
+                    {t("tasks.actionReopen")}
                   </button>
                 </div>
               </div>
@@ -388,10 +406,10 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
       {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING TASKS */}
       <GenericConfirmModal
         isOpen={showDeleteConfirm}
-        title="Xóa công việc"
-        message="Bạn có chắc chắn muốn xóa công việc này không?\n\nHành động này không thể hoàn tác."
-        confirmLabel="Xóa công việc"
-        cancelLabel="Hủy"
+        title={t("tasks.deleteTask")}
+        message={t("tasks.deleteTaskConfirm")}
+        confirmLabel={t("tasks.deleteTask")}
+        cancelLabel={t("common.cancel")}
         type="danger"
         onConfirm={handleConfirmDelete}
         onCancel={() => {

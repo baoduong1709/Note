@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Search } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 import { getNotes, createNote, updateNote, deleteNote, Note } from "../database/queries/notes";
 import RichTextEditor from "../components/RichTextEditor";
 import GenericConfirmModal from "../components/GenericConfirmModal";
@@ -19,6 +20,7 @@ export default function NotesView({
   setSelectedNoteId,
   triggerToast 
 }: NotesViewProps) {
+  const { t } = useLanguage();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -71,7 +73,7 @@ export default function NotesView({
       setNotes(results.filter(isUserFacingNote));
     } catch (err) {
       console.error("Failed to save note:", err);
-      triggerToast("Lỗi tự động lưu!");
+      triggerToast(t("notes.saveError"));
     }
   };
 
@@ -82,7 +84,7 @@ export default function NotesView({
       id,
       workspace_id: "personal",
       project_id: null,
-      title: `Untitled Note - ${new Date().toLocaleDateString()}`,
+      title: `${t("notes.untitledNote")} - ${new Date().toLocaleDateString()}`,
       content: "",
       type: "quick",
       is_locked: 0,
@@ -91,13 +93,13 @@ export default function NotesView({
 
     try {
       await createNote(newNote);
-      triggerToast("Đã tạo ghi chú mới!");
+      triggerToast(t("notes.createSuccess"));
       setSelectedNoteId(id);
       setIsEditingMobile(true);
       loadNotes();
     } catch (err) {
       console.error("Failed to create note:", err);
-      triggerToast("Lỗi tạo ghi chú!");
+      triggerToast(t("notes.createError"));
     }
   };
 
@@ -114,13 +116,13 @@ export default function NotesView({
     if (!noteToDelete) return;
     try {
       await deleteNote(noteToDelete.id);
-      triggerToast("Đã xóa ghi chú!");
+      triggerToast(t("notes.deleteSuccess"));
       setSelectedNoteId(null);
       setIsEditingMobile(false);
       loadNotes();
     } catch (err) {
       console.error("Failed to delete note:", err);
-      triggerToast("Lỗi xóa ghi chú!");
+      triggerToast(t("notes.deleteError"));
     } finally {
       setShowDeleteConfirm(false);
       setNoteToDelete(null);
@@ -136,16 +138,16 @@ export default function NotesView({
   const activeNote = notes.find(n => n.id === selectedNoteId) || null;
 
   return (
-    <div className="flex-1 flex flex-col sm:flex-row overflow-hidden gap-5">
+    <div className="flex-1 flex flex-col sm:flex-row overflow-hidden gap-5 view-enter-animate">
       {/* Notes List Column */}
       <div className={`w-full sm:w-56 shrink-0 flex flex-col gap-3 ${selectedNoteId && isEditingMobile ? "hidden sm:flex" : "flex"}`}>
         <div className="flex justify-between items-center shrink-0">
-          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">DANH SÁCH NOTE</h3>
+          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{t("notes.listHeader")}</h3>
           <button 
             type="button"
             onClick={handleCreateNote}
             className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
-            title="Tạo ghi chú mới"
+            title={t("notes.newNote")}
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -156,7 +158,7 @@ export default function NotesView({
           <Search className="w-3.5 h-3.5 absolute left-2 top-2 text-zinc-500" />
           <input 
             type="text" 
-            placeholder="Tìm ghi chú..." 
+            placeholder={t("notes.searchPlaceholder")} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-7 pr-3 py-1.5 rounded-lg glass-input text-[11px] text-zinc-300 focus:outline-none"
@@ -181,8 +183,10 @@ export default function NotesView({
                 }`}
               >
                 <div className="overflow-hidden flex-1 mr-2">
-                  <h4 className="text-xs truncate">{note.title || "Ghi chú trống"}</h4>
-                  <span className="text-[9px] text-zinc-600 block mt-0.5 uppercase tracking-wider">{note.type}</span>
+                  <h4 className="text-xs truncate">{note.title || t("notes.emptyNoteTitle")}</h4>
+                  <span className="text-[9px] text-zinc-600 block mt-0.5 uppercase tracking-wider">
+                    {note.type === "quick" ? t("notes.typeQuick") : note.type}
+                  </span>
                 </div>
                 <button 
                   onClick={(e) => {
@@ -190,7 +194,7 @@ export default function NotesView({
                     handleDeleteNote(note.id);
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-all shrink-0"
-                  title="Xóa ghi chú"
+                  title={t("notes.deleteNote")}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -198,7 +202,7 @@ export default function NotesView({
             );
           })}
           {filteredNotes.length === 0 && (
-            <p className="text-[10px] text-zinc-500 text-center py-4">Không tìm thấy ghi chú nào.</p>
+            <p className="text-[10px] text-zinc-500 text-center py-4">{t("notes.noRecentNotes")}</p>
           )}
         </div>
       </div>
@@ -213,7 +217,7 @@ export default function NotesView({
                 onClick={() => setIsEditingMobile(false)}
                 className="text-[11px] font-bold text-purple-650 dark:text-purple-400 flex items-center gap-1 hover:underline cursor-pointer"
               >
-                ← Quay lại danh sách note
+                {t("notes.backToList")}
               </button>
             </div>
             <RichTextEditor 
@@ -227,7 +231,7 @@ export default function NotesView({
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-zinc-500 text-xs">
-            Chọn một ghi chú bên trái hoặc bấm + để tạo ghi chú mới.
+            {t("notes.selectNotePrompt")}
           </div>
         )}
       </div>
@@ -235,10 +239,10 @@ export default function NotesView({
       {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING NOTES */}
       <GenericConfirmModal 
         isOpen={showDeleteConfirm}
-        title="Xóa ghi chú"
-        message={`Bạn có chắc chắn muốn xóa ghi chú "${noteToDelete?.title}" không?\n\nHành động này không thể hoàn tác và tất cả nội dung liên quan sẽ bị xóa vĩnh viễn.`}
-        confirmLabel="Xóa ghi chú"
-        cancelLabel="Hủy"
+        title={t("notes.deleteNote")}
+        message={t("notes.deleteNoteConfirm", { title: noteToDelete?.title || "" })}
+        confirmLabel={t("notes.deleteNote")}
+        cancelLabel={t("common.cancel")}
         type="danger"
         onConfirm={handleConfirmDeleteNote}
         onCancel={() => {

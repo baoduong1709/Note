@@ -7,6 +7,7 @@ import {
   Clock,
   Save
 } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 import { motion } from "framer-motion";
 import { createNote, getNotes, Note } from "../database/queries/notes";
 import { getTodayTasks, getImportantTasks, Task } from "../database/queries/tasks";
@@ -37,12 +38,36 @@ export default function DashboardView({
   setSelectedNoteId,
   triggerToast 
 }: DashboardViewProps) {
+  const { t, language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [quickText, setQuickText] = useState("");
   const [isQuickCaptureFocused, setIsQuickCaptureFocused] = useState(false);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [recentNotes, setRecentNotes] = useState<Note[]>([]);
   const [importantTasks, setImportantTasks] = useState<Task[]>([]);
+
+  // Auth check states
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return !!localStorage.getItem("sync_user_email");
+  });
+  const [userName, setUserName] = useState(() => {
+    const storedName = localStorage.getItem("sync_user_name");
+    return storedName ? storedName.split(" ")[0] : "bạn";
+  });
+
+  const [showCloudBanner, setShowCloudBanner] = useState(() => {
+    return !localStorage.getItem("cloud_banner_dismissed");
+  });
+
+  const handleDismissBanner = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    localStorage.setItem("cloud_banner_dismissed", "true");
+    setShowCloudBanner(false);
+  };
+
+  const handleTriggerLogin = () => {
+    window.dispatchEvent(new CustomEvent("trigger-google-login"));
+  };
 
   // Load data from local SQLite
   useEffect(() => {
@@ -81,7 +106,7 @@ export default function DashboardView({
         const imptTasks = await getImportantTasks();
         if (imptTasks.length > 0) {
           setTimeout(() => {
-            triggerToast(`⚠️ Bạn có ${imptTasks.length} việc quan trọng cần làm gấp!`);
+            triggerToast(t("dashboard.urgentToast", { count: imptTasks.length }));
           }, 800);
         }
       } catch (e) {
@@ -92,7 +117,18 @@ export default function DashboardView({
 
     // Listen to updates from other components (like Sidebar completions)
     window.addEventListener("task-updated", loadData);
-    return () => window.removeEventListener("task-updated", loadData);
+
+    const handleAuthChange = () => {
+      setIsLoggedIn(!!localStorage.getItem("sync_user_email"));
+      const storedName = localStorage.getItem("sync_user_name");
+      setUserName(storedName ? storedName.split(" ")[0] : "bạn");
+    };
+    window.addEventListener("auth-state-changed", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("task-updated", loadData);
+      window.removeEventListener("auth-state-changed", handleAuthChange);
+    };
   }, []);
 
   // Save quick note
@@ -103,7 +139,7 @@ export default function DashboardView({
       id: Math.random().toString(36).substring(2, 11),
       workspace_id: "personal",
       project_id: null,
-      title: `Quick Capture - ${new Date().toLocaleDateString()}`,
+      title: `${t("dashboard.defaultQuickNoteTitle")} - ${new Date().toLocaleDateString()}`,
       content: quickText,
       type: "quick",
       is_locked: 0,
@@ -113,7 +149,7 @@ export default function DashboardView({
     try {
       await createNote(newNote);
       setQuickText("");
-      triggerToast("Đã lưu ghi chú nhanh vào Inbox!");
+      triggerToast(t("dashboard.quickCaptureSaveSuccess"));
       
       // Reload recent notes
       const notes = await getNotes();
@@ -121,7 +157,7 @@ export default function DashboardView({
       setRecentNotes(notes.filter(n => !HIDDEN_NOTES.includes(n.title)).slice(0, 3));
     } catch (err) {
       console.error("Failed to save quick note:", err);
-      triggerToast("Lỗi lưu ghi chú!");
+      triggerToast(t("dashboard.quickCaptureSaveError"));
     }
   };
 
@@ -134,9 +170,55 @@ export default function DashboardView({
       className="flex-1 flex flex-col overflow-y-auto space-y-3 pr-1"
     >
       {/* Welcome Header */}
-      <div className="flex items-center justify-between shrink-0">
-        <h2 className="text-base sm:text-lg font-extrabold tracking-tight gradient-text-animated">Chào Bảo</h2>
+      <div className="flex items-center justify-between shrink-0 mb-1">
+        <h2 className="text-base sm:text-lg font-extrabold tracking-tight gradient-text-animated">{t("dashboard.welcome", { name: userName === "bạn" ? (language === "vi" ? "bạn" : "guest") : userName })}</h2>
       </div>
+
+      {/* Cloud Sync Reminder Banner */}
+      {!isLoggedIn && showCloudBanner && (
+        <motion.div
+          variants={cardVariants}
+          className="relative overflow-hidden glass-panel rounded-xl p-3.5 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 dark:from-purple-500/10 dark:to-indigo-500/10 border border-purple-500/20 dark:border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 text-purple-650 dark:text-purple-400 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.5 19A5.5 5.5 0 0 0 22 14c0-2.5-2-4.5-4.5-4.5-.4 0-.8.05-1.2.15A7 7 0 1 0 3 11.5c0 3 .5 4.5 1.5 5.5"/>
+                <path d="M12 13v6"/>
+                <path d="m9 16 3 3 3-3"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <h4 className="text-xs font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                {t("dashboard.notSynced")}
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+              </h4>
+              <p className="text-[10px] text-zinc-555 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                {t("dashboard.syncDescription")}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <button
+              onClick={handleTriggerLogin}
+              className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] shadow-md shadow-purple-500/10 hover:shadow-purple-500/20 cursor-pointer border border-white/5 transition-all"
+            >
+              {t("dashboard.connectNow")}
+            </button>
+            <button
+              onClick={handleDismissBanner}
+              className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-white/5 text-zinc-555 dark:text-zinc-400 transition-all cursor-pointer"
+              title={t("dashboard.dismiss")}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+              </svg>
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Reminders Alert Section */}
       {importantTasks.length > 0 && (
@@ -147,7 +229,7 @@ export default function DashboardView({
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 min-w-0">
               <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-              <h3 className="text-xs font-bold text-red-650 dark:text-red-400 uppercase tracking-wide truncate">Việc gấp</h3>
+              <h3 className="text-xs font-bold text-red-650 dark:text-red-400 uppercase tracking-wide truncate">{t("dashboard.urgentTitle")}</h3>
             </div>
             <span className="text-[10px] bg-red-100 dark:bg-red-500/10 text-red-650 dark:text-red-400 px-2 py-0.5 rounded-full font-bold shrink-0">
               {importantTasks.length}
@@ -163,7 +245,7 @@ export default function DashboardView({
                     <div className="flex items-center gap-1 text-[9px] text-zinc-550 dark:text-zinc-400 font-medium shrink-0">
                       <Clock className={`w-3 h-3 ${isOverdue ? "text-red-500" : "text-zinc-400"}`} />
                       <span className={isOverdue ? "text-red-600 dark:text-red-400 font-bold" : ""}>
-                        {isOverdue ? "Trễ" : task.due_date}
+                        {isOverdue ? t("dashboard.overdue") : task.due_date}
                       </span>
                     </div>
                   )}
@@ -187,7 +269,7 @@ export default function DashboardView({
           >
             <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-2 flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-yellow-400 icon-glow" />
-              Ghi nhanh
+              {t("dashboard.quickCapture")}
             </h3>
             <div className="flex items-stretch gap-2">
               <textarea
@@ -195,7 +277,7 @@ export default function DashboardView({
                 onChange={(e) => setQuickText(e.target.value)}
                 onFocus={() => setIsQuickCaptureFocused(true)}
                 onBlur={() => setIsQuickCaptureFocused(false)}
-                placeholder="Ghi chú nhanh..."
+                placeholder={t("dashboard.quickCapturePlaceholder")}
                 className="w-full h-14 p-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 resize-none"
               />
               <button 
@@ -204,7 +286,7 @@ export default function DashboardView({
                 className="gradient-btn disabled:opacity-40 disabled:cursor-not-allowed text-[10px] px-3 rounded-md font-semibold shadow-md shadow-purple-500/10 shrink-0 flex items-center gap-1.5"
               >
                 <Save className="w-3 h-3" />
-                Lưu
+                {t("common.save")}
               </button>
             </div>
           </motion.section>
@@ -213,10 +295,10 @@ export default function DashboardView({
           <motion.div variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col min-h-0">
             <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2 flex items-center gap-2">
               <CheckSquare className="w-3.5 h-3.5 text-teal-400 icon-glow" />
-              Hôm nay
+              {t("dashboard.todayTasks")}
             </h3>
             {todayTasks.length === 0 ? (
-              <p className="text-[10px] text-zinc-500 py-2 text-center">Không có việc hôm nay.</p>
+              <p className="text-[10px] text-zinc-500 py-2 text-center">{t("dashboard.noTasksToday")}</p>
             ) : (
               <div className="space-y-1 text-xs">
                 {todayTasks.map(task => (
@@ -239,9 +321,9 @@ export default function DashboardView({
         <div className="col-span-12 md:col-span-4 flex flex-col space-y-3 min-h-0">
           {/* Recent Notes Widget */}
           <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col">
-            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2">Gần đây</h3>
+            <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2">{t("dashboard.recentNotes")}</h3>
             {recentNotes.length === 0 ? (
-              <p className="text-[10px] text-zinc-500 py-2 text-center">Chưa có ghi chú.</p>
+              <p className="text-[10px] text-zinc-500 py-2 text-center">{t("dashboard.noRecentNotes")}</p>
             ) : (
               <div className="space-y-1.5 text-xs">
                 {recentNotes.map((note, index) => (

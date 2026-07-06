@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -44,7 +44,7 @@
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     @apply bg-zinc-200 text-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 antialiased overflow-hidden min-h-dvh w-screen transition-colors duration-200;
   }
 }
@@ -72,23 +72,24 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .glass-panel:hover {
-  border-color: rgba(139, 92, 246, 0.25);
-  box-shadow: var(--glass-shadow), 0 8px 30px rgba(139, 92, 246, 0.05);
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: var(--glass-shadow), 0 12px 35px rgba(139, 92, 246, 0.08);
+  transform: translateY(-2px);
 }
 
 .glass-input {
   background: var(--glass-input-bg);
   border: 1px solid var(--glass-input-border);
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .glass-input:focus {
   border-color: #8b5cf6;
   background: var(--glass-bg);
   outline: none;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
 }
 
 /* Menu Active States */
@@ -96,8 +97,17 @@
   color: var(--text-active-menu);
   background: var(--bg-active-menu);
   border-left: 3px solid transparent;
-  border-image: linear-gradient(180deg, #8b5cf6, #0d9488) 1;
+  border-image: linear-gradient(180deg, #8b5cf6, #3b82f6) 1;
   position: relative;
+  box-shadow: inset 0 0 8px rgba(139, 92, 246, 0.05);
+}
+.menu-active::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at left, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+  pointer-events: none;
 }
 
 /* Toast positioning & show/hide transition */
@@ -234,11 +244,11 @@ button:active:not(:disabled) {
 .aurora-orb-2 {
   width: 350px; height: 350px;
   bottom: -10%; right: -5%;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.3) 0%, rgba(13, 148, 136, 0) 70%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%);
   animation: floatOrb2 25s ease-in-out infinite;
 }
 .dark .aurora-orb-2 {
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(13, 148, 136, 0) 70%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0) 70%);
 }
 .aurora-orb-3 {
   width: 300px; height: 300px;
@@ -269,7 +279,7 @@ button:active:not(:disabled) {
   background: linear-gradient(
     270deg,
     #8b5cf6,
-    #0d9488,
+    #3b82f6,
     #ec4899,
     #6366f1,
     #8b5cf6
@@ -327,7 +337,7 @@ button:active:not(:disabled) {
   background: conic-gradient(
     from var(--gradient-angle, 0deg),
     #8b5cf6 0%,
-    #0d9488 25%,
+    #3b82f6 25%,
     #ec4899 50%,
     #6366f1 75%,
     #8b5cf6 100%
@@ -369,7 +379,7 @@ button:active:not(:disabled) {
   100% { background-position: 0% 50%; }
 }
 .gradient-btn {
-  background: linear-gradient(270deg, #8b5cf6, #6366f1, #0d9488, #8b5cf6);
+  background: linear-gradient(270deg, #8b5cf6, #6366f1, #3b82f6, #8b5cf6);
   background-size: 300% 300%;
   color: white;
   border: none;
@@ -426,7 +436,7 @@ button:active:not(:disabled) {
   bottom: 0;
   width: 3px;
   border-radius: 0 4px 4px 0;
-  background: linear-gradient(180deg, #8b5cf6, #0d9488, #ec4899, #8b5cf6);
+  background: linear-gradient(180deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6);
   background-size: 100% 300%;
   animation: sidebarIndicatorFlow 3s ease infinite;
 }
@@ -447,7 +457,7 @@ button:active:not(:disabled) {
   background: conic-gradient(
     from 0deg,
     #8b5cf6,
-    #0d9488,
+    #3b82f6,
     #ec4899,
     #8b5cf6
   );
@@ -466,7 +476,7 @@ button:active:not(:disabled) {
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(90deg, #8b5cf6, #0d9488, #ec4899, #8b5cf6);
+  background: linear-gradient(90deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6);
   background-size: 300% 100%;
   -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
   -webkit-mask-composite: destination-out;
@@ -555,7 +565,7 @@ button:active:not(:disabled) {
   inset: 0;
   background: 
     radial-gradient(ellipse at 20% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(13, 148, 136, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.05) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
@@ -574,7 +584,7 @@ button:active:not(:disabled) {
     90deg,
     transparent,
     rgba(139, 92, 246, 0.3),
-    rgba(13, 148, 136, 0.3),
+    rgba(59, 130, 246, 0.3),
     transparent
   );
   background-size: 200% 100%;
@@ -610,17 +620,31 @@ button:active:not(:disabled) {
   border: 2.5px solid transparent;
   background: 
     linear-gradient(rgba(244, 244, 245, 0.75), rgba(244, 244, 245, 0.75)) padding-box, 
-    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #0d9488, #ec4899, #6366f1, #8b5cf6) border-box;
+    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #3b82f6, #ec4899, #6366f1, #8b5cf6) border-box;
   animation: navSpinAngle 3s linear infinite;
 }
 
 .dark .nav-active-gradient-border {
   background: 
     linear-gradient(rgba(9, 9, 11, 0.8), rgba(9, 9, 11, 0.8)) padding-box, 
-    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #0d9488, #ec4899, #6366f1, #8b5cf6) border-box;
+    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #3b82f6, #ec4899, #6366f1, #8b5cf6) border-box;
 }
 
 @keyframes navSpinAngle {
   0% { --nav-gradient-angle: 0deg; }
   100% { --nav-gradient-angle: 360deg; }
 }
+
+/* Placeholder styling for empty contenteditable editor */
+[contenteditable].is-empty:before {
+  content: attr(data-placeholder);
+  color: #71717a; /* text-zinc-500 */
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-style: italic;
+  opacity: 0.65;
+  padding: inherit;
+}
+

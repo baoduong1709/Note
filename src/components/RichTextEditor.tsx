@@ -8,6 +8,7 @@ import {
   Italic
 } from "lucide-react";
 import GenericConfirmModal from "./GenericConfirmModal";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface RichTextEditorProps {
   noteId: string;
@@ -24,12 +25,14 @@ export default function RichTextEditor({
   onSave,
   triggerToast
 }: RichTextEditorProps) {
+  const { t } = useLanguage();
   const [showWarningConfirm, setShowWarningConfirm] = useState(false);
   const [codeToCopy, setCodeToCopy] = useState("");
   const lastTargetRef = useRef<HTMLElement | null>(null);
   const [title, setTitle] = useState(initialTitle);
   const editorRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
+  const [isEditorEmpty, setIsEditorEmpty] = useState(true);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync state and editor content when note changes
@@ -58,6 +61,10 @@ export default function RichTextEditor({
           .join("");
         editorRef.current.innerHTML = paragraphs || "<p><br></p>";
       }
+
+      // Sync empty state for placeholder support
+      const text = editorRef.current.innerText || "";
+      setIsEditorEmpty(text.trim() === "");
     }
   }, [noteId, initialTitle, initialContent]);
 
@@ -97,6 +104,8 @@ export default function RichTextEditor({
     }
 
     if (editorRef.current) {
+      const text = editorRef.current.innerText || "";
+      setIsEditorEmpty(text.trim() === "");
       triggerAutoSave(title, editorRef.current.innerHTML);
     }
   };
@@ -263,13 +272,13 @@ export default function RichTextEditor({
           type="text" 
           value={title}
           onChange={handleTitleChange}
-          placeholder="Tiêu đề ghi chú..."
+          placeholder={t("notes.titlePlaceholder")}
           className="bg-transparent border-none outline-none font-bold text-zinc-900 dark:text-white text-sm sm:text-base focus:ring-0 p-0 w-full sm:w-2/3"
         />
 
         <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
           <span className="text-[9px] text-zinc-500">
-            {saving ? "Saving..." : "Auto-saved"}
+            {saving ? t("editor.saving") : t("editor.saved")}
           </span>
 
           {/* Standard Word-style Formatting Toolbar */}
@@ -278,7 +287,7 @@ export default function RichTextEditor({
               type="button"
               onClick={() => executeCommand("bold")}
               className="p-1 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
-              title="Chữ đậm"
+              title={t("editor.bold")}
             >
               <Bold className="w-3.5 h-3.5" />
             </button>
@@ -286,7 +295,7 @@ export default function RichTextEditor({
               type="button"
               onClick={() => executeCommand("italic")}
               className="p-1 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
-              title="Chữ nghiêng"
+              title={t("editor.italic")}
             >
               <Italic className="w-3.5 h-3.5" />
             </button>
@@ -294,7 +303,7 @@ export default function RichTextEditor({
               type="button"
               onClick={() => executeCommand("formatBlock", "<h2>")}
               className="p-1 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center"
-              title="Tiêu đề (Header)"
+              title={t("editor.header")}
             >
               <Heading className="w-3.5 h-3.5" />
             </button>
@@ -303,7 +312,7 @@ export default function RichTextEditor({
               type="button"
               onClick={insertChecklist}
               className="p-1 rounded hover:bg-zinc-350 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center"
-              title="Chèn checklist"
+              title={t("editor.checklist")}
             >
               <CheckSquare className="w-3.5 h-3.5" />
             </button>
@@ -311,9 +320,10 @@ export default function RichTextEditor({
               type="button"
               onClick={insertCopyBlock}
               className="px-2 py-0.5 rounded bg-purple-600/20 hover:bg-purple-600/30 text-purple-600 dark:text-purple-400 hover:text-purple-750 dark:hover:text-purple-300 flex items-center gap-1 transition-all"
-              title="Chèn khối copy nhanh"
+              title={t("editor.codeBlock")}
             >
-              <Terminal className="w-3.5 h-3.5" /> + Copy Block
+              <Terminal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline"> + {t("editor.khoiLenh")}</span>
             </button>
           </div>
         </div>
@@ -323,7 +333,7 @@ export default function RichTextEditor({
       {detectSecrets() && (
         <div className="mb-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-[10px] sm:text-xs flex items-center gap-2 shrink-0">
           <AlertTriangle className="w-4 h-4 shrink-0 text-yellow-500" />
-          <span><strong>Cảnh báo bảo mật:</strong> Phát hiện thông tin nhạy cảm (API Key hoặc Password) trong ghi chú này.</span>
+          <span>{t("editor.securityWarning")}</span>
         </div>
       )}
 
@@ -334,8 +344,8 @@ export default function RichTextEditor({
           contentEditable={true}
           onInput={handleEditorInput}
           onClick={handleEditorClick}
-          className="w-full h-full min-h-[300px] text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed outline-none select-text pb-20 focus:ring-0 border-none prose prose-invert max-w-none"
-          data-placeholder="Bắt đầu soạn thảo ghi chú... Hãy bấm các nút trên Toolbar để chèn nội dung đặc biệt hoặc bôi đậm chữ."
+          className={`w-full h-full min-h-[300px] text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed outline-none select-text pb-20 focus:ring-0 border-none prose prose-invert max-w-none relative ${isEditorEmpty ? "is-empty" : ""}`}
+          data-placeholder={t("editor.placeholder")}
           style={{ wordBreak: "break-word" }}
         />
       </div>
@@ -343,10 +353,10 @@ export default function RichTextEditor({
       {/* CUSTOM WARNING CONFIRM MODAL FOR DANGEROUS COMMAND COPY */}
       <GenericConfirmModal 
         isOpen={showWarningConfirm}
-        title="Cảnh báo câu lệnh nguy hiểm"
-        message={`⚠️ CẢNH BÁO NGUY HIỂM:\nCâu lệnh này chứa từ khóa xóa phá hoại (ví dụ: rm -rf, drop table, drop database):\n\n"${codeToCopy}"\n\nBạn có thực sự muốn sao chép câu lệnh này không?`}
-        confirmLabel="Vẫn sao chép"
-        cancelLabel="Hủy"
+        title={t("editor.dangerousCommandTitle")}
+        message={t("editor.dangerousCommandMessage", { code: codeToCopy })}
+        confirmLabel={t("editor.dangerousCommandConfirm")}
+        cancelLabel={t("common.cancel")}
         type="warning"
         onConfirm={handleConfirmCopyDangerous}
         onCancel={() => {
