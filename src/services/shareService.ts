@@ -41,6 +41,10 @@ export function clearStoredUser(): void {
   localStorage.removeItem('last_sync_time');
   localStorage.removeItem('sync_deletions');
   localStorage.removeItem('sync_upserts');
+  localStorage.removeItem('e2ee_passphrase');
+  localStorage.removeItem('e2ee_enabled');
+  localStorage.removeItem('pin_lock_enabled');
+  localStorage.removeItem('pin_lock_code');
   clearAuthToken();
 }
 

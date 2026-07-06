@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "temp_tauri",
+  "productName": "AI Notebook",
   "version": "0.1.0",
   "identifier": "com.bao.note",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "temp_tauri",
+        "title": "AI Notebook",
         "width": 800,
         "height": 600
       }

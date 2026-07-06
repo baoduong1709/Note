@@ -155,12 +155,12 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
 
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="relative group overflow-hidden bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-500 hover:to-blue-400 text-white text-xs px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all duration-300 shadow-md shadow-purple-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.97] border border-white/10"
+          className="relative group overflow-hidden bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-500 hover:to-blue-400 text-white text-xs px-2.5 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all duration-300 shadow-md shadow-purple-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.97] border border-white/10 shrink-0"
         >
           {/* Subtle inner reflection flare */}
           <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></span>
           {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-          {showAddForm ? t("tasks.cancel") : t("tasks.addTask")}
+          <span className="hidden sm:inline">{showAddForm ? t("tasks.cancel") : t("tasks.addTask")}</span>
         </button>
       </div>
 

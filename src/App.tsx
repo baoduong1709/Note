@@ -172,12 +172,6 @@ export default function App() {
         await checkAndCreateHermesNotes();
         localStorage.removeItem("jira_config");
 
-        // Check if PIN lock is enabled in localStorage
-        const isPinEnabled = localStorage.getItem("pin_lock_enabled") === "true";
-        if (isPinEnabled) {
-          setIsLocked(true);
-        }
-
         // Initialize and check for due task notifications
         await initNotifications();
         await checkAndNotifyDueTasks();
@@ -214,13 +208,20 @@ export default function App() {
       setAuthState(prev => prev + 1);
       // Recheck encrypted data state
       try {
+        const userEmail = localStorage.getItem("sync_user_email");
+        if (userEmail) {
+          const { pullCloudDataToLocal } = await import("./services/appSyncService");
+          await pullCloudDataToLocal();
+        }
         const { hasEncryptedDataInLocal } = await import("./services/appSyncService");
         const hasEncrypted = await hasEncryptedDataInLocal();
         const storedPassphrase = localStorage.getItem("e2ee_passphrase");
         if (hasEncrypted && !storedPassphrase) {
           setNeedDecryption(true);
+          setShowDecryptionModal(true);
         } else {
           setNeedDecryption(false);
+          setShowDecryptionModal(false);
         }
       } catch (err) {
         console.error(err);

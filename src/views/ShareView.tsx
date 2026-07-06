@@ -56,9 +56,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<"send" | "receive">("send");
   const [showSessionSetup, setShowSessionSetup] = useState(false);
-  const [activeShareMode, setActiveShareMode] = useState<"cloud" | "code">(
-    sessionStorage.getItem("anonymous_share_code") !== null ? "code" : "cloud"
-  );
+
 
   // Listen to the global WebSocket share events dispatched from App.tsx level
   useEffect(() => {
@@ -86,10 +84,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       if (anonCode) {
         setSyncId(anonCode);
         fetchData(anonCode);
-        setActiveShareMode("code");
+        
       } else {
         handleUserInit(stored);
-        setActiveShareMode("cloud");
+        
       }
     } else if (anonCode) {
       setUser({
@@ -98,11 +96,11 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       });
       setSyncId(anonCode);
       fetchData(anonCode);
-      setActiveShareMode("code");
+      
     } else {
       setUser(null);
       setSyncId("");
-      setActiveShareMode("cloud");
+      
     }
 
     const handleAuthChange = () => {
@@ -114,10 +112,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         if (anonCodeUpdate) {
           setSyncId(anonCodeUpdate);
           fetchData(anonCodeUpdate);
-          setActiveShareMode("code");
+          
         } else {
           handleUserInit(updatedUser);
-          setActiveShareMode("cloud");
+          
         }
       } else if (anonCodeUpdate) {
         setUser({
@@ -126,12 +124,12 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         });
         setSyncId(anonCodeUpdate);
         fetchData(anonCodeUpdate);
-        setActiveShareMode("code");
+        
       } else {
         setUser(null);
         setSyncId("");
         setShareHistory([]);
-        setActiveShareMode("cloud");
+        
       }
     };
 
@@ -331,8 +329,8 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   // Compress image helper
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      // If the file is already small (under 300KB), bypass compression to save CPU/memory
-      if (file.size < 300 * 1024) {
+      // If the file is already small (under 300KB) and is a PNG, bypass compression to save CPU/memory
+      if (file.size < 300 * 1024 && file.type === "image/png") {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
         reader.onerror = (err) => reject(err);
@@ -385,15 +383,12 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                 return;
               }
 
-              // Fill canvas with solid white background (prevents black background transparency bugs)
-              ctx.fillStyle = "#FFFFFF";
-              ctx.fillRect(0, 0, width, height);
-
+              // Draw image (keep transparency for PNG format)
               ctx.drawImage(img, 0, 0, width, height);
               
-              // Standard JPEG is highly optimized and works stably on all mobile WebViews
-              const jpegBase64 = canvas.toDataURL("image/jpeg", 0.75);
-              resolve(jpegBase64);
+              // Export as PNG so ClipboardItem and clipboard operations work out-of-the-box
+              const pngBase64 = canvas.toDataURL("image/png");
+              resolve(pngBase64);
             } catch (canvasErr) {
               console.error("Canvas scaling failed, using raw base64 data:", canvasErr);
               resolve(resultStr);
@@ -649,16 +644,46 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   const handleCopyImage = async (base64: string) => {
     try {
       const response = await fetch(base64);
-      const blob = await response.blob();
+      let blob = await response.blob();
+
+      // Convert non-PNG images to PNG since ClipboardItem only supports image/png on most platforms
+      if (blob.type !== "image/png") {
+        blob = await new Promise<Blob>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              reject(new Error("Could not get 2d context from canvas"));
+              return;
+            }
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob((b) => {
+              if (b) {
+                resolve(b);
+              } else {
+                reject(new Error("Canvas toBlob returned null"));
+              }
+            }, "image/png");
+          };
+          img.onerror = () => {
+            reject(new Error("Failed to load image for clipboard conversion"));
+          };
+          img.src = base64;
+        });
+      }
+
       await navigator.clipboard.write([
         new ClipboardItem({
-          [blob.type]: blob
+          "image/png": blob
         })
       ]);
-      triggerToast("Đã sao chép ảnh vào Clipboard!");
+      triggerToast(language === "vi" ? "Đã sao chép ảnh vào Clipboard!" : "Copied image to clipboard!");
     } catch (err) {
       console.error("Failed to copy image:", err);
-      triggerToast("Không hỗ trợ sao chép định dạng này!");
+      triggerToast(language === "vi" ? "Không hỗ trợ sao chép định dạng này!" : "This format does not support copying!");
     }
   };
 
@@ -896,8 +921,8 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
               {/* Input Workspace */}
               <div className="flex-1 flex flex-col space-y-3 min-h-0">
                 <div className="flex items-center justify-between shrink-0">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">SOẠN THẢO NỘI DUNG</label>
-                  <span className="text-xs text-zinc-500 font-medium">Mẹo: Dán hoặc kéo thả ảnh trực tiếp vào đây</span>
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{language === "vi" ? "SOẠN THẢO NỘI DUNG" : "COMPOSE CONTENT"}</label>
+                  <span className="text-xs text-zinc-500 font-medium">{language === "vi" ? "Mẹo: Dán hoặc kéo thả ảnh trực tiếp vào đây" : "Tip: Paste or drag & drop image directly here"}</span>
                 </div>
 
                 {/* Textarea */}
@@ -905,7 +930,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                   <textarea
                     value={sendText}
                     onChange={(e) => setSendText(e.target.value)}
-                    placeholder="Nhập nội dung văn bản muốn gửi... (Khi nhập xong nhấn Gửi để đồng bộ tức thì sang thiết bị khác)"
+                    placeholder={language === "vi" ? "Nhập nội dung văn bản muốn gửi... (Khi nhập xong nhấn Gửi để đồng bộ tức thì sang thiết bị khác)" : "Enter text to send... (Press Send to sync instantly to other devices)"}
                     className="flex-1 min-h-[140px] xl:min-h-0 w-full bg-transparent border-none outline-none focus:ring-0 p-0 text-sm text-zinc-800 dark:text-zinc-300 resize-none placeholder-zinc-500"
                   />
                 ) : (
@@ -919,11 +944,11 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                     <button
                       onClick={() => setSendImage(null)}
                       className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-650/80 hover:bg-red-500 text-white transition-all shadow"
-                      title="Xóa ảnh này"
+                      title={language === "vi" ? "Xóa ảnh này" : "Delete this image"}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                    <span className="text-xs text-zinc-500 mt-2 font-medium">Ảnh đã nén đã sẵn sàng gửi đi</span>
+                    <span className="text-xs text-zinc-500 mt-2 font-medium">{language === "vi" ? "Ảnh đã nén đã sẵn sàng gửi đi" : "Compressed image ready to send"}</span>
                   </div>
                 )}
 
@@ -947,7 +972,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                         className="hidden" 
                       />
                       <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-                        <ImageIcon className="w-4 h-4" /> Kéo thả hoặc click chọn hình ảnh
+                        <ImageIcon className="w-4 h-4" /> {language === "vi" ? "Kéo thả hoặc click chọn hình ảnh" : "Drag & drop or click to select image"}
                       </span>
                     </label>
                   </div>
@@ -957,7 +982,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
               {/* Action Buttons */}
               <div className="pt-2 flex justify-between items-center shrink-0 border-t border-zinc-200 dark:border-white/5">
                 <span className="text-xs text-zinc-550 dark:text-zinc-500 font-mono">
-                  Mã Sync ID: <span className="font-semibold text-purple-650 dark:text-purple-400 select-all cursor-pointer" title="Click để bôi đen">{syncId}</span>
+                  {language === "vi" ? "Mã Sync ID: " : "Sync ID: "} <span className="font-semibold text-purple-650 dark:text-purple-400 select-all cursor-pointer" title={language === "vi" ? "Click để bôi đen" : "Click to select all"}>{syncId}</span>
                 </span>
                 
                 <button
@@ -970,7 +995,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                   ) : (
                     <Send className="w-3.5 h-3.5" />
                   )}
-                  Gửi chia sẻ
+                  {language === "vi" ? "Gửi chia sẻ" : "Send Share"}
                 </button>
               </div>
 
@@ -983,12 +1008,12 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
               
               {/* Header section with loading info */}
               <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-white/5 shrink-0">
-                <span className="text-xs font-bold text-zinc-555 dark:text-zinc-400 uppercase tracking-wider">NHẬN ĐƯỢC (RECEIVED)</span>
+                <span className="text-xs font-bold text-zinc-555 dark:text-zinc-400 uppercase tracking-wider">{language === "vi" ? "NHẬN ĐƯỢC (RECEIVED)" : "RECEIVED"}</span>
                 
                 <div className="flex items-center gap-2">
                   {lastSyncTime && (
                     <span className="text-[10px] text-zinc-655 dark:text-zinc-500 font-mono">
-                      Cập nhật: {lastSyncTime.toLocaleTimeString()}
+                      {language === "vi" ? "Cập nhật:" : "Updated:"} {lastSyncTime.toLocaleTimeString()}
                     </span>
                   )}
                   {shareHistory.length > 0 && (
@@ -998,13 +1023,13 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                         try {
                           await apiRequest(`/api/share/${syncId}`, { method: 'DELETE' });
                           setShareHistory([]);
-                          triggerToast("Đã xóa toàn bộ lịch sử chia sẻ!");
+                          triggerToast(language === "vi" ? "Đã xóa toàn bộ lịch sử chia sẻ!" : "Cleared all sharing history!");
                         } catch {
-                          triggerToast("Lỗi khi xóa lịch sử!");
+                          triggerToast(language === "vi" ? "Lỗi khi xóa lịch sử!" : "Error clearing history!");
                         }
                       }}
                       className="p-1 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-500 transition-all"
-                      title="Xóa toàn bộ lịch sử"
+                      title={language === "vi" ? "Xóa toàn bộ lịch sử" : "Clear all history"}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -1013,7 +1038,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                     onClick={() => fetchData(syncId, true)}
                     disabled={isSyncing}
                     className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-zinc-555 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white transition-all disabled:opacity-50"
-                    title="Đồng bộ thủ công ngay"
+                    title={language === "vi" ? "Đồng bộ thủ công ngay" : "Sync manually now"}
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
                   </button>
@@ -1025,7 +1050,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                 {networkError && (
                   <div className="absolute top-2 left-2 right-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-xs rounded-lg p-2 flex items-center gap-1.5">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>Lỗi kết nối máy chủ. Đang tự động thử lại...</span>
+                    <span>{language === "vi" ? "Lỗi kết nối máy chủ. Đang tự động thử lại..." : "Server connection error. Retrying automatically..."}</span>
                   </div>
                 )}
 
@@ -1035,7 +1060,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                       <div key={idx} className="border border-zinc-200 dark:border-white/10 rounded-lg p-3 bg-white/5">
                         {/* Meta info */}
                         <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-2 flex items-center justify-between border-b border-zinc-300 dark:border-white/5 pb-2 font-mono">
-                          <span>Người gửi: <strong>{item.userName}</strong></span>
+                          <span>{language === "vi" ? "Người gửi:" : "Sender:"} <strong>{item.userName}</strong></span>
                           <span>{new Date(item.timestamp).toLocaleString()}</span>
                         </div>
 
@@ -1051,7 +1076,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm"
                               >
                                 <Copy className="w-3 h-3" />
-                                Sao chép
+                                {language === "vi" ? "Sao chép" : "Copy"}
                               </button>
                             </div>
                           </div>
@@ -1060,7 +1085,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                             <img 
                               src={item.content} 
                               alt="Shared" 
-                              title="Kích đúp để phóng to"
+                              title={language === "vi" ? "Kích đúp để phóng to" : "Double click to zoom"}
                               onDoubleClick={() => {
                                 setZoomedImage(item.content);
                                 setImgTransform({ scale: 1, x: 0, y: 0 });
@@ -1080,7 +1105,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-650 hover:bg-teal-500 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm"
                               >
                                 <Download className="w-3 h-3" />
-                                Tải về
+                                {language === "vi" ? "Tải về" : "Download"}
                               </button>
                             </div>
                           </div>
@@ -1093,8 +1118,8 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                   <div className="flex-1 flex flex-col items-center justify-center text-zinc-650 dark:text-zinc-500 text-center space-y-2 select-none">
                     <CloudLightning className="w-8 h-8 opacity-40 text-purple-400 animate-bounce" />
                     <div>
-                      <p className="text-sm font-semibold">Chưa có dữ liệu nào được chia sẻ.</p>
-                      <p className="text-xs max-w-xs mt-0.5 leading-relaxed">Khi thiết bị khác đăng nhập tài khoản này và gửi chia sẻ, dữ liệu sẽ tự động hiển thị tại đây.</p>
+                      <p className="text-sm font-semibold">{language === "vi" ? "Chưa có dữ liệu nào được chia sẻ." : "No shared data yet."}</p>
+                      <p className="text-xs max-w-xs mt-0.5 leading-relaxed">{language === "vi" ? "Khi thiết bị khác đăng nhập tài khoản này và gửi chia sẻ, dữ liệu sẽ tự động hiển thị tại đây." : "When another device logs in and shares data, it will automatically appear here."}</p>
                     </div>
                   </div>
                 )}
@@ -1135,20 +1160,20 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                 </svg>
                 Sign in with Google
               </h3>
-              <p className="text-xs text-zinc-550 dark:text-zinc-500">để đồng bộ hóa toàn bộ ghi chú & công việc</p>
+              <p className="text-xs text-zinc-550 dark:text-zinc-500">{language === "vi" ? "để đồng bộ hóa toàn bộ ghi chú & công việc" : "to synchronize all notes & tasks"}</p>
             </div>
 
             {/* Content states */}
             {loginStep === 'loading' ? (
               <div className="py-8 flex flex-col items-center justify-center space-y-3">
                 <RefreshCw className="w-8 h-8 text-purple-600 animate-spin" />
-                <span className="text-[10px] font-semibold text-zinc-555">Đang thiết lập kết nối an toàn...</span>
+                <span className="text-[10px] font-semibold text-zinc-555">{language === "vi" ? "Đang thiết lập kết nối an toàn..." : "Establishing secure connection..."}</span>
               </div>
             ) : (
               <div className="space-y-4">
                 {/* Google Real OAuth Button Container */}
                 <div className="space-y-3">
-                  <span className="text-[10px] font-bold text-zinc-555 dark:text-zinc-400 uppercase tracking-wider block text-center">Đăng nhập tài khoản Google thật</span>
+                  <span className="text-[10px] font-bold text-zinc-555 dark:text-zinc-400 uppercase tracking-wider block text-center">{language === "vi" ? "Đăng nhập tài khoản Google thật" : "Sign in with real Google account"}</span>
                   <button
                     onClick={handleStartGoogleOAuthRelay}
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-white/5 text-zinc-700 dark:text-zinc-300 font-semibold text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
@@ -1159,7 +1184,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09z" />
                       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                     </svg>
-                    Đăng nhập qua Google
+                    {language === "vi" ? "Đăng nhập qua Google" : "Sign in with Google"}
                   </button>
                   {/* Fallback container for Google Identity Services button on web */}
                   <div id="google-signin-btn-web" className="flex justify-center mt-2"></div>
@@ -1235,7 +1260,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
             
             <div className="mt-6 flex gap-3 z-10" onClick={(e) => e.stopPropagation()}>
               <span className="absolute top-2 right-2 bg-black/60 text-white font-mono text-[11px] px-2 py-0.5 rounded border border-white/10">
-                Tỉ lệ: {Math.round(imgTransform.scale * 100)}%
+                {language === "vi" ? "Tỉ lệ:" : "Zoom:"} {Math.round(imgTransform.scale * 100)}%
               </span>
               <button
                 onClick={(e) => {
@@ -1245,7 +1270,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                 className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-lg"
               >
                 <Copy className="w-3.5 h-3.5" />
-                Sao chép ảnh
+                {language === "vi" ? "Sao chép ảnh" : "Copy Image"}
               </button>
               <button
                 onClick={(e) => {
@@ -1255,7 +1280,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                 className="px-3 py-1.5 rounded-xl bg-teal-650 hover:bg-teal-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-lg"
               >
                 <Download className="w-3.5 h-3.5" />
-                Tải ảnh về
+                {language === "vi" ? "Tải ảnh về" : "Download Image"}
               </button>
             </div>
           </div>

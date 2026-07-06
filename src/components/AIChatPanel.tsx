@@ -31,7 +31,7 @@ interface AIChatPanelProps {
 // Helper to normalise welcome message across updates
 
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const normalizeWelcomeMessage = (message: Message): Message => {
@@ -131,15 +131,18 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   useEffect(() => {
-    loadSessions();
+    loadSessions(activeSessionId);
+  }, [language]);
+
+  useEffect(() => {
     const handleSyncUpdate = () => {
-      loadSessions();
+      loadSessions(activeSessionId);
     };
     window.addEventListener("ai-chat-updated", handleSyncUpdate);
     return () => {
       window.removeEventListener("ai-chat-updated", handleSyncUpdate);
     };
-  }, []);
+  }, [activeSessionId]);
 
   useEffect(() => {
     // Only smooth-scroll for non-streaming updates (new messages, session switch)

@@ -15,7 +15,6 @@ import {
   Share2
 } from "lucide-react";
 import { getImportantTasks, updateTaskStatus, Task } from "../database/queries/tasks";
-import { clearStoredUser } from "../services/shareService";
 
 interface SidebarProps {
   activeView: string;
@@ -204,21 +203,13 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
         {/* Global Google login profile box */}
         {localStorage.getItem("sync_user_email") ? (
           <div 
-            onClick={() => {
-              if (window.confirm("Bạn có chắc chắn muốn đăng xuất tài khoản Google không? Việc này sẽ tạm ngưng đồng bộ đám mây.")) {
-                clearStoredUser();
-                window.dispatchEvent(new CustomEvent("auth-state-changed"));
-                setActiveView("dashboard");
-              }
-            }}
-            className="px-3 py-2 flex items-center gap-2.5 bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/10 rounded-lg cursor-pointer transition-all group"
-            title="Nhấp vào để đăng xuất"
+            className="px-3 py-2 flex items-center gap-2.5 bg-purple-500/5 border border-purple-500/10 rounded-lg select-none"
           >
             <div className="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 flex items-center justify-center font-bold text-xs shrink-0 avatar-gradient-ring">
               {(localStorage.getItem("sync_user_name") || "B").charAt(0)}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate group-hover:text-red-400 transition-colors">
+              <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">
                 {localStorage.getItem("sync_user_name")}
               </p>
               <span className="text-[8px] text-teal-400 font-semibold block">
