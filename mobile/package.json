@@ -1,17 +1,13 @@
 {
-  "name": "personal-ai-notebook",
+  "name": "notebook-mobile",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": [
-    "desktop",
-    "mobile"
-  ],
   "scripts": {
-    "dev:desktop": "npm run dev --workspace=desktop",
-    "dev:mobile": "npm run dev --workspace=mobile",
-    "build:desktop": "npm run build --workspace=desktop",
-    "build:mobile": "npm run build --workspace=mobile"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

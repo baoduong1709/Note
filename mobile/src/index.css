@@ -1,0 +1,650 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light Mode Variables */
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(0, 0, 0, 0.16);
+  --glass-input-bg: rgba(0, 0, 0, 0.02);
+  --glass-input-border: rgba(0, 0, 0, 0.16);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+  --text-active-menu: #4c1d95;
+  --bg-active-menu: rgba(139, 92, 246, 0.1);
+  --glass-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --primary-glow: rgba(139, 92, 246, 0.15);
+  --primary-glow-secondary: rgba(139, 92, 246, 0.1);
+}
+
+.dark {
+  /* Dark Mode Variables */
+  --glass-bg: rgba(23, 23, 28, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.04);
+  --glass-input-bg: rgba(255, 255, 255, 0.03);
+  --glass-input-border: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.15);
+  --text-active-menu: #ffffff;
+  --bg-active-menu: rgba(139, 92, 246, 0.12);
+  --glass-shadow: none;
+  --primary-glow: rgba(139, 92, 246, 0.25);
+  --primary-glow-secondary: rgba(139, 92, 246, 0.15);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    @apply bg-zinc-200 text-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 antialiased overflow-hidden min-h-dvh w-screen transition-colors duration-200;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb) !important;
+  border-radius: 9999px !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-panel:hover {
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: var(--glass-shadow), 0 12px 35px rgba(139, 92, 246, 0.08);
+  transform: translateY(-2px);
+}
+
+.glass-input {
+  background: var(--glass-input-bg);
+  border: 1px solid var(--glass-input-border);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-input:focus {
+  border-color: #8b5cf6;
+  background: var(--glass-bg);
+  outline: none;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
+}
+
+/* Menu Active States */
+.menu-active {
+  color: var(--text-active-menu);
+  background: var(--bg-active-menu);
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, #8b5cf6, #3b82f6) 1;
+  position: relative;
+  box-shadow: inset 0 0 8px rgba(139, 92, 246, 0.05);
+}
+.menu-active::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at left, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* Toast positioning & show/hide transition */
+.toast {
+  position: fixed !important;
+  top: 1.25rem;
+  left: 50%;
+  transform: translate(-50%, -1rem) scale(0.98);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+  opacity: 0;
+  width: calc(100vw - 2rem);
+  max-width: 420px;
+  z-index: 50;
+}
+.toast.show {
+  transform: translate(-50%, 0) scale(1);
+  opacity: 1;
+}
+@media (min-width: 768px) {
+  .toast {
+    left: auto;
+    right: 1.25rem;
+    transform: translate(0, -1rem) scale(0.98);
+    width: auto;
+  }
+  .toast.show {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* --- Premium Animations --- */
+
+/* Click tactile feedback for buttons */
+button, select {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+
+/* View Transition (Fade + Slide Up) */
+@keyframes viewEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.view-enter-animate {
+  animation: viewEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* AI Chat Bubble Pop Up */
+@keyframes bubbleEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.chat-bubble-animate {
+  animation: bubbleEnter 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Tasks & Kanban Column fade-in */
+@keyframes kanbanColumnEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.99) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.kanban-col-animate {
+  animation: kanbanColumnEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ============================================
+   ANIMATED GRADIENT EFFECTS
+   ============================================ */
+
+/* --- 1. Floating Aurora Orbs --- */
+@keyframes floatOrb1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(60px, -40px) scale(1.1); }
+  50% { transform: translate(-30px, -80px) scale(0.95); }
+  75% { transform: translate(-60px, 20px) scale(1.05); }
+}
+@keyframes floatOrb2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-50px, 50px) scale(1.08); }
+  50% { transform: translate(40px, 70px) scale(0.92); }
+  75% { transform: translate(70px, -30px) scale(1.12); }
+}
+@keyframes floatOrb3 {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  33% { transform: translate(80px, 30px) scale(0.9); }
+  66% { transform: translate(-40px, -60px) scale(1.1); }
+}
+@keyframes floatOrb4 {
+  0%, 100% { transform: translate(0, 0) scale(0.95); }
+  20% { transform: translate(-70px, -50px) scale(1.1); }
+  40% { transform: translate(30px, -90px) scale(1); }
+  60% { transform: translate(80px, 10px) scale(0.9); }
+  80% { transform: translate(-20px, 60px) scale(1.05); }
+}
+
+.aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+.aurora-orb-1 {
+  width: 400px; height: 400px;
+  top: -8%; left: -5%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0) 70%);
+  animation: floatOrb1 20s ease-in-out infinite;
+}
+.dark .aurora-orb-1 {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0) 70%);
+}
+.aurora-orb-2 {
+  width: 350px; height: 350px;
+  bottom: -10%; right: -5%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%);
+  animation: floatOrb2 25s ease-in-out infinite;
+}
+.dark .aurora-orb-2 {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0) 70%);
+}
+.aurora-orb-3 {
+  width: 300px; height: 300px;
+  top: 40%; left: 30%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, rgba(236, 72, 153, 0) 70%);
+  animation: floatOrb3 18s ease-in-out infinite;
+}
+.dark .aurora-orb-3 {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, rgba(236, 72, 153, 0) 70%);
+}
+.aurora-orb-4 {
+  width: 250px; height: 250px;
+  top: 15%; right: 20%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0) 70%);
+  animation: floatOrb4 22s ease-in-out infinite;
+}
+.dark .aurora-orb-4 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0) 70%);
+}
+
+/* --- 2. Animated Gradient Text --- */
+@keyframes gradientTextFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gradient-text-animated {
+  background: linear-gradient(
+    270deg,
+    #8b5cf6,
+    #3b82f6,
+    #ec4899,
+    #6366f1,
+    #8b5cf6
+  );
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientTextFlow 6s ease infinite;
+}
+
+/* --- 3. Shimmer Sweep on Hover --- */
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+.shimmer-hover {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.06) 40%,
+    rgba(139, 92, 246, 0.12) 50%,
+    rgba(139, 92, 246, 0.06) 60%,
+    transparent 100%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
+  z-index: 1;
+  transition: none;
+}
+.shimmer-hover:hover::after {
+  animation: shimmerSweep 0.8s ease-out forwards;
+}
+
+/* --- 4. Enhanced Animated Gradient Border --- */
+.premium-gradient-border {
+  position: relative;
+  border-radius: 12px;
+  z-index: 1;
+}
+
+.premium-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 13.5px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--gradient-angle, 0deg),
+    #8b5cf6 0%,
+    #3b82f6 25%,
+    #ec4899 50%,
+    #6366f1 75%,
+    #8b5cf6 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+  animation: rotateGradient 4s linear infinite;
+  opacity: 0.85;
+}
+
+/* Urgent variant - faster rotation + brighter */
+.premium-gradient-border-urgent::before {
+  animation: rotateGradient 2s linear infinite;
+  opacity: 1;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--gradient-angle, 0deg),
+    #ef4444 0%,
+    #f59e0b 25%,
+    #ec4899 50%,
+    #8b5cf6 75%,
+    #ef4444 100%
+  );
+}
+
+@keyframes rotateGradient {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* --- 5. Gradient Button with Moving Background --- */
+@keyframes gradientButtonShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gradient-btn {
+  background: linear-gradient(270deg, #8b5cf6, #6366f1, #3b82f6, #8b5cf6);
+  background-size: 300% 300%;
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.gradient-btn:hover {
+  animation: gradientButtonShift 3s ease infinite;
+  box-shadow: 0 8px 25px -5px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+.gradient-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  transform: translateX(-100%);
+  transition: none;
+}
+.gradient-btn:hover::after {
+  animation: shimmerSweep 0.6s ease-out forwards;
+}
+
+/* --- 6. Sidebar Logo Gradient Spin --- */
+@keyframes logoGradientSpin {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+.logo-gradient-spin {
+  animation: logoGradientSpin 8s linear infinite;
+}
+
+/* --- 7. Sidebar Active Gradient Indicator --- */
+@keyframes sidebarIndicatorFlow {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 0% 100%; }
+  100% { background-position: 0% 0%; }
+}
+.menu-active-gradient {
+  position: relative;
+  overflow: hidden;
+}
+.menu-active-gradient::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6);
+  background-size: 100% 300%;
+  animation: sidebarIndicatorFlow 3s ease infinite;
+}
+
+/* --- 8. Profile Avatar Gradient Ring --- */
+@keyframes avatarRingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.avatar-gradient-ring {
+  position: relative;
+}
+.avatar-gradient-ring::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #8b5cf6,
+    #3b82f6,
+    #ec4899,
+    #8b5cf6
+  );
+  z-index: -1;
+  animation: avatarRingSpin 6s linear infinite;
+}
+
+/* --- 9. Toast Gradient Border --- */
+.toast-gradient {
+  position: relative;
+  overflow: hidden;
+}
+.toast-gradient::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6);
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: gradientButtonShift 3s ease infinite;
+  z-index: 0;
+}
+
+/* --- 10. Lock Screen Animated Background --- */
+@keyframes lockscreenAurora {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  75% {
+    background-position: 0% 100%;
+  }
+}
+.lockscreen-aurora {
+  background: linear-gradient(
+    -45deg,
+    #0f0f12,
+    #1a0a2e,
+    #0a1628,
+    #0f0f12,
+    #1e0a2a,
+    #0a2020
+  );
+  background-size: 400% 400%;
+  animation: lockscreenAurora 15s ease infinite;
+}
+
+/* Light mode lockscreen */
+.lockscreen-aurora-light {
+  background: linear-gradient(
+    -45deg,
+    #f5f3ff,
+    #ede9fe,
+    #e0f2fe,
+    #f5f3ff,
+    #fce7f3,
+    #ecfdf5
+  );
+  background-size: 400% 400%;
+  animation: lockscreenAurora 15s ease infinite;
+}
+
+/* --- 11. Floating AI Button Glow Pulse --- */
+@keyframes aiGlowPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.3), 0 0 30px rgba(139, 92, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(139, 92, 246, 0.5), 0 0 50px rgba(139, 92, 246, 0.2);
+  }
+}
+.ai-glow-pulse {
+  animation: aiGlowPulse 2s ease-in-out infinite;
+}
+
+
+/* --- 13. Card Icon Gradient Glow --- */
+@keyframes iconGlowPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(139, 92, 246, 0.3)); }
+  50% { filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.6)); }
+}
+.icon-glow {
+  animation: iconGlowPulse 3s ease-in-out infinite;
+}
+
+/* --- 14. Mesh Gradient Overlay --- */
+@keyframes meshShift {
+  0%, 100% { opacity: 0.3; transform: scale(1) rotate(0deg); }
+  33% { opacity: 0.5; transform: scale(1.02) rotate(1deg); }
+  66% { opacity: 0.35; transform: scale(0.98) rotate(-1deg); }
+}
+.mesh-gradient-overlay {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 20% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  animation: meshShift 12s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* --- 15. Sidebar Divider Gradient Shimmer --- */
+@keyframes dividerShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.3),
+    rgba(59, 130, 246, 0.3),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: dividerShimmer 4s ease-in-out infinite;
+  border: none;
+}
+
+/* Hover Accent Card Glow */
+.premium-hover-glow {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.premium-hover-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px var(--primary-glow), 0 8px 10px -6px var(--primary-glow-secondary);
+}
+
+/* Scrollable container padding on mobile to clear floating bottom dock */
+@media (max-width: 767px) {
+  main .overflow-y-auto {
+    padding-bottom: 5rem !important;
+  }
+}
+
+/* Nav Active Button Running Gradient Border */
+@property --nav-gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.nav-active-gradient-border {
+  position: absolute !important;
+  border: 2.5px solid transparent;
+  background: 
+    linear-gradient(rgba(244, 244, 245, 0.75), rgba(244, 244, 245, 0.75)) padding-box, 
+    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #3b82f6, #ec4899, #6366f1, #8b5cf6) border-box;
+  animation: navSpinAngle 3s linear infinite;
+}
+
+.dark .nav-active-gradient-border {
+  background: 
+    linear-gradient(rgba(9, 9, 11, 0.8), rgba(9, 9, 11, 0.8)) padding-box, 
+    conic-gradient(from var(--nav-gradient-angle, 0deg), #8b5cf6, #3b82f6, #ec4899, #6366f1, #8b5cf6) border-box;
+}
+
+@keyframes navSpinAngle {
+  0% { --nav-gradient-angle: 0deg; }
+  100% { --nav-gradient-angle: 360deg; }
+}
+
+/* Placeholder styling for empty contenteditable editor */
+[contenteditable].is-empty:before {
+  content: attr(data-placeholder);
+  color: #71717a; /* text-zinc-500 */
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-style: italic;
+  opacity: 0.65;
+  padding: inherit;
+}
+
