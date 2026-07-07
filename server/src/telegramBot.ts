@@ -118,10 +118,11 @@ async function handleMessage(message: any) {
       return;
     }
     const taskId = uuidv4();
+    const nowStr = new Date().toISOString();
     db.prepare(`
       INSERT INTO tasks (id, user_id, title, status, priority, source, created_at, updated_at)
-      VALUES (?, ?, ?, 'todo', 'medium', 'telegram', datetime('now'), datetime('now'))
-    `).run(taskId, user.id, taskTitle);
+      VALUES (?, ?, ?, 'todo', 'medium', 'telegram', ?, ?)
+    `).run(taskId, user.id, taskTitle, nowStr, nowStr);
 
     // Broadcast sync update
     const syncId = generateSyncIdFromEmail(user.email);
@@ -165,10 +166,11 @@ async function handleMessage(message: any) {
     }
 
     const noteId = uuidv4();
+    const nowStr = new Date().toISOString();
     db.prepare(`
       INSERT INTO notes (id, user_id, title, content, type, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'quick', datetime('now'), datetime('now'))
-    `).run(noteId, user.id, noteTitle, noteContent);
+      VALUES (?, ?, ?, ?, 'quick', ?, ?)
+    `).run(noteId, user.id, noteTitle, noteContent, nowStr, nowStr);
 
     // Broadcast sync update
     const syncId = generateSyncIdFromEmail(user.email);
@@ -178,13 +180,13 @@ async function handleMessage(message: any) {
     return;
   }
 
-  // Default: save as a quick note
   const noteId = uuidv4();
+  const nowStr = new Date().toISOString();
   const summaryTitle = text.length > 30 ? text.substring(0, 30) + '...' : text;
   db.prepare(`
     INSERT INTO notes (id, user_id, title, content, type, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'quick', datetime('now'), datetime('now'))
-  `).run(noteId, user.id, `Nhanh: ${summaryTitle}`, text);
+    VALUES (?, ?, ?, ?, 'quick', ?, ?)
+  `).run(noteId, user.id, `Nhanh: ${summaryTitle}`, text, nowStr, nowStr);
 
   // Broadcast sync update
   const syncId = generateSyncIdFromEmail(user.email);
