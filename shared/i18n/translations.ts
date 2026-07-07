@@ -140,6 +140,8 @@ export const translations = {
     calendar: {
       title: "Lịch âm dương",
       description: "Theo dõi ngày dương, ngày âm, sinh nhật và các ngày lễ quan trọng.",
+      month: "Tháng",
+      year: "Năm",
       today: "Hôm nay",
       selectMonth: "Chọn tháng",
       selectYear: "Chọn năm",
@@ -376,6 +378,8 @@ export const translations = {
     calendar: {
       title: "Lunar Calendar",
       description: "Track solar dates, lunar dates, birthdays, and important holidays.",
+      month: "Month",
+      year: "Year",
       today: "Today",
       selectMonth: "Select Month",
       selectYear: "Select Year",

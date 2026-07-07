@@ -482,7 +482,8 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                 </button>
               </div>
 
-              <div className="rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0 flex-1 sm:flex-none flex w-full">
+              {/* Mobile Today Button */}
+              <div className="rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0 flex-1 sm:hidden flex w-full">
                 <button
                   type="button"
                   onClick={handleToday}
@@ -494,7 +495,18 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-[minmax(112px,1fr)_124px] sm:grid-cols-[minmax(120px,1fr)_124px_136px] items-center gap-1.5 min-w-0">
+            <div className="grid grid-cols-[minmax(112px,1fr)_124px] sm:grid-cols-[auto_minmax(120px,1fr)_124px_136px] items-center gap-1.5 min-w-0">
+              {/* Desktop Today Button */}
+              <div className="hidden sm:flex rounded-lg bg-white/70 dark:bg-zinc-950/40 p-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleToday}
+                  className="h-8 px-3 rounded-md bg-white dark:bg-zinc-800 text-[10px] font-bold text-zinc-900 dark:text-white shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  {t("calendar.today")}
+                </button>
+              </div>
               <select
                 value={currentMonth.getMonth()}
                 onChange={(event) => handleMonthSelect(Number(event.target.value))}

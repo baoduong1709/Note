@@ -1,5 +1,7 @@
 import { getDatabase } from "../database/db";
 import { Task } from "../database/queries/tasks";
+import { CalendarEvent } from "../database/queries/calendarEvents";
+import { lunarToSolar, solarToLunar } from "../utils/lunarCalendar";
 
 // Request browser Notification permission
 export async function initNotifications(): Promise<boolean> {
@@ -36,10 +38,150 @@ export function sendNotification(title: string, body: string) {
   }
 }
 
+// Check database for special calendar events and notify user
+export async function checkAndNotifyCalendarEvents(): Promise<void> {
+  const isAllowed = await initNotifications();
+  if (!isAllowed) return;
+
+  try {
+    const db = await getDatabase();
+    const today = new Date();
+    // Normalize to local midnight for accurate date-only comparison
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    // Fetch all calendar events
+    const events = await db.select<CalendarEvent[]>(
+      "SELECT * FROM calendar_events"
+    );
+
+    if (events.length === 0) return;
+
+    const getDiffDays = (d1: Date, d2: Date): number => {
+      const date1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate());
+      const date2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate());
+      return Math.round((date2.getTime() - date1.getTime()) / (1000 * 60 * 60 * 24));
+    };
+
+    const todayYear = todayMidnight.getFullYear();
+    const eventsToNotify: { event: CalendarEvent; diffDays: number }[] = [];
+
+    for (const event of events) {
+      if (event.date_type === "solar") {
+        if (!event.solar_date) continue;
+        const [y, m, d] = event.solar_date.split("-").map(Number);
+        
+        if (event.repeat_yearly === 1) {
+          // Check previous, current, and next solar years to handle cross-year notifications
+          const candidateYears = [todayYear - 1, todayYear, todayYear + 1];
+          for (const yr of candidateYears) {
+            const eventDate = new Date(yr, m - 1, d);
+            const diff = getDiffDays(todayMidnight, eventDate);
+            if (diff >= 0 && diff <= 7) {
+              eventsToNotify.push({ event, diffDays: diff });
+              break;
+            }
+          }
+        } else {
+          const eventDate = new Date(y, m - 1, d);
+          const diff = getDiffDays(todayMidnight, eventDate);
+          if (diff >= 0 && diff <= 7) {
+            eventsToNotify.push({ event, diffDays: diff });
+          }
+        }
+      } else if (event.date_type === "lunar") {
+        const lDay = event.lunar_day;
+        const lMonth = event.lunar_month;
+        const isLeap = event.is_lunar_leap === 1;
+
+        if (lDay === null || lMonth === null) continue;
+
+        if (event.repeat_yearly === 1) {
+          try {
+            const lunarToday = solarToLunar(todayMidnight);
+            // Check adjacent lunar years to handle shifting date overlaps
+            const candidateLunarYears = [lunarToday.year - 1, lunarToday.year, lunarToday.year + 1];
+            for (const lyr of candidateLunarYears) {
+              try {
+                const eventDate = lunarToSolar(lDay, lMonth, lyr, isLeap);
+                const diff = getDiffDays(todayMidnight, eventDate);
+                if (diff >= 0 && diff <= 7) {
+                  eventsToNotify.push({ event, diffDays: diff });
+                  break;
+                }
+              } catch (e) {
+                // Ignore invalid leap month for this specific year candidate
+              }
+            }
+          } catch (err) {
+            console.error("Error converting lunar date repeat:", err);
+          }
+        } else {
+          const lYear = event.lunar_year;
+          if (lYear === null) continue;
+          try {
+            const eventDate = lunarToSolar(lDay, lMonth, lYear, isLeap);
+            const diff = getDiffDays(todayMidnight, eventDate);
+            if (diff >= 0 && diff <= 7) {
+              eventsToNotify.push({ event, diffDays: diff });
+            }
+          } catch (err) {
+            console.error("Error converting lunar date once:", err);
+          }
+        }
+      }
+    }
+
+    if (eventsToNotify.length === 0) return;
+
+    // Retrieve storage logs to prevent duplicate notifications
+    const todayDateStr = todayMidnight.toDateString();
+    const lastNotifiedCalDay = localStorage.getItem("last_notified_cal_day");
+    const notifiedEventIdsStr = localStorage.getItem("notified_event_ids") || "[]";
+    let notifiedEventIds: string[] = JSON.parse(notifiedEventIdsStr);
+
+    if (lastNotifiedCalDay !== todayDateStr) {
+      // Reset for a new calendar day
+      notifiedEventIds = [];
+    }
+
+    const newEventsToNotify = eventsToNotify.filter(
+      ({ event }) => !notifiedEventIds.includes(event.id)
+    );
+
+    if (newEventsToNotify.length === 0) return;
+
+    // Build the notification body with details
+    const eventDetails = newEventsToNotify.map(({ event, diffDays }) => {
+      const dayText = diffDays === 0 ? "hôm nay" : `sau ${diffDays} ngày nữa`;
+      const typeText = event.event_type === "birthday" ? "Sinh nhật" : 
+                       event.event_type === "holiday" ? "Ngày lễ" :
+                       event.event_type === "anniversary" ? "Ngày kỷ niệm" : "Sự kiện";
+      return `- ${typeText}: ${event.title} (${dayText})`;
+    });
+
+    const messageTitle = "📅 Nhắc nhở sự kiện đặc biệt!";
+    const messageBody = `Sắp diễn ra các sự kiện đặc biệt:\n${eventDetails.join("\n")}`;
+
+    sendNotification(messageTitle, messageBody);
+
+    // Save notified IDs to avoid duplication on subsequent runs
+    const updatedEventIds = Array.from(
+      new Set([...notifiedEventIds, ...newEventsToNotify.map(({ event }) => event.id)])
+    );
+    localStorage.setItem("last_notified_cal_day", todayDateStr);
+    localStorage.setItem("notified_event_ids", JSON.stringify(updatedEventIds));
+  } catch (err) {
+    console.error("Error checking calendar events for notifications:", err);
+  }
+}
+
 // Check database for due or overdue tasks and notify user (throttled to avoid spam)
 export async function checkAndNotifyDueTasks(): Promise<void> {
   const isAllowed = await initNotifications();
   if (!isAllowed) return;
+
+  // Run calendar events check alongside task check
+  await checkAndNotifyCalendarEvents();
 
   try {
     const db = await getDatabase();
