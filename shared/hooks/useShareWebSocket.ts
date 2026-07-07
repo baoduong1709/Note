@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { ShareData } from '../services/shareService';
+import { ShareData, mapToShareData } from '../services/shareService';
 import { pullCloudDataToLocal } from '../services/appSyncService';
 
 interface UseShareWebSocketOptions {
@@ -20,10 +20,6 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
   const connect = useCallback(() => {
     if (!syncId || isCleanedUpRef.current) return;
 
-    // Skip WebSocket on Android mobile - can't reach localhost dev server
-    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
-    if (isAndroid) return;
-
     // Close existing connection first
     if (wsRef.current) {
       wsRef.current.onclose = null;
@@ -41,7 +37,7 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
       const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       wsUrl = isTauri
-        ? 'ws://localhost:3001/ws'
+        ? 'wss://api-note.baoduong.dev/ws'
         : `${wsProtocol}//${window.location.host}/ws`;
     }
     
@@ -60,13 +56,7 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
           
           // 1. Handle Real-Time Share
           if (msg.type === 'new_share' && msg.data) {
-            const share: ShareData = {
-              type: msg.data.type,
-              content: msg.data.content,
-              timestamp: new Date(msg.data.updated_at || msg.data.created_at).getTime(),
-              userEmail: msg.data.user_email,
-              userName: msg.data.user_name,
-            };
+            const share: ShareData = mapToShareData(msg.data);
 
             // Notify local listener if present
             if (onNewShareRef.current) {

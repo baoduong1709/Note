@@ -79,6 +79,7 @@ function apiProxyMiddleware() {
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), apiProxyMiddleware()],
+  publicDir: '../public',
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

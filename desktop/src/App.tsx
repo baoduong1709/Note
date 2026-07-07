@@ -86,7 +86,13 @@ export default function App() {
           is_locked: 0,
           is_pending_sync: 0
         };
-        await createNote(newUserNote);
+        try {
+          await createNote(newUserNote);
+        } catch (err: any) {
+          if (!err.toString().includes("UNIQUE constraint failed")) {
+            throw err;
+          }
+        }
       }
 
       // 2. Check MEMORY.md (by id or title)
@@ -102,7 +108,13 @@ export default function App() {
           is_locked: 0,
           is_pending_sync: 0
         };
-        await createNote(newMemNote);
+        try {
+          await createNote(newMemNote);
+        } catch (err: any) {
+          if (!err.toString().includes("UNIQUE constraint failed")) {
+            throw err;
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to check/create Hermes notes:", err);

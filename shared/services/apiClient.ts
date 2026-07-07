@@ -6,7 +6,7 @@
 // On Android mobile: localhost refers to the phone, not the PC - skip server calls
 const isTauriApp = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
 const isAndroidApp = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
-const API_BASE_URL = import.meta.env.VITE_API_URL || (isTauriApp && !isAndroidApp ? 'http://localhost:3001' : '');
+const API_BASE_URL = import.meta.env.VITE_API_URL || (isTauriApp && !isAndroidApp ? 'https://api-note.baoduong.dev' : '');
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('auth_token');
@@ -24,11 +24,6 @@ export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  // On Android mobile, there's no backend server reachable - fail fast
-  if (isAndroidApp && !import.meta.env.VITE_API_URL) {
-    throw new Error('API not available on mobile device');
-  }
-
   const token = getAuthToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -43,8 +38,13 @@ export async function apiRequest<T = any>(
 
   let response: Response;
   if (isTauri) {
-    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-    response = await tauriFetch(url, { ...options, headers } as any);
+    try {
+      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+      response = await tauriFetch(url, { ...options, headers } as any);
+    } catch (err: any) {
+      console.warn("tauriFetch failed, falling back to window.fetch", err);
+      response = await fetch(url, { ...options, headers });
+    }
   } else {
     response = await fetch(url, { ...options, headers });
   }

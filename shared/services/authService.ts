@@ -81,25 +81,22 @@ export async function completeGoogleLogin(loginData: GoogleLoginPayload): Promis
   const name = (loginData.name || email.split("@")[0]).trim();
   const credential = loginData.credential || loginData.accessToken;
 
-  // Only call server API if we have a credential AND we're not on a mobile device
-  // (mobile can't reach localhost:3001 dev server)
-  if (credential && !isAndroidRuntime()) {
-    try {
-      const authResult = await apiRequest<{ success: boolean; token: string; user: any }>('/api/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({
-          credential,
-          email,
-          name,
-          picture: loginData.picture,
-        }),
-      });
-      if (authResult.success && authResult.token) {
-        setAuthToken(authResult.token);
-      }
-    } catch (err) {
-      console.error('Failed to authenticate with server:', err);
+  // Call server API if we have a credential (or just email for native sign-in)
+  try {
+    const authResult = await apiRequest<{ success: boolean; token: string; user: any }>('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({
+        credential,
+        email,
+        name,
+        picture: loginData.picture,
+      }),
+    });
+    if (authResult.success && authResult.token) {
+      setAuthToken(authResult.token);
     }
+  } catch (err) {
+    console.error('Failed to authenticate with server:', err);
   }
 
   storeUser(email, name);

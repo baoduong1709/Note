@@ -8,7 +8,8 @@ import {
   Trash2, 
   AlertCircle, 
   RefreshCw,
-  CloudLightning
+  CloudLightning,
+  Search
 } from "lucide-react";
 import { 
   getStoredUser, 
@@ -17,6 +18,7 @@ import {
   generateSyncIdFromEmail, 
   sendShareData, 
   receiveShareHistory,
+  deleteShareChannel,
   ShareData
 } from "../../../shared/services/shareService";
 import { apiRequest, setAuthToken } from '../../../shared/services/apiClient';
@@ -63,8 +65,17 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       const customEvent = e as CustomEvent<ShareData>;
       if (customEvent.detail) {
         const share = customEvent.detail;
-        setShareHistory(prev => [share, ...prev]);
-        triggerToast(`Đã nhận dữ liệu mới từ ${share.userName || 'thiết bị khác'}!`);
+        setShareHistory(prev => {
+          // Prevent duplicates from sender's own optimistic update or ws echo
+          const isDuplicate = prev.some(p => 
+            p.content === share.content && 
+            Math.abs(p.timestamp - share.timestamp) < 15000
+          );
+          if (isDuplicate) return prev;
+          
+          triggerToast(`Đã nhận dữ liệu mới từ ${share.userName || 'thiết bị khác'}!`);
+          return [share, ...prev];
+        });
       }
     };
     window.addEventListener('ws-new-share', handleWsNewShare);
@@ -424,7 +435,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
 
 
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     const isAnon = sessionStorage.getItem("anonymous_share_code") !== null;
     const isUserLoggedIn = getStoredUser() !== null;
 
@@ -433,6 +444,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       window.dispatchEvent(new CustomEvent("auth-state-changed"));
       triggerToast(language === "vi" ? "Đã thoát phiên chia sẻ, quay lại đồng bộ tài khoản." : "Exited session sharing, returned to account sync.");
       return;
+    }
+
+    if (syncId) {
+      await deleteShareChannel(syncId);
     }
 
     if (isAnon) {
@@ -593,20 +608,31 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       return;
     }
 
-    setIsSending(true);
-    try {
-      const type = sendImage ? 'image' : 'text';
-      const content = sendImage ? sendImage : sendText;
+    const type = sendImage ? 'image' : 'text';
+    const content = sendImage ? sendImage : sendText;
 
+    const optimisticShare: ShareData = {
+      type,
+      content,
+      timestamp: Date.now(),
+      userEmail: user.email,
+      userName: user.name,
+    };
+
+    // Optimistic UI Update
+    setShareHistory(prev => [optimisticShare, ...prev]);
+    setSendText("");
+    setSendImage(null);
+    setIsSending(true);
+
+    try {
       await sendShareData(syncId, type, content, user.email, user.name);
-      
       triggerToast("Đã gửi chia sẻ thành công!");
-      // Clear inputs
-      setSendText("");
-      setSendImage(null);
     } catch (err) {
       console.error(err);
       triggerToast("Lỗi khi gửi dữ liệu chia sẻ!");
+      // Revert optimistic update
+      setShareHistory(prev => prev.filter(s => s !== optimisticShare));
     } finally {
       setIsSending(false);
     }
@@ -687,10 +713,10 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   };
 
   return (
-    <div onPaste={handlePaste} className="flex-1 flex flex-col h-full overflow-hidden space-y-5 view-enter-animate">
+    <div onPaste={handlePaste} className="flex-1 flex flex-col h-full overflow-hidden space-y-2 sm:space-y-4 view-enter-animate">
       
       {/* Header View */}
-      <div className="flex justify-between items-center shrink-0 border-b border-zinc-200 dark:border-white/5 pb-4">
+      <div className="flex justify-between items-center shrink-0 border-b border-zinc-200 dark:border-white/5 pb-3">
         <div>
           <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
             <Share2 className="w-5 h-5 text-purple-500 animate-pulse" />
@@ -707,90 +733,81 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
       {/* Main Container */}
       {!user ? (
         // NOT LOGGED IN STATE
-        <div className="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full text-center space-y-6 animate-fade-in overflow-y-auto pb-28 xl:pb-0">
-          <div className="w-16 h-16 rounded-2xl bg-purple-600/10 text-purple-400 flex items-center justify-center relative shadow-inner animate-pulse">
+        <div className="flex-1 flex flex-col items-center justify-center w-full max-w-2xl mx-auto animate-fade-in overflow-y-auto pb-28 xl:pb-0 px-4">
+          <div className="w-16 h-16 rounded-2xl bg-purple-600/10 text-purple-400 flex items-center justify-center relative shadow-inner animate-pulse mb-6 mx-auto">
             <CloudLightning className="w-8 h-8" />
             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-teal-400"></span>
           </div>
 
-          <div className="space-y-2">
-            <h4 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
-              {language === "vi" ? "KÊNH CHIA SẺ & ĐỒNG BỘ" : "SHARE & SYNC CHANNELS"}
+          <div className="text-center space-y-2 mb-8">
+            <h4 className="text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
+              {language === "vi" ? "Kênh Chia Sẻ & Đồng Bộ" : "Share & Sync Channels"}
             </h4>
-            <p className="text-xs text-zinc-555 dark:text-zinc-400 leading-relaxed max-w-xs">
+            <p className="text-sm text-zinc-555 dark:text-zinc-400 leading-relaxed max-w-md mx-auto">
               {language === "vi"
-                ? "Hãy chọn phương thức kết nối để chia sẻ văn bản và hình ảnh nhanh giữa các thiết bị."
-                : "Please choose a connection method to quickly share text and images between devices."}
+                ? "Lựa chọn phương thức kết nối để chia sẻ văn bản và hình ảnh nhanh giữa các thiết bị."
+                : "Choose a connection method to quickly share text and images between devices."}
             </p>
           </div>
 
-          <div className="w-full max-w-xs space-y-3">
-            {/* Google Sign In Button */}
-            <button
-              onClick={() => {
-                setLoginStep('accounts');
-                setShowLoginModal(true);
-              }}
-              className="w-full bg-purple-600 hover:bg-purple-550 text-white font-semibold text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <svg className="w-4 h-4 mr-1 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              {t("sidebar.signinGoogle")}
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center justify-between gap-3 text-zinc-400 dark:text-zinc-650 text-[11px] uppercase font-bold select-none py-1">
-              <div className="h-[1px] flex-1 bg-zinc-300 dark:bg-white/5"></div>
-              <span>{language === "vi" ? "Hoặc" : "Or"}</span>
-              <div className="h-[1px] flex-1 bg-zinc-300 dark:bg-white/5"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+            {/* Google Sign In Card */}
+            <div className="glass-panel rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 space-y-4 text-center hover:border-purple-500/30 transition-all shadow-sm">
+              <div className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-full flex items-center justify-center shadow-sm mx-auto">
+                <svg className="w-7 h-7" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+              </div>
+              <div>
+                <h5 className="font-bold text-zinc-800 dark:text-zinc-200">{language === "vi" ? "Tài khoản Google" : "Google Account"}</h5>
+                <p className="text-xs text-zinc-500 mt-1">{t("sidebar.signinGoogle")} {language === "vi" ? "để đồng bộ tự động." : "to sync automatically."}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setLoginStep('accounts');
+                  setShowLoginModal(true);
+                }}
+                className="w-full mt-2 bg-purple-600 hover:bg-purple-550 text-white font-semibold text-sm py-3 rounded-xl transition-all shadow-md"
+              >
+                {t("sidebar.signinGoogle")}
+              </button>
             </div>
 
-            {/* Anonymous Session Card with Create/Join options */}
-            <div className="w-full glass-panel rounded-2xl p-4 border border-zinc-200/50 dark:border-white/5 space-y-4 text-left animate-fade-in">
-              <div className="flex items-center gap-2">
-                <Share2 className="w-4.5 h-4.5 text-purple-500 shrink-0" />
-                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
-                  {language === "vi" ? "Chia sẻ ẩn danh qua mã số" : "Anonymous Session Sync"}
-                </span>
+            {/* Anonymous Session Card */}
+            <div className="glass-panel rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 space-y-4 text-center hover:border-purple-500/30 transition-all shadow-sm">
+              <div className="w-14 h-14 bg-purple-50 dark:bg-purple-500/10 rounded-full flex items-center justify-center text-purple-600 dark:text-purple-400 mx-auto">
+                <Share2 className="w-7 h-7" />
               </div>
-              
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal">
-                {t("share.anonDesc")}
-              </p>
-
-              <div className="flex gap-2.5 items-center">
-                {/* Create Session Button */}
+              <div>
+                <h5 className="font-bold text-zinc-800 dark:text-zinc-200">{language === "vi" ? "Phiên Ẩn Danh" : "Anonymous Session"}</h5>
+                <p className="text-xs text-zinc-500 mt-1">{t("share.anonDesc")}</p>
+              </div>
+              <div className="flex flex-col gap-2 pt-2">
                 <button
                   type="button"
                   onClick={handleStartAnonymousSession}
-                  className="flex-1 bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-750 border border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-zinc-300 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer text-center shadow-sm"
-                  title={language === "vi" ? "Tự động sinh mã phiên 6 số ngẫu nhiên" : "Generate a random 6-digit session code"}
+                  className="w-full bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-750 border border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-zinc-300 font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm"
                 >
-                  {language === "vi" ? "Tạo mã mới" : "New Code"}
+                  {language === "vi" ? "Tạo mã mới" : "Create Code"}
                 </button>
-
-                {/* Input & Join Section */}
-                <div className="flex-1 flex gap-1.5">
+                <div className="flex gap-2 w-full mt-1">
                   <input
                     type="text"
                     maxLength={6}
-                    placeholder="123456"
+                    placeholder={language === "vi" ? "Mã 6 số" : "6 digits"}
                     value={joinSessionCode}
                     onChange={(e) => setJoinSessionCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-16 p-2 rounded-xl bg-black/10 dark:bg-black/30 border border-zinc-300 dark:border-white/10 text-center text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/20"
-                    title={language === "vi" ? "Nhập mã phiên 6 chữ số có sẵn" : "Enter a 6-digit session code to join"}
+                    className="w-1/2 p-2.5 rounded-xl bg-black/5 dark:bg-black/30 border border-zinc-300 dark:border-white/10 text-center text-sm font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/20"
                   />
                   <button
                     type="button"
                     onClick={handleJoinAnonymousSession}
-                    className="flex-1 bg-purple-650 hover:bg-purple-600 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer text-center shadow-md shadow-purple-500/10"
-                    title={language === "vi" ? "Kết nối vào phiên chia sẻ" : "Connect to session"}
+                    className="w-1/2 bg-purple-650 hover:bg-purple-600 text-white font-bold text-sm py-2.5 rounded-xl transition-all shadow-md"
                   >
-                    {language === "vi" ? "Kết nối" : "Join"}
+                    {language === "vi" ? "Tham gia" : "Join"}
                   </button>
                 </div>
               </div>
@@ -799,194 +816,195 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         </div>
       ) : (
         // LOGGED IN STATE
-        <div className="flex-1 flex flex-row gap-5 min-h-0 select-text">
-          
-          {/* COLUMN 1: SEND CONTAINER */}
-          <div className="flex-1 flex flex-col space-y-4 min-h-0">
-            <div className="glass-panel rounded-xl p-5 flex-1 flex flex-col space-y-4 min-h-0">
+        <div className="flex-1 flex overflow-hidden pb-4 w-full h-full max-w-[1400px] mx-auto">
+          <div className="w-full h-full lg:grid lg:grid-cols-12 lg:gap-6 flex flex-col overflow-y-auto lg:overflow-hidden">
+            
+            {/* LEFT COLUMN: COMPOSE & CONNECTION INFO */}
+            <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full gap-4 mt-2 overflow-y-auto lg:overflow-hidden pr-1">
               
-              {/* Sync Mode Selector / Status Bar */}
-              <div className="p-2.5 bg-zinc-200/30 dark:bg-zinc-950/40 rounded-xl border border-zinc-200 dark:border-white/5 space-y-2 text-xs shrink-0 text-left">
-                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between font-semibold text-xs">
-                  <span className="text-zinc-555 dark:text-zinc-400">{language === "vi" ? "Liên kết đồng bộ:" : "Sync link:"}</span>
-                  {sessionStorage.getItem("anonymous_share_code") ? (
-                    <span className="text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1 bg-purple-500/10 px-2 py-0.5 rounded-full text-xs">
-                      <Share2 className="w-3 h-3 animate-pulse" /> {language === "vi" ? `Mã phiên: ${sessionStorage.getItem("anonymous_share_code")}` : `Session Code: ${sessionStorage.getItem("anonymous_share_code")}`}
+              {/* Connection Info Card */}
+              <div className="glass-panel bg-zinc-50/80 dark:bg-[#1a1b26]/80 rounded-2xl p-4 sm:p-5 border border-zinc-200/50 dark:border-white/5 shadow-sm flex-shrink-0">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                      {language === "vi" ? "Kết nối:" : "Connection:"}
                     </span>
-                  ) : (
-                    <span className="text-teal-650 dark:text-teal-400 font-bold flex items-center gap-1 bg-teal-500/10 px-2 py-0.5 rounded-full text-xs">
-                      <CloudLightning className="w-3 h-3" /> {language === "vi" ? "Kênh đám mây tài khoản" : "Cloud Account Channel"}
-                    </span>
-                  )}
-                </div>
-
-                {sessionStorage.getItem("anonymous_share_code") ? (
-                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between text-xs text-zinc-500 leading-normal pt-1.5 border-t border-zinc-200 dark:border-white/5">
-                    <span>{language === "vi" ? "Đang đồng bộ qua phiên tạm thời." : "Syncing via temporary session code."}</span>
-                    <button
-                      onClick={handleLogout}
-                      className="text-red-500 hover:text-red-400 font-bold cursor-pointer hover:underline transition-all text-left"
-                    >
-                      {language === "vi" 
-                        ? (user.email !== "anonymous@notebook.io" ? "Trở lại tài khoản" : "Thoát phiên") 
-                        : (user.email !== "anonymous@notebook.io" ? "Back to Account" : "Exit Session")
-                      }
-                    </button>
+                    {sessionStorage.getItem("anonymous_share_code") ? (
+                      <span className="text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1.5 bg-purple-500/10 px-3 py-1.5 rounded-full text-xs">
+                        <Share2 className="w-3.5 h-3.5 animate-pulse" /> {language === "vi" ? `Mã: ${sessionStorage.getItem("anonymous_share_code")}` : `Code: ${sessionStorage.getItem("anonymous_share_code")}`}
+                      </span>
+                    ) : (
+                      <span className="text-teal-650 dark:text-teal-400 font-bold flex items-center gap-1.5 bg-teal-500/10 px-3 py-1.5 rounded-full text-xs">
+                        <CloudLightning className="w-3.5 h-3.5" /> {language === "vi" ? "Đám mây tài khoản" : "Cloud Account"}
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  user.email !== "anonymous@notebook.io" && (
-                    <>
-                      <div className="flex flex-col gap-1.5 sm:flex-row sm:justify-between sm:items-center text-xs text-zinc-500 leading-normal pt-1.5 border-t border-zinc-200 dark:border-white/5">
-                        <span>{language === "vi" ? "Dữ liệu tự động đồng bộ theo tài khoản." : "Data automatically syncs to your account."}</span>
+
+                  <div className="flex items-center justify-between text-xs text-zinc-500 mt-1">
+                    <span className="flex-1 truncate pr-2">
+                      {sessionStorage.getItem("anonymous_share_code") 
+                        ? (language === "vi" ? "Chia sẻ tạm thời." : "Temporary session.")
+                        : (language === "vi" ? "Tự động đồng bộ với tài khoản." : "Auto sync to account.")}
+                    </span>
+                    
+                    {sessionStorage.getItem("anonymous_share_code") ? (
+                      <button
+                        onClick={handleLogout}
+                        className="text-red-500 hover:text-red-400 font-bold cursor-pointer transition-all hover:underline whitespace-nowrap bg-red-500/10 px-2 py-1 rounded-md"
+                      >
+                        {language === "vi" 
+                          ? (user.email !== "anonymous@notebook.io" ? "Hủy kết nối" : "Thoát phiên") 
+                          : (user.email !== "anonymous@notebook.io" ? "Disconnect" : "Exit Session")
+                        }
+                      </button>
+                    ) : (
+                      user.email !== "anonymous@notebook.io" && (
                         <button
                           onClick={() => setShowSessionSetup(!showSessionSetup)}
-                          className="text-purple-650 dark:text-purple-400 font-bold cursor-pointer hover:underline transition-all flex items-center gap-1"
+                          className="text-purple-650 dark:text-purple-400 font-bold cursor-pointer transition-all hover:bg-purple-500/10 px-2 py-1 rounded-md whitespace-nowrap"
                         >
                           {showSessionSetup 
                             ? (language === "vi" ? "Đóng" : "Close") 
-                            : (language === "vi" ? "Đồng bộ qua mã 6 số" : "Sync via 6-digit code")
+                            : (language === "vi" ? "Kết nối ẩn danh" : "Anonymous link")
                           }
                         </button>
-                      </div>
-                      
-                      {showSessionSetup && (
-                        <div className="space-y-2 text-xs border-t border-zinc-200 dark:border-white/5 pt-2 animate-fade-in">
-                          <p className="text-zinc-555 leading-relaxed">{language === "vi" ? "Tạo mã mới hoặc nhập mã phiên từ thiết bị khác:" : "Create a new session or join a session from another device:"}</p>
-                          <div className="flex gap-2 items-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleStartAnonymousSession();
-                                setShowSessionSetup(false);
-                              }}
-                              className="flex-1 bg-white hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-750 border border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-zinc-300 font-bold py-1.5 rounded-lg transition-all cursor-pointer text-center text-xs shadow-sm"
-                            >
-                              {language === "vi" ? "Tạo mã mới" : "Create Code"}
-                            </button>
-                            <div className="flex-1 flex gap-1">
-                              <input
-                                type="text"
-                                maxLength={6}
-                                placeholder="123456"
-                                value={joinSessionCode}
-                                onChange={(e) => setJoinSessionCode(e.target.value.replace(/\D/g, ""))}
-                                className="w-14 p-1 rounded-lg bg-black/10 dark:bg-black/30 border border-zinc-300 dark:border-white/10 text-center text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleJoinAnonymousSession();
-                                  setShowSessionSetup(false);
-                                }}
-                                className="bg-purple-650 hover:bg-purple-600 text-white font-bold px-2 py-1.5 rounded-lg transition-all cursor-pointer text-xs"
-                              >
-                                {language === "vi" ? "Kết nối" : "Join"}
-                              </button>
-                            </div>
-                          </div>
+                      )
+                    )}
+                  </div>
+                  
+                  {/* Session setup collapse block */}
+                  {showSessionSetup && user.email !== "anonymous@notebook.io" && !sessionStorage.getItem("anonymous_share_code") && (
+                    <div className="mt-2 p-3 rounded-xl bg-black/5 dark:bg-black/20 border border-zinc-200 dark:border-white/5 animate-fade-in space-y-3">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleStartAnonymousSession();
+                            setShowSessionSetup(false);
+                          }}
+                          className="flex-1 bg-white hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-750 border border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-zinc-300 font-bold py-2 rounded-xl transition-all cursor-pointer shadow-sm text-xs"
+                        >
+                          {language === "vi" ? "Tạo mã mới" : "Create Code"}
+                        </button>
+                        <div className="flex gap-2 flex-1">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="123456"
+                            value={joinSessionCode}
+                            onChange={(e) => setJoinSessionCode(e.target.value.replace(/\D/g, ""))}
+                            className="w-full p-2 rounded-xl bg-white dark:bg-black/30 border border-zinc-300 dark:border-white/10 text-center text-xs font-mono focus:outline-none focus:border-purple-500/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleJoinAnonymousSession();
+                              setShowSessionSetup(false);
+                            }}
+                            className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-xl transition-all cursor-pointer text-xs shadow-md"
+                          >
+                            {language === "vi" ? "Vào" : "Join"}
+                          </button>
                         </div>
-                      )}
-                    </>
-                  )
-                )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Input Workspace */}
-              <div className="flex-1 flex flex-col space-y-3 min-h-0">
-                <div className="flex items-center justify-between shrink-0">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{language === "vi" ? "SOẠN THẢO NỘI DUNG" : "COMPOSE CONTENT"}</label>
-                  <span className="text-xs text-zinc-500 font-medium">{language === "vi" ? "Mẹo: Dán hoặc kéo thả ảnh trực tiếp vào đây" : "Tip: Paste or drag & drop image directly here"}</span>
+              {/* Compose Card */}
+              <div 
+                className="glass-panel bg-zinc-50/80 dark:bg-[#1a1b26]/80 rounded-2xl p-4 sm:p-5 border border-zinc-200/50 dark:border-white/5 shadow-md flex-1 flex flex-col min-h-[350px] lg:min-h-0 relative"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {/* Drag overlay */}
+                {isDragging && (
+                  <div className="absolute inset-0 z-10 bg-purple-500/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-purple-500 flex items-center justify-center">
+                    <span className="flex flex-col items-center text-purple-600 dark:text-purple-400 font-bold text-base pointer-events-none drop-shadow-md">
+                      <ImageIcon className="w-10 h-10 mb-2 animate-bounce" />
+                      {language === "vi" ? "Thả ảnh vào đây" : "Drop image here"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
+                    {language === "vi" ? "Soạn thảo" : "Compose"}
+                  </span>
+                  <label className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-500 font-semibold cursor-pointer px-3 py-1.5 rounded-lg bg-purple-500/5 hover:bg-purple-500/10 transition-colors">
+                    <ImageIcon className="w-4 h-4" />
+                    {language === "vi" ? "Chọn ảnh" : "Select Image"}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageChange} 
+                      className="hidden" 
+                    />
+                  </label>
                 </div>
 
-                {/* Textarea */}
-                {!sendImage ? (
-                  <textarea
-                    value={sendText}
-                    onChange={(e) => setSendText(e.target.value)}
-                    placeholder={language === "vi" ? "Nhập nội dung văn bản muốn gửi... (Khi nhập xong nhấn Gửi để đồng bộ tức thì sang thiết bị khác)" : "Enter text to send... (Press Send to sync instantly to other devices)"}
-                    className="flex-1 min-h-[140px] xl:min-h-0 w-full bg-transparent border-none outline-none focus:ring-0 p-0 text-sm text-zinc-800 dark:text-zinc-300 resize-none placeholder-zinc-500"
-                  />
-                ) : (
-                  // Image Preview inside workspace
-                  <div className="flex-1 flex flex-col items-center justify-center relative bg-black/10 dark:bg-black/30 rounded-xl p-3 border border-dashed border-zinc-700/30">
-                    <img 
-                      src={sendImage} 
-                      alt="To Send" 
-                      className="max-h-56 max-w-full rounded shadow-md object-contain" 
+                <div className="flex-1 flex flex-col bg-white dark:bg-black/20 rounded-xl border border-zinc-200 dark:border-white/10 overflow-hidden relative group">
+                  {!sendImage ? (
+                    <textarea
+                      value={sendText}
+                      onChange={(e) => setSendText(e.target.value)}
+                      placeholder={language === "vi" ? "Nhập nội dung, hoặc dán/thả ảnh vào đây..." : "Enter text, or paste/drop image here..."}
+                      className="w-full h-full bg-transparent border-none outline-none focus:ring-0 p-4 text-sm text-zinc-800 dark:text-zinc-300 resize-none placeholder-zinc-400"
                     />
-                    <button
-                      onClick={() => setSendImage(null)}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-650/80 hover:bg-red-500 text-white transition-all shadow"
-                      title={language === "vi" ? "Xóa ảnh này" : "Delete this image"}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-xs text-zinc-500 mt-2 font-medium">{language === "vi" ? "Ảnh đã nén đã sẵn sàng gửi đi" : "Compressed image ready to send"}</span>
-                  </div>
-                )}
-
-                {/* Drag and Drop Zone (Only when no image is loaded) */}
-                {!sendImage && (
-                  <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={`h-20 border-2 border-dashed rounded-xl flex items-center justify-center transition-all ${
-                      isDragging 
-                        ? "border-purple-500 bg-purple-500/10 text-purple-400 scale-[0.98]" 
-                        : "border-zinc-300 dark:border-white/5 hover:border-purple-500/40 text-zinc-500 dark:text-zinc-650"
-                    }`}
-                  >
-                    <label className="flex flex-col items-center gap-1 cursor-pointer w-full h-full justify-center select-none">
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleImageChange} 
-                        className="hidden" 
-                      />
-                      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-                        <ImageIcon className="w-4 h-4" /> {language === "vi" ? "Kéo thả hoặc click chọn hình ảnh" : "Drag & drop or click to select image"}
-                      </span>
-                    </label>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex justify-between items-center shrink-0 border-t border-zinc-200 dark:border-white/5">
-                <span className="text-xs text-zinc-550 dark:text-zinc-500 font-mono">
-                  {language === "vi" ? "Mã Sync ID: " : "Sync ID: "} <span className="font-semibold text-purple-650 dark:text-purple-400 select-all cursor-pointer" title={language === "vi" ? "Click để bôi đen" : "Click to select all"}>{syncId}</span>
-                </span>
-                
-                <button
-                  onClick={handleSend}
-                  disabled={isSending || (!sendText.trim() && !sendImage)}
-                  className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
-                >
-                  {isSending ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Send className="w-3.5 h-3.5" />
+                    <div className="flex-1 flex flex-col items-center justify-center p-3 relative overflow-hidden bg-black/5 dark:bg-black/30">
+                      <img 
+                        src={sendImage} 
+                        alt="To Send" 
+                        className="max-h-full max-w-full rounded-lg shadow-sm object-contain" 
+                      />
+                      <button
+                        onClick={() => setSendImage(null)}
+                        className="absolute top-2 right-2 p-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-all shadow-md"
+                        title={language === "vi" ? "Xóa ảnh" : "Remove image"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
-                  {language === "vi" ? "Gửi chia sẻ" : "Send Share"}
-                </button>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-400 hidden lg:block">
+                    {language === "vi" ? "Hỗ trợ Ctrl+V và Kéo thả" : "Supports Ctrl+V and Drag&Drop"}
+                  </span>
+                  <button
+                    onClick={handleSend}
+                    disabled={isSending || (!sendText.trim() && !sendImage)}
+                    className="w-full lg:w-auto bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm px-8 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ml-auto"
+                  >
+                    {isSending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {language === "vi" ? "Gửi" : "Send"}
+                  </button>
+                </div>
               </div>
-
             </div>
-          </div>
 
-          {/* COLUMN 2: RECEIVE CONTAINER */}
-          <div className="flex-1 flex flex-col space-y-4 min-h-0">
-            <div className="glass-panel rounded-xl p-5 flex-1 flex flex-col space-y-4 min-h-0">
-              
-              {/* Header section with loading info */}
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-white/5 shrink-0">
-                <span className="text-xs font-bold text-zinc-555 dark:text-zinc-400 uppercase tracking-wider">{language === "vi" ? "NHẬN ĐƯỢC (RECEIVED)" : "RECEIVED"}</span>
+            {/* RIGHT COLUMN: HISTORY */}
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col h-full mt-4 lg:mt-0 pb-2 lg:overflow-hidden">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-sm font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                  {language === "vi" ? "Lịch sử nhận" : "Received History"}
+                  <span className="bg-zinc-200 dark:bg-white/10 text-zinc-600 dark:text-zinc-400 py-0.5 px-2 rounded-full text-[10px]">
+                    {shareHistory.length}
+                  </span>
+                </span>
                 
                 <div className="flex items-center gap-2">
                   {lastSyncTime && (
-                    <span className="text-[10px] text-zinc-655 dark:text-zinc-500 font-mono">
-                      {language === "vi" ? "Cập nhật:" : "Updated:"} {lastSyncTime.toLocaleTimeString()}
+                    <span className="hidden sm:inline text-xs text-zinc-400 font-mono mr-1">
+                      {lastSyncTime.toLocaleTimeString()}
                     </span>
                   )}
                   {shareHistory.length > 0 && (
@@ -1001,60 +1019,64 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                           triggerToast(language === "vi" ? "Lỗi khi xóa lịch sử!" : "Error clearing history!");
                         }
                       }}
-                      className="p-1 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-500 transition-all"
+                      className="p-1.5 sm:p-2 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 transition-all shadow-sm"
                       title={language === "vi" ? "Xóa toàn bộ lịch sử" : "Clear all history"}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                   <button
                     onClick={() => fetchData(syncId, true)}
                     disabled={isSyncing}
-                    className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-zinc-555 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white transition-all disabled:opacity-50"
-                    title={language === "vi" ? "Đồng bộ thủ công ngay" : "Sync manually now"}
+                    className="p-1.5 sm:p-2 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-500 hover:text-zinc-700 dark:text-zinc-300 transition-all shadow-sm disabled:opacity-50"
+                    title={language === "vi" ? "Làm mới dữ liệu" : "Refresh data"}
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
                   </button>
                 </div>
               </div>
 
-              {/* Data Received */}
-              <div className="flex-none xl:flex-1 flex flex-col min-h-[250px] xl:min-h-0 xl:overflow-y-auto bg-black/5 dark:bg-black/25 rounded-xl p-4 border border-zinc-300 dark:border-white/5 select-text relative">
-                {networkError && (
-                  <div className="absolute top-2 left-2 right-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-xs rounded-lg p-2 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{language === "vi" ? "Lỗi kết nối máy chủ. Đang tự động thử lại..." : "Server connection error. Retrying automatically..."}</span>
-                  </div>
-                )}
+              {networkError && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-500 text-xs rounded-xl p-3 mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{language === "vi" ? "Lỗi kết nối máy chủ. Đang thử lại..." : "Server connection error. Retrying..."}</span>
+                </div>
+              )}
 
+              <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 space-y-3 pb-6 custom-scrollbar">
                 {shareHistory.length > 0 ? (
-                  <div className="flex-1 flex flex-col min-h-0 select-text overflow-y-auto space-y-3">
-                    {shareHistory.map((item, idx) => (
-                      <div key={idx} className="border border-zinc-200 dark:border-white/10 rounded-lg p-3 bg-white/5">
-                        {/* Meta info */}
-                        <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-2 flex items-center justify-between border-b border-zinc-300 dark:border-white/5 pb-2 font-mono">
-                          <span>{language === "vi" ? "Người gửi:" : "Sender:"} <strong>{item.userName}</strong></span>
-                          <span>{new Date(item.timestamp).toLocaleString()}</span>
-                        </div>
-
-                        {/* Content */}
-                        {item.type === 'text' ? (
-                          <div className="select-text">
-                            <pre className="whitespace-pre-wrap font-sans text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed select-text mb-2">
-                              {item.content}
-                            </pre>
-                            <div className="flex justify-end">
-                              <button
-                                onClick={() => handleCopyText(item.content)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm"
-                              >
-                                <Copy className="w-3 h-3" />
-                                {language === "vi" ? "Sao chép" : "Copy"}
-                              </button>
-                            </div>
+                  shareHistory.map((item, idx) => (
+                    <div key={idx} className="glass-panel bg-white/80 dark:bg-zinc-800/80 border border-zinc-200 dark:border-white/5 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                      {/* Meta info */}
+                      <div className="flex items-center justify-between mb-2 text-xs border-b border-zinc-100 dark:border-white/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-[10px]">
+                            {item.userName?.[0]?.toUpperCase() || "?"}
                           </div>
-                        ) : (
-                          <div className="flex flex-col items-center">
+                          <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.userName}</span>
+                        </div>
+                        <span className="text-zinc-400 font-mono text-[10px]">{new Date(item.timestamp).toLocaleString()}</span>
+                      </div>
+
+                      {/* Content */}
+                      {item.type === 'text' ? (
+                        <div className="space-y-2 mt-2">
+                          <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed bg-black/5 dark:bg-black/20 p-3.5 rounded-xl">
+                            {item.content}
+                          </pre>
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => handleCopyText(item.content)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 border border-transparent dark:border-white/5 text-zinc-600 dark:text-zinc-300 font-medium text-xs transition-all"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              {language === "vi" ? "Sao chép" : "Copy"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 mt-2">
+                          <div className="bg-black/5 dark:bg-black/20 p-2 rounded-xl flex items-center justify-center relative group">
                             <img 
                               src={item.content} 
                               alt="Shared" 
@@ -1063,43 +1085,53 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
                                 setZoomedImage(item.content);
                                 setImgTransform({ scale: 1, x: 0, y: 0 });
                               }}
-                              className="max-h-40 max-w-full rounded shadow-lg object-contain border border-zinc-200 dark:border-white/5 mb-2 cursor-zoom-in hover:opacity-90 transition-all" 
+                              className="max-h-[250px] rounded-lg object-contain cursor-zoom-in transition-transform" 
                             />
-                            <div className="flex justify-end w-full gap-2">
-                              <button
-                                onClick={() => handleCopyImage(item.content)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm"
-                              >
-                                <Copy className="w-3 h-3" />
-                                Sao chép
-                              </button>
-                              <button
-                                onClick={() => handleDownloadImage(item.content)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-650 hover:bg-teal-500 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm"
-                              >
-                                <Download className="w-3 h-3" />
-                                {language === "vi" ? "Tải về" : "Download"}
-                              </button>
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center pointer-events-none">
+                              <span className="text-white text-xs font-semibold px-3 py-1.5 bg-black/60 rounded-full flex items-center gap-1">
+                                <Search className="w-3.5 h-3.5" /> {language === "vi" ? "Phóng to" : "Zoom"}
+                              </span>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleCopyImage(item.content)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-300 font-medium text-xs transition-all"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              {language === "vi" ? "Sao chép ảnh" : "Copy Image"}
+                            </button>
+                            <button
+                              onClick={() => handleDownloadImage(item.content)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-medium text-xs transition-all shadow-sm"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              {language === "vi" ? "Tải về" : "Download"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
                 ) : (
-                  // EMPTY STATE
-                  <div className="flex-1 flex flex-col items-center justify-center text-zinc-650 dark:text-zinc-500 text-center space-y-2 select-none">
-                    <CloudLightning className="w-8 h-8 opacity-40 text-purple-400 animate-bounce" />
-                    <div>
-                      <p className="text-sm font-semibold">{language === "vi" ? "Chưa có dữ liệu nào được chia sẻ." : "No shared data yet."}</p>
-                      <p className="text-xs max-w-xs mt-0.5 leading-relaxed">{language === "vi" ? "Khi thiết bị khác đăng nhập tài khoản này và gửi chia sẻ, dữ liệu sẽ tự động hiển thị tại đây." : "When another device logs in and shares data, it will automatically appear here."}</p>
+                  <div className="flex flex-col items-center justify-center text-zinc-400 py-12 space-y-3 bg-black/5 dark:bg-black/20 rounded-2xl border border-dashed border-zinc-300 dark:border-white/10 h-48 lg:h-auto lg:min-h-[200px]">
+                    <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center">
+                      <CloudLightning className="w-6 h-6 opacity-50 text-purple-400" />
+                    </div>
+                    <div className="text-center px-4">
+                      <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">{language === "vi" ? "Chưa có dữ liệu nào." : "No data yet."}</p>
+                      <p className="text-xs max-w-xs mt-1 leading-relaxed opacity-80">
+                        {language === "vi" 
+                          ? "Dữ liệu được chia sẻ từ thiết bị khác sẽ xuất hiện ở đây." 
+                          : "Data shared from other devices will appear here."}
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
 
+          </div>
         </div>
       )}
 

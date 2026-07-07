@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon } from "lucide-react";
+import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon, LogOut } from "lucide-react";
 import { getDatabase } from "../../../shared/database/db";
 import { createNote, getNotes, Note, updateNote } from "../../../shared/database/queries/notes";
 import { useLanguage } from "../../../shared/contexts/LanguageContext";
+import { getStoredUser, clearStoredUser } from "../../../shared/services/shareService";
 
 interface SettingsViewProps {
   triggerToast: (message: string) => void;
@@ -40,7 +41,22 @@ export default function SettingsView({
   const [pinCode, setPinCode] = useState("");
   const [showPinInput, setShowPinInput] = useState(false);
 
+  // User Account state
+  const [user, setUser] = useState<{ email: string; name: string } | null>(null);
 
+  useEffect(() => {
+    const checkUser = () => setUser(getStoredUser());
+    checkUser();
+    window.addEventListener("auth-state-changed", checkUser);
+    return () => window.removeEventListener("auth-state-changed", checkUser);
+  }, []);
+
+  const handleLogout = () => {
+    clearStoredUser();
+    setUser(null);
+    window.dispatchEvent(new CustomEvent("auth-state-changed"));
+    triggerToast(language === "vi" ? "Đã đăng xuất khỏi tài khoản." : "Logged out successfully.");
+  };
 
   // Agent memory viewer
   const [userMemoryContent, setUserMemoryContent] = useState("");
@@ -669,6 +685,28 @@ export default function SettingsView({
             </button>
           </div>
         </div>
+
+        {/* 5. Account Settings (Logout) */}
+        {user && user.email !== "anonymous@notebook.io" && (
+          <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-3 flex flex-col justify-between border border-red-500/20">
+            <div>
+              <h4 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-1.5">{language === "vi" ? "Tài khoản Google" : "Google Account"}</h4>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                {language === "vi" ? `Đang đăng nhập với email: ` : `Logged in as: `}
+                <strong className="text-zinc-800 dark:text-zinc-200">{user.email}</strong>
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white transition-all text-xs font-bold shadow-sm cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" /> {language === "vi" ? "Đăng xuất" : "Logout"}
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon } from "lucide-react";
+import { Brain, Download, Globe, Lock, RefreshCw, Sparkles, Sun, Moon, LogOut, User } from "lucide-react";
 import { getDatabase } from "../../../shared/database/db";
 import { createNote, getNotes, Note, updateNote } from "../../../shared/database/queries/notes";
+import { getStoredUser, clearStoredUser } from "../../../shared/services/shareService";
 import { useLanguage } from "../../../shared/contexts/LanguageContext";
 
 interface SettingsViewProps {
@@ -40,9 +41,8 @@ export default function SettingsView({
   const [pinCode, setPinCode] = useState("");
   const [showPinInput, setShowPinInput] = useState(false);
 
-
-
-  // Agent memory viewer
+  // User state
+  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);  // Agent memory viewer
   const [userMemoryContent, setUserMemoryContent] = useState("");
   const [techMemoryContent, setTechMemoryContent] = useState("");
   const [memoryLoading, setMemoryLoading] = useState(false);
@@ -252,9 +252,17 @@ export default function SettingsView({
     setPinEnabled(enabled);
     setPinCode(code);
 
-
+    setCurrentUser(getStoredUser());
+    const handleAuthChange = () => {
+      setCurrentUser(getStoredUser());
+    };
+    window.addEventListener("auth-state-changed", handleAuthChange);
 
     loadAgentMemoryData();
+
+    return () => {
+      window.removeEventListener("auth-state-changed", handleAuthChange);
+    };
   }, []);
 
   // Save Configs
@@ -279,9 +287,12 @@ export default function SettingsView({
     triggerToast("Đã lưu cấu hình trợ lý AI & Tìm kiếm thành công!");
   };
 
-
-
-  const handleTogglePin = () => {
+  const handleLogout = () => {
+    clearStoredUser();
+    setCurrentUser(null);
+    window.dispatchEvent(new CustomEvent("auth-state-changed"));
+    triggerToast(language === "vi" ? "Đã đăng xuất thành công!" : "Logged out successfully!");
+  };  const handleTogglePin = () => {
     if (pinEnabled) {
       localStorage.setItem("pin_lock_enabled", "false");
       localStorage.setItem("e2ee_enabled", "false");
@@ -667,6 +678,48 @@ export default function SettingsView({
             >
               <Download className="w-4 h-4" /> {language === "vi" ? "Tải về Backup JSON" : "Download Backup JSON"}
             </button>
+          </div>
+        </div>
+
+        {/* 5. Account Settings Card */}
+        <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-3 flex flex-col justify-between">
+          <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
+            <div className="w-8 h-8 rounded bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0">
+              <User className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Tài khoản" : "Account"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-500">{language === "vi" ? "Quản lý phiên đăng nhập tài khoản của bạn." : "Manage your account login session."}</p>
+            </div>
+          </div>
+          
+          <div className="pt-2">
+            {currentUser ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{currentUser.name}</p>
+                  <p className="text-[10px] text-zinc-500">{currentUser.email}</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 transition-all text-xs font-semibold shadow-sm cursor-pointer border border-red-500/20"
+                >
+                  <LogOut className="w-4 h-4" /> {language === "vi" ? "Đăng xuất" : "Logout"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-500">{language === "vi" ? "Chưa đăng nhập." : "Not logged in."}</p>
+                <button 
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent("trigger-google-login"))}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white transition-all text-xs font-semibold shadow-sm cursor-pointer"
+                >
+                  <User className="w-4 h-4" /> {language === "vi" ? "Đăng nhập" : "Login"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

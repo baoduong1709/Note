@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Sparkles, X, History, Plus, Trash2 } from "lucide-react";
+import { Send, Sparkles, X, History, Plus, Trash2, User } from "lucide-react";
 import { askAI, extractAndSaveMemory } from "../services/aiService";
 import CopyBlock from "./CopyBlock";
 import GenericConfirmModal from "./GenericConfirmModal";
@@ -20,6 +20,7 @@ interface Message {
   id?: string;
   sender: "user" | "ai";
   text: string;
+  createdAt?: string;
   isStreaming?: boolean;
   thinking?: string;
 }
@@ -57,7 +58,16 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const loadingRef = useRef(false);
+  const pendingSyncReloadRef = useRef(false);
   const streamRunRef = useRef(0);
+
+  const setActiveSession = (sessionId: string | null) => {
+    activeSessionIdRef.current = sessionId;
+    setActiveSessionId(sessionId);
+  };
 
   const scrollToBottom = (instant = false) => {
     if (instant && messagesEndRef.current) {
@@ -91,58 +101,111 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   // 1. Initial Load: Get sessions list
-  const loadSessions = async (selectActiveId: string | null = null) => {
+  const loadSessions = async (selectActiveId: string | null = null, preserveCurrentMessages = true) => {
     const list = await getAISessions();
     setSessions(list);
     
     if (list.length > 0) {
       const targetId = selectActiveId || list[0].id;
-      setActiveSessionId(targetId);
-      await loadMessages(targetId);
+      const isSameSession = activeSessionIdRef.current === targetId;
+      setActiveSession(targetId);
+      await loadMessages(targetId, preserveCurrentMessages && isSameSession);
     } else {
       // Create a default new session if database is empty
       await handleNewChat();
     }
   };
 
-  // 2. Load messages for a session
-  const loadMessages = async (sessionId: string) => {
+  const loadMessages = async (sessionId: string, preserveCurrentMessages = false) => {
     const list = await getAIMessages(sessionId);
+    let newMessages: Message[] = [];
+
     if (list.length > 0) {
-      const normalizedMessages = await Promise.all(
+      newMessages = await Promise.all(
         list.map(async (m) => {
           const message = normalizeWelcomeMessage({ sender: m.sender, text: m.text });
           if (message.text !== m.text) {
             await updateAIMessage(m.id, message.text);
           }
-          return { ...message, id: m.id };
+          return { ...message, id: m.id, createdAt: m.created_at };
         })
       );
-      setMessages(normalizedMessages);
     } else {
-      setMessages([
+      newMessages = [
         {
           id: "welcome-message",
           sender: "ai",
-          text: t("aiChat.welcomeText")
+          text: t("aiChat.welcomeText"),
+          createdAt: new Date().toISOString()
         }
-      ]);
+      ];
     }
+
+    setMessages(prev => {
+      if (!preserveCurrentMessages) {
+        return newMessages;
+      }
+
+      // Sync reloads can arrive while a response is streaming or before cloud
+      // data contains the newest local rows. Keep the current UI order stable;
+      // database rows only update matching messages or append truly new ones.
+      const dbMessagesById = new Map(
+        newMessages
+          .filter((message): message is Message & { id: string } => Boolean(message.id))
+          .map(message => [message.id, message])
+      );
+      const seenIds = new Set<string>();
+
+      const merged = prev.map(message => {
+        if (!message.id) return message;
+        seenIds.add(message.id);
+        const dbMessage = dbMessagesById.get(message.id);
+        if (!dbMessage) return message;
+
+        return {
+          ...message,
+          ...dbMessage,
+          createdAt: message.createdAt || dbMessage.createdAt,
+          isStreaming: message.isStreaming,
+          thinking: message.thinking
+        };
+      });
+
+      newMessages.forEach(message => {
+        if (!message.id || !seenIds.has(message.id)) {
+          merged.push(message);
+        }
+      });
+
+      return merged;
+    });
   };
 
   useEffect(() => {
-    loadSessions(activeSessionId);
+    loadSessions(activeSessionIdRef.current, true);
   }, [language]);
 
   useEffect(() => {
     const handleSyncUpdate = () => {
-      loadSessions(activeSessionId);
+      if (loadingRef.current) {
+        pendingSyncReloadRef.current = true;
+        return;
+      }
+      loadSessions(activeSessionIdRef.current, true);
     };
     window.addEventListener("ai-chat-updated", handleSyncUpdate);
     return () => {
       window.removeEventListener("ai-chat-updated", handleSyncUpdate);
     };
   }, [activeSessionId]);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+    if (!loading && pendingSyncReloadRef.current) {
+      pendingSyncReloadRef.current = false;
+      loadSessions(activeSessionIdRef.current, true);
+    }
+  }, [loading]);
 
   useEffect(() => {
     // Only smooth-scroll for non-streaming updates (new messages, session switch)
@@ -158,6 +221,14 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const inputElement = inputRef.current;
+    if (!inputElement) return;
+
+    inputElement.style.height = "auto";
+    inputElement.style.height = `${Math.min(inputElement.scrollHeight, 112)}px`;
+  }, [input]);
+
   // 3. Create a brand new chat session
   const handleNewChat = async () => {
     streamRunRef.current += 1;
@@ -170,8 +241,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     const msgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
     await addAIMessage(msgId, newId, "ai", t("aiChat.welcomeText"));
 
-    setActiveSessionId(newId);
-    setMessages([{ id: msgId, sender: "ai", text: t("aiChat.welcomeText") }]);
+    setActiveSession(newId);
+    setMessages([{ id: msgId, sender: "ai", text: t("aiChat.welcomeText"), createdAt: new Date().toISOString() }]);
     
     // Reload sessions list
     const list = await getAISessions();
@@ -210,8 +281,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   // 5. Select a session from history
   const handleSelectSession = async (sessionId: string) => {
     streamRunRef.current += 1;
-    setActiveSessionId(sessionId);
-    await loadMessages(sessionId);
+    setActiveSession(sessionId);
+    await loadMessages(sessionId, false);
     setShowHistory(false);
   };
 
@@ -220,23 +291,26 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     if (!input.trim() || loading || !activeSessionId) return;
 
     const userQuery = input.trim();
+    const sessionId = activeSessionId;
     
     // Check if session has default title, if so, update title with user's first query
-    const activeSession = sessions.find(s => s.id === activeSessionId);
+    const activeSession = sessions.find(s => s.id === sessionId);
     if (activeSession && (activeSession.title === "Phiên chat mới" || messages.length <= 1)) {
       const shortTitle = userQuery.length > 22 ? `${userQuery.substring(0, 22)}...` : userQuery;
-      await updateAISessionTitle(activeSessionId, shortTitle);
+      await updateAISessionTitle(sessionId, shortTitle);
       
       // Update session title in local state list
       setSessions(prev => 
-        prev.map(s => s.id === activeSessionId ? { ...s, title: shortTitle } : s)
+        prev.map(s => s.id === sessionId ? { ...s, title: shortTitle } : s)
       );
     }
 
     // Save user message to database
     const userMsgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
-    await addAIMessage(userMsgId, activeSessionId, "user", userQuery);
     const aiMsgId = `msg-${Math.random().toString(36).substring(2, 9)}`;
+    const now = Date.now();
+    const userCreatedAt = new Date(now).toISOString();
+    const aiCreatedAt = new Date(now + 1).toISOString();
 
     // Build the conversational history to send to AI
     const historyMessages = messages.map(m => ({
@@ -247,8 +321,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
     setMessages(prev => [
       ...prev,
-      { id: userMsgId, sender: "user", text: userQuery },
-      { id: aiMsgId, sender: "ai", text: "", isStreaming: true, thinking: "Đang suy nghĩ..." }
+      { id: userMsgId, sender: "user", text: userQuery, createdAt: userCreatedAt },
+      { id: aiMsgId, sender: "ai", text: "", createdAt: aiCreatedAt, isStreaming: true, thinking: "Đang suy nghĩ..." }
     ]);
     setInput("");
     setLoading(true);
@@ -257,6 +331,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     setTimeout(() => scrollToBottom(), 0);
 
     try {
+      await addAIMessage(userMsgId, sessionId, "user", userQuery);
+
       // Call actual AI service with history messages array
       const response = await askAI(historyMessages, false, (status) => {
         if (streamRunRef.current !== requestRunId) return;
@@ -267,7 +343,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       });
       
       // Save AI response to database
-      await addAIMessage(aiMsgId, activeSessionId, "ai", response);
+      await addAIMessage(aiMsgId, sessionId, "ai", response);
 
       finishAssistantResponse(aiMsgId, response, requestRunId);
 
@@ -279,7 +355,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       const errMsg = err.message || "Lỗi kết nối API AI.";
       
       // Save error message to database
-      await addAIMessage(aiMsgId, activeSessionId, "ai", errMsg);
+      await addAIMessage(aiMsgId, sessionId, "ai", errMsg);
 
       finishAssistantResponse(aiMsgId, errMsg, requestRunId);
     } finally {
@@ -374,12 +450,12 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       const rows = tableLines.slice(2).map(parseTableRow);
 
       return (
-        <div key={key} className="my-2 overflow-x-auto rounded-md border border-zinc-200 dark:border-white/10">
-          <table className="min-w-full border-collapse text-left text-[11px]">
+        <div key={key} className="ai-chat-table-wrap my-2 max-w-full overflow-x-auto rounded-md border border-zinc-200 dark:border-white/10">
+          <table className="ai-chat-table min-w-full border-collapse text-left text-[11px]">
             <thead className="bg-black/5 dark:bg-white/5 text-zinc-800 dark:text-zinc-200">
               <tr>
                 {header.map((cell, index) => (
-                  <th key={`${key}-h-${index}`} className="border-b border-zinc-200 dark:border-white/10 px-2 py-1.5 font-semibold text-zinc-800 dark:text-zinc-200">
+                  <th key={`${key}-h-${index}`} className="border-b border-zinc-200 dark:border-white/10 px-2 py-1.5 align-top font-semibold text-zinc-800 dark:text-zinc-200">
                     {renderInlineMarkdown(cell, `${key}-h-${index}`)}
                   </th>
                 ))}
@@ -389,7 +465,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
               {rows.map((row, rowIndex) => (
                 <tr key={`${key}-r-${rowIndex}`} className="odd:bg-black/[0.01] dark:odd:bg-white/[0.02]">
                   {header.map((_, cellIndex) => (
-                    <td key={`${key}-r-${rowIndex}-${cellIndex}`} className="border-t border-zinc-200 dark:border-white/5 px-2 py-1.5 text-zinc-700 dark:text-zinc-300">
+                    <td key={`${key}-r-${rowIndex}-${cellIndex}`} className="border-t border-zinc-200 dark:border-white/5 px-2 py-1.5 align-top text-zinc-700 dark:text-zinc-300">
                       {renderInlineMarkdown(row[cellIndex] || "", `${key}-r-${rowIndex}-${cellIndex}`)}
                     </td>
                   ))}
@@ -412,7 +488,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       if (paragraphLines.length === 0) return;
       const paragraph = paragraphLines.join(" ");
       elements.push(
-        <p key={key} className="my-1 text-zinc-750 dark:text-zinc-300 leading-relaxed">
+        <p key={key} className="my-1 break-words text-zinc-750 dark:text-zinc-300 leading-relaxed">
           {renderInlineMarkdown(paragraph, key)}
         </p>
       );
@@ -494,7 +570,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         elements.push(
           <div key={`li-${i}`} className="my-1 flex gap-2 text-zinc-700 dark:text-zinc-300">
             <span className="mt-[1px] text-purple-650 dark:text-purple-300">•</span>
-            <span>{renderInlineMarkdown(bulletMatch[1], `li-${i}`)}</span>
+            <span className="min-w-0 break-words">{renderInlineMarkdown(bulletMatch[1], `li-${i}`)}</span>
           </div>
         );
         continue;
@@ -506,7 +582,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         elements.push(
           <div key={`ol-${i}`} className="my-1 flex gap-2 text-zinc-700 dark:text-zinc-300">
             <span className="min-w-4 text-right text-purple-650 dark:text-purple-300">{orderedMatch[1]}.</span>
-            <span>{renderInlineMarkdown(orderedMatch[2], `ol-${i}`)}</span>
+            <span className="min-w-0 break-words">{renderInlineMarkdown(orderedMatch[2], `ol-${i}`)}</span>
           </div>
         );
         continue;
@@ -516,7 +592,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       if (quoteMatch) {
         flushParagraph(`p-before-quote-${i}`);
         elements.push(
-          <blockquote key={`quote-${i}`} className="my-2 border-l-2 border-purple-400/60 pl-2 text-zinc-700 dark:text-zinc-300">
+          <blockquote key={`quote-${i}`} className="my-2 break-words border-l-2 border-purple-400/60 pl-2 text-zinc-700 dark:text-zinc-300">
             {renderInlineMarkdown(quoteMatch[1], `quote-${i}`)}
           </blockquote>
         );
@@ -539,15 +615,15 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       );
     }
 
-    return elements.length > 0 ? <div className="space-y-1">{elements}</div> : <span>{text}</span>;
+    return elements.length > 0 ? <div className="min-w-0 max-w-full space-y-1 break-words">{elements}</div> : <span>{text}</span>;
   };
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm sm:w-96 xl:static xl:w-80 xl:z-10 xl:h-auto glass-panel border-l border-zinc-200 dark:border-white/5 flex flex-col h-full min-h-0 max-h-full shrink-0 shadow-2xl xl:shadow-none transition-all duration-300">
+    <aside className="ai-chat-panel fixed inset-y-0 right-0 z-50 w-[calc(100vw-1rem)] max-w-[28rem] sm:w-[28rem] xl:relative xl:w-[28rem] xl:max-w-none 2xl:w-[30rem] xl:z-10 glass-panel border-l border-zinc-200 dark:border-white/5 flex flex-col h-full min-h-0 shrink-0 overflow-hidden shadow-2xl xl:shadow-none transition-all duration-300">
       
       {/* 1. AI Chat Header */}
       <div className="p-4 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {/* History Toggle Button */}
           <button 
             type="button"
@@ -558,7 +634,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             <History className="w-4 h-4" />
           </button>
           
-          <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider select-none">{t("aiChat.agentTitle")}</h3>
+          <h3 className="truncate text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider select-none">{t("aiChat.agentTitle")}</h3>
         </div>
         
         <div className="flex items-center gap-1">
@@ -583,9 +659,9 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         </div>
       </div>
 
-      {/* 2. OVERLAY: CHAT HISTORY LIST */}
+      {/* 2. MAIN CONTENT AREA */}
       {showHistory ? (
-        <div className="flex-1 flex flex-col bg-zinc-50/95 dark:bg-zinc-950/95 absolute inset-x-0 bottom-0 top-[49px] z-20">
+        <div className="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-950 z-20 overflow-hidden">
           <div className="p-3 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-zinc-200/50 dark:bg-zinc-900/40 shrink-0">
             <span className="text-[10px] uppercase font-bold text-zinc-550 dark:text-zinc-400 tracking-wider">{t("aiChat.historyHeader")}</span>
             <button 
@@ -615,7 +691,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                   <button
                     type="button"
                     onClick={(e) => handleDeleteSession(e, s.id)}
-                    className="opacity-0 group-hover/item:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all cursor-pointer"
+                    className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded transition-all cursor-pointer opacity-50 hover:opacity-100"
                     title={t("aiChat.deleteHistory")}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -640,82 +716,102 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             </button>
           </div>
         </div>
-      ) : null}
-
-      {/* 3. AI Chat Messages list */}
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto text-xs">
+      ) : (
+        <>
+          {/* 3. AI Chat Messages list */}
+          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 space-y-5 text-xs scrollbar-thin">
         {messages.map((msg, index) => {
           const isUser = msg.sender === "user";
           return isUser ? (
             <motion.div 
               key={msg.id || `user-${index}`}
-              initial={{ opacity: 0, y: 4 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              className="text-right"
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="flex min-w-0 justify-end items-end gap-2.5"
             >
-              <span className="inline-block bg-purple-600 text-white p-2.5 rounded-lg max-w-[85%] text-left whitespace-pre-wrap">
+              <div className="max-w-[82%] min-w-0 break-words bg-gradient-to-br from-purple-500 to-indigo-600 text-white p-3 px-4 rounded-2xl rounded-br-sm shadow-md shadow-purple-500/20 text-left whitespace-pre-wrap leading-relaxed text-[13px]">
                 {msg.text}
-              </span>
+              </div>
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center shadow-sm shrink-0 border border-white/20">
+                <User className="w-4 h-4 text-white" />
+              </div>
             </motion.div>
           ) : (
-            <div 
+            <motion.div 
               key={msg.id || `ai-${index}`}
-              className="bg-zinc-200/50 dark:bg-zinc-900/40 p-3 rounded-lg border border-zinc-200 dark:border-white/5 text-zinc-700 dark:text-zinc-300 leading-relaxed text-left shadow-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="flex min-w-0 items-start gap-3 w-full"
             >
-              {msg.isStreaming ? (
-                <div className="space-y-3">
-                  <div className="min-h-8 flex items-center gap-2 rounded-md border border-purple-500/10 bg-purple-500/10 px-2.5 py-1.5 text-purple-700 dark:text-purple-300">
-                    <Sparkles className="w-3.5 h-3.5 animate-spin shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{msg.thinking || "Đang suy nghĩ..."}</span>
-                    <span className="flex items-center gap-0.5 shrink-0" aria-hidden="true">
-                      <span className="w-1 h-1 rounded-full bg-current animate-pulse" />
-                      <span className="w-1 h-1 rounded-full bg-current animate-pulse" style={{ animationDelay: "120ms" }} />
-                      <span className="w-1 h-1 rounded-full bg-current animate-pulse" style={{ animationDelay: "240ms" }} />
-                    </span>
-                  </div>
-                  {msg.text ? (
-                    <div>
-                      {renderMessageContent(msg.text)}
-                      <span className="inline-block w-1.5 h-3 ml-0.5 align-[-1px] bg-purple-400 animate-pulse" />
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div className="min-w-0 flex-1 text-zinc-800 dark:text-zinc-200 leading-relaxed text-left text-[13px] pt-1">
+                {msg.isStreaming ? (
+                  <div className="min-w-0 space-y-3">
+                    <div className="min-h-8 max-w-full flex items-center gap-2 rounded-lg border border-purple-500/10 bg-purple-500/5 px-3 py-2 text-purple-700 dark:text-purple-300 text-xs w-fit">
+                      <Sparkles className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{msg.thinking || "Đang suy nghĩ..."}</span>
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                renderMessageContent(msg.text)
-              )}
-            </div>
+                    {msg.text ? (
+                      <div className="mt-2 min-w-0 max-w-full">
+                        {renderMessageContent(msg.text)}
+                        <span className="inline-block w-1.5 h-3.5 ml-0.5 align-[-2px] bg-purple-500 dark:bg-purple-400 animate-pulse rounded-sm" />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  renderMessageContent(msg.text)
+                )}
+              </div>
+            </motion.div>
           );
         })}
         <div ref={messagesEndRef} />
       </div>
 
       {/* 4. AI Chat Input */}
-      <div className="p-3 border-t border-zinc-200 dark:border-white/5 shrink-0">
-        <div className={`relative flex items-center w-full rounded-lg transition-all duration-300 glass-panel ${
-          (isInputFocused || loading) ? "premium-gradient-border border-transparent" : ""
+      <div className="p-4 pt-3 bg-gradient-to-t from-zinc-50 dark:from-zinc-950 to-transparent shrink-0">
+        <div className={`flex w-full items-end gap-2 rounded-2xl transition-all duration-300 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 px-3 py-2 ${
+          (isInputFocused || loading) ? "ring-2 ring-purple-500/30 shadow-md shadow-purple-500/10" : ""
         }`}>
-          <input 
-            type="text" 
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
             disabled={loading}
+            rows={1}
+            aria-label={t("aiChat.placeholderIdle")}
             placeholder={loading ? t("aiChat.placeholderActive") : t("aiChat.placeholderIdle")} 
-            className="w-full pl-3 pr-10 py-2.5 rounded-lg bg-transparent border-none text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-500 dark:placeholder-zinc-600 focus:outline-none disabled:opacity-50"
+            className="min-h-9 max-h-28 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent border-none p-0 py-2 text-[13px] leading-5 text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-0 disabled:opacity-50"
           />
           <button 
             type="button"
             onClick={handleSend}
-            disabled={loading}
-            className="absolute right-2 p-1 rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all disabled:opacity-50"
+            disabled={loading || !input.trim()}
+            aria-label="Send message"
+            className={`h-9 w-9 flex shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
+              input.trim() && !loading 
+                ? "bg-purple-600 text-white hover:bg-purple-500 shadow-md shadow-purple-500/30 scale-100" 
+                : "bg-transparent text-zinc-400 scale-95"
+            }`}
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 ml-0.5" />
           </button>
         </div>
       </div>
+        </>
+      )}
 
       {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING CHAT SESSION */}
       <GenericConfirmModal 

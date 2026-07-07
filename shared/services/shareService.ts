@@ -59,6 +59,16 @@ export async function sendShareData(
   });
 }
 
+// Delete the entire share channel data from the server
+export async function deleteShareChannel(syncId: string): Promise<void> {
+  if (!syncId) return;
+  try {
+    await apiRequest(`/api/share/${syncId}`, { method: 'DELETE' });
+  } catch (err) {
+    console.error('Failed to delete share channel:', err);
+  }
+}
+
 // Fetch the latest share data from the server
 export async function receiveShareData(syncId: string): Promise<ShareData | null> {
   if (!syncId) return null;
@@ -88,11 +98,20 @@ export async function receiveShareHistory(syncId: string): Promise<ShareData[]> 
 }
 
 // Map server response to ShareData
-function mapToShareData(item: any): ShareData {
+export function mapToShareData(item: any): ShareData {
+  let timeStr = item.updated_at || item.created_at;
+  if (typeof timeStr === 'string' && !timeStr.includes('T') && !timeStr.includes('Z')) {
+    // SQLite format: "YYYY-MM-DD HH:MM:SS" -> convert to ISO 8601 UTC
+    timeStr = timeStr.replace(' ', 'T') + 'Z';
+  } else if (typeof timeStr === 'string' && !timeStr.includes('Z') && !timeStr.includes('+')) {
+    // Has 'T' but no timezone offset
+    timeStr = timeStr + 'Z';
+  }
+
   return {
     type: item.type,
     content: item.content,
-    timestamp: new Date(item.updated_at || item.created_at).getTime(),
+    timestamp: new Date(timeStr).getTime(),
     userEmail: item.user_email,
     userName: item.user_name,
   };

@@ -4,6 +4,9 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "./desktop/src/**/*.{js,ts,jsx,tsx}",
+    "./mobile/src/**/*.{js,ts,jsx,tsx}",
+    "./shared/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
@@ -34,4 +37,3 @@ export default {
   },
   plugins: [],
 }
-

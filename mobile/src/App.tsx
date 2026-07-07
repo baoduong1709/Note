@@ -96,7 +96,13 @@ export default function App() {
           is_locked: 0,
           is_pending_sync: 0
         };
-        await createNote(newUserNote);
+        try {
+          await createNote(newUserNote);
+        } catch (err: any) {
+          if (!err.toString().includes("UNIQUE constraint failed")) {
+            throw err;
+          }
+        }
       }
 
       // 2. Check MEMORY.md (by id or title)
@@ -112,7 +118,13 @@ export default function App() {
           is_locked: 0,
           is_pending_sync: 0
         };
-        await createNote(newMemNote);
+        try {
+          await createNote(newMemNote);
+        } catch (err: any) {
+          if (!err.toString().includes("UNIQUE constraint failed")) {
+            throw err;
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to check/create Hermes notes:", err);
@@ -815,13 +827,20 @@ export default function App() {
       <>
         {/* Mobile View: Floating Action Button (FAB) */}
         {!isMobileDrawerOpen && (
-          <button
+          <motion.button
+            drag
+            dragMomentum={true}
+            dragElastic={0.1}
+            dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
+            whileDrag={{ cursor: "grabbing" }}
+            dragConstraints={{ top: -window.innerHeight + 150, bottom: 0, left: -window.innerWidth + 60, right: 0 }}
             onClick={() => setShowAiSidebar(true)}
             className="sm:hidden fixed right-4 bottom-20 w-11 h-11 rounded-full bg-purple-650 text-white flex items-center justify-center shadow-xl border border-white/15 z-40 cursor-pointer ai-glow-pulse"
             title="Mở trợ lý AI"
+            style={{ touchAction: "none" }}
           >
-            <Sparkles className="w-4 h-4 text-white icon-glow" />
-          </button>
+            <Sparkles className="w-4 h-4 text-white icon-glow pointer-events-none" />
+          </motion.button>
         )}
 
         {/* Desktop View: Vertical side handle */}

@@ -10,11 +10,14 @@
     "sql:allow-execute",
     "sql:allow-select",
     "http:default",
+    "clipboard-manager:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
     {
       "identifier": "http:allow-fetch",
       "allow": [
-        { "url": "https://*/*" },
-        { "url": "http://*/*" },
+        { "url": "https://**" },
+        { "url": "http://**" },
         { "url": "http://localhost:3001/*" },
         { "url": "http://localhost:3001/**" },
         { "url": "http://127.0.0.1:3001/*" },

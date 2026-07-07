@@ -74,10 +74,78 @@
   box-shadow: var(--glass-shadow);
   transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Fix for IME/Browser bugs injecting styled spans or font tags in contentEditable */
+.editor-content span:not([class]),
+.editor-content font,
+.editor-content *[style*="color"],
+.editor-content *[style*="background"] {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+
 .glass-panel:hover {
   border-color: rgba(139, 92, 246, 0.3);
   box-shadow: var(--glass-shadow), 0 12px 35px rgba(139, 92, 246, 0.08);
   transform: translateY(-2px);
+}
+
+.ai-chat-panel,
+.ai-chat-panel:hover {
+  transform: none;
+}
+
+.ai-chat-panel {
+  width: calc(100vw - 1rem) !important;
+  max-width: 28rem !important;
+  box-shadow: -18px 0 36px rgba(0, 0, 0, 0.18);
+}
+
+.dark .ai-chat-panel {
+  box-shadow: -18px 0 36px rgba(0, 0, 0, 0.32);
+}
+
+.ai-chat-panel:hover {
+  border-color: var(--glass-border);
+}
+
+@media (min-width: 1280px) {
+  .ai-chat-panel,
+  .dark .ai-chat-panel,
+  .ai-chat-panel:hover {
+    width: 28rem !important;
+    max-width: none !important;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .ai-chat-panel {
+    width: 100vw !important;
+    max-width: none !important;
+  }
+}
+
+.ai-chat-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ai-chat-table {
+  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.ai-chat-table th,
+.ai-chat-table td {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.ai-chat-table th:first-child,
+.ai-chat-table td:first-child {
+  width: 34%;
 }
 
 .glass-input {
@@ -648,3 +716,35 @@ button:active:not(:disabled) {
   padding: inherit;
 }
 
+/* Tiptap Editor Styles */
+.tiptap p.is-editor-empty:first-child::before {
+  color: #71717a; /* text-zinc-500 */
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+}
+.tiptap ul[data-type="taskList"] p {
+  margin: 0;
+}
+.tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.tiptap ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  user-select: none;
+}
+.tiptap ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  text-decoration: line-through;
+  color: #71717a;
+}
