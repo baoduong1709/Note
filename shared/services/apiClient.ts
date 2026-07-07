@@ -6,7 +6,7 @@
 // On Android mobile: localhost refers to the phone, not the PC - skip server calls
 const isTauriApp = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
 const isAndroidApp = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
-const API_BASE_URL = import.meta.env.VITE_API_URL || (isTauriApp && !isAndroidApp ? 'https://api-note.baoduong.dev' : '');
+const API_BASE_URL = import.meta.env.VITE_API_URL || (isTauriApp && !isAndroidApp ? 'https://note.baoduong.dev' : '');
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('auth_token');

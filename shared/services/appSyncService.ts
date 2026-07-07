@@ -620,9 +620,9 @@ async function fullPull(): Promise<boolean> {
   const db = await getDatabase();
   const passphrase = getE2eePassphrase();
 
-  // Clear existing local data
-  await db.execute("DELETE FROM ai_messages");
-  await db.execute("DELETE FROM ai_sessions");
+  // Clear existing local data. AI chat is merged below instead of cleared:
+  // cloud snapshots can lag behind the local conversation and wiping these
+  // tables makes reopened chat sessions appear to lose history.
   await db.execute("DELETE FROM tasks");
   await db.execute("DELETE FROM notes");
   await db.execute("DELETE FROM calendar_events");
@@ -701,7 +701,7 @@ async function fullPull(): Promise<boolean> {
   for (const session of cloudData.aiSessions || []) {
     const decrypted = await decryptRecord("ai_sessions", session, passphrase);
     await db.execute(
-      `INSERT INTO ai_sessions (id, title, created_at) VALUES (?, ?, ?)`,
+      `INSERT OR REPLACE INTO ai_sessions (id, title, created_at) VALUES (?, ?, ?)`,
       [
         decrypted.id,
         decrypted.title || "New Chat",
@@ -714,7 +714,7 @@ async function fullPull(): Promise<boolean> {
   for (const msg of cloudData.aiMessages || []) {
     const decrypted = await decryptRecord("ai_messages", msg, passphrase);
     await db.execute(
-      `INSERT INTO ai_messages (id, session_id, sender, text, created_at) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO ai_messages (id, session_id, sender, text, created_at) VALUES (?, ?, ?, ?, ?)`,
       [
         decrypted.id,
         decrypted.session_id || null,

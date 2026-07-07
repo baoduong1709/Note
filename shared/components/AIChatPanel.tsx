@@ -11,6 +11,7 @@ import {
   deleteAISession, 
   getAIMessages, 
   addAIMessage,
+  upsertAIMessages,
   updateAIMessage,
   updateAISessionTitle,
   AISession
@@ -60,6 +61,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeSessionIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<Message[]>([]);
   const loadingRef = useRef(false);
   const pendingSyncReloadRef = useRef(false);
   const streamRunRef = useRef(0);
@@ -67,6 +69,27 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const setActiveSession = (sessionId: string | null) => {
     activeSessionIdRef.current = sessionId;
     setActiveSessionId(sessionId);
+  };
+
+  const setVisibleMessages = (updater: React.SetStateAction<Message[]>) => {
+    setMessages(prev => {
+      const next = typeof updater === "function"
+        ? (updater as (previous: Message[]) => Message[])(prev)
+        : updater;
+      messagesRef.current = next;
+      return next;
+    });
+  };
+
+  const persistMessagesSnapshot = async (sessionId: string, snapshot: Message[]) => {
+    await upsertAIMessages(
+      sessionId,
+      snapshot.filter(message =>
+        Boolean(message.id) &&
+        message.id !== "welcome-message" &&
+        (message.text.trim() || !message.isStreaming)
+      )
+    );
   };
 
   const scrollToBottom = (instant = false) => {
@@ -82,7 +105,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   const updateMessage = (id: string, patch: Partial<Message>) => {
-    setMessages(prev =>
+    setVisibleMessages(prev =>
       prev.map(message =>
         message.id === id ? { ...message, ...patch } : message
       )
@@ -141,7 +164,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       ];
     }
 
-    setMessages(prev => {
+    setVisibleMessages(prev => {
       if (!preserveCurrentMessages) {
         return newMessages;
       }
@@ -216,6 +239,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   }, [messages.length]);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     return () => {
       streamRunRef.current += 1;
     };
@@ -242,7 +269,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     await addAIMessage(msgId, newId, "ai", t("aiChat.welcomeText"));
 
     setActiveSession(newId);
-    setMessages([{ id: msgId, sender: "ai", text: t("aiChat.welcomeText"), createdAt: new Date().toISOString() }]);
+    setVisibleMessages([{ id: msgId, sender: "ai", text: t("aiChat.welcomeText"), createdAt: new Date().toISOString() }]);
     
     // Reload sessions list
     const list = await getAISessions();
@@ -312,18 +339,22 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     const userCreatedAt = new Date(now).toISOString();
     const aiCreatedAt = new Date(now + 1).toISOString();
 
+    const baseMessages = messagesRef.current.length > 0 ? messagesRef.current : messages;
+
     // Build the conversational history to send to AI
-    const historyMessages = messages.map(m => ({
+    const historyMessages = baseMessages.map(m => ({
       role: (m.sender === "user" ? "user" : "assistant") as "user" | "assistant",
       content: m.text
     }));
     historyMessages.push({ role: "user", content: userQuery });
 
-    setMessages(prev => [
-      ...prev,
+    const optimisticMessages: Message[] = [
+      ...baseMessages,
       { id: userMsgId, sender: "user", text: userQuery, createdAt: userCreatedAt },
       { id: aiMsgId, sender: "ai", text: "", createdAt: aiCreatedAt, isStreaming: true, thinking: "Đang suy nghĩ..." }
-    ]);
+    ];
+
+    setVisibleMessages(optimisticMessages);
     setInput("");
     setLoading(true);
 
@@ -346,6 +377,14 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       await addAIMessage(aiMsgId, sessionId, "ai", response);
 
       finishAssistantResponse(aiMsgId, response, requestRunId);
+      await persistMessagesSnapshot(
+        sessionId,
+        optimisticMessages.map(message =>
+          message.id === aiMsgId
+            ? { ...message, text: response, isStreaming: false, thinking: undefined }
+            : message
+        )
+      );
 
       // Run background memory extraction (Hermes-style)
       extractAndSaveMemory(userQuery, response);
@@ -358,6 +397,14 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       await addAIMessage(aiMsgId, sessionId, "ai", errMsg);
 
       finishAssistantResponse(aiMsgId, errMsg, requestRunId);
+      await persistMessagesSnapshot(
+        sessionId,
+        optimisticMessages.map(message =>
+          message.id === aiMsgId
+            ? { ...message, text: errMsg, isStreaming: false, thinking: undefined }
+            : message
+        )
+      );
     } finally {
       setLoading(false);
     }

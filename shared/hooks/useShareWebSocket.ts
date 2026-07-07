@@ -37,7 +37,7 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
       const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       wsUrl = isTauri
-        ? 'wss://api-note.baoduong.dev/ws'
+        ? 'wss://note.baoduong.dev/ws'
         : `${wsProtocol}//${window.location.host}/ws`;
     }
     

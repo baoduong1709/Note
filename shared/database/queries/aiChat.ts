@@ -23,6 +23,17 @@ function syncUpsert(table: "ai_sessions" | "ai_messages", id: string): void {
     .catch(console.error);
 }
 
+function syncUpserts(table: "ai_sessions" | "ai_messages", ids: string[]): void {
+  if (ids.length === 0) return;
+
+  import("../../services/appSyncService")
+    .then((m) => {
+      ids.forEach(id => m.trackUpsert(table, id));
+      m.pushLocalDataToCloud().catch(console.error);
+    })
+    .catch(console.error);
+}
+
 function syncDeletion(table: "ai_sessions" | "ai_messages", id: string): void {
   import("../../services/appSyncService")
     .then((m) => {
@@ -115,11 +126,47 @@ export async function addAIMessage(
   try {
     const db = await getDatabase();
     await db.execute(
-      "INSERT INTO ai_messages (id, session_id, sender, text, created_at) VALUES (?, ?, ?, ?, ?)",
+      "INSERT OR REPLACE INTO ai_messages (id, session_id, sender, text, created_at) VALUES (?, ?, ?, ?, ?)",
       [id, sessionId, sender, text, new Date().toISOString()]
     );
     syncUpsert("ai_messages", id);
   } catch (err) {
     console.error("Failed to add AI message:", err);
+  }
+}
+
+export async function upsertAIMessages(
+  sessionId: string,
+  messages: Array<{
+    id?: string;
+    sender: "user" | "ai";
+    text: string;
+    createdAt?: string;
+  }>
+): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const now = new Date().toISOString();
+    const syncedIds: string[] = [];
+
+    for (const message of messages) {
+      if (!message.id || message.id === "welcome-message") continue;
+
+      await db.execute(
+        "INSERT OR REPLACE INTO ai_messages (id, session_id, sender, text, created_at) VALUES (?, ?, ?, ?, ?)",
+        [
+          message.id,
+          sessionId,
+          message.sender,
+          message.text,
+          message.createdAt || now,
+        ]
+      );
+      syncedIds.push(message.id);
+    }
+
+    syncUpserts("ai_messages", syncedIds);
+  } catch (err) {
+    console.error("Failed to upsert AI messages:", err);
   }
 }
