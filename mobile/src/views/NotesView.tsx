@@ -178,7 +178,7 @@ export default function NotesView({
                 }}
                 className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-start justify-between group ${
                   isActive 
-                    ? "bg-purple-50/50 dark:bg-white/5 border-purple-500/20 text-zinc-900 dark:text-white font-medium" 
+                    ? "bg-purple-50/50 dark:bg-white/5 border-transparent text-zinc-900 dark:text-white font-medium rainbow-border-active" 
                     : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
                 }`}
               >

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Sparkles, X, History, Plus, Trash2, User } from "lucide-react";
+import { Send, Bot, X, History, Plus, Trash2, User } from "lucide-react";
 import { askAI, extractAndSaveMemory } from "../services/aiService";
 import CopyBlock from "./CopyBlock";
 import GenericConfirmModal from "./GenericConfirmModal";
@@ -31,6 +31,43 @@ interface AIChatPanelProps {
 }
 
 // Helper to normalise welcome message across updates
+
+function AIAgentMark({ size = "md" }: { size?: "sm" | "md" }) {
+  const isSmall = size === "sm";
+
+  return (
+    <div
+      className={`relative shrink-0 rounded-xl border border-cyan-300/30 bg-[radial-gradient(circle_at_30%_20%,rgba(34,211,238,0.38),transparent_36%),linear-gradient(135deg,#1e1b4b,#4c1d95_52%,#111827)] shadow-lg shadow-cyan-500/15 ${
+        isSmall ? "h-6 w-6" : "h-7 w-7"
+      }`}
+      aria-hidden="true"
+    >
+      <div className="absolute inset-[3px] rounded-lg border border-white/10 bg-black/10" />
+      <Bot className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-cyan-100 ${isSmall ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
+      <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.9)]" />
+    </div>
+  );
+}
+
+function ThinkingIndicator({ label }: { label?: string }) {
+  return (
+    <div className="min-h-8 max-w-full flex items-center gap-2.5 rounded-xl border border-cyan-400/15 bg-cyan-400/5 px-3 py-2 text-cyan-700 dark:text-cyan-200 text-xs w-fit shadow-sm shadow-cyan-500/5">
+      <div className="flex h-4 items-end gap-1" aria-hidden="true">
+        {[0, 1, 2].map((index) => (
+          <span
+            key={index}
+            className="h-2 w-1 rounded-full bg-cyan-400/80 animate-pulse"
+            style={{
+              animationDelay: `${index * 140}ms`,
+              animationDuration: "900ms",
+            }}
+          />
+        ))}
+      </div>
+      <span className="min-w-0 flex-1 truncate">{label || "Đang suy nghĩ..."}</span>
+    </div>
+  );
+}
 
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const { t, language } = useLanguage();
@@ -357,6 +394,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     setVisibleMessages(optimisticMessages);
     setInput("");
     setLoading(true);
+    await persistMessagesSnapshot(sessionId, optimisticMessages);
 
     const requestRunId = ++streamRunRef.current;
     setTimeout(() => scrollToBottom(), 0);
@@ -681,6 +719,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             <History className="w-4 h-4" />
           </button>
           
+          <AIAgentMark size="sm" />
           <h3 className="truncate text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider select-none">{t("aiChat.agentTitle")}</h3>
         </div>
         
@@ -792,16 +831,13 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               className="flex min-w-0 items-start gap-3 w-full"
             >
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0 mt-0.5">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="mt-0.5">
+                <AIAgentMark />
               </div>
               <div className="min-w-0 flex-1 text-zinc-800 dark:text-zinc-200 leading-relaxed text-left text-[13px] pt-1">
                 {msg.isStreaming ? (
                   <div className="min-w-0 space-y-3">
-                    <div className="min-h-8 max-w-full flex items-center gap-2 rounded-lg border border-purple-500/10 bg-purple-500/5 px-3 py-2 text-purple-700 dark:text-purple-300 text-xs w-fit">
-                      <Sparkles className="w-3.5 h-3.5 animate-spin shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">{msg.thinking || "Đang suy nghĩ..."}</span>
-                    </div>
+                    <ThinkingIndicator label={msg.thinking || "Đang suy nghĩ..."} />
                     {msg.text ? (
                       <div className="mt-2 min-w-0 max-w-full">
                         {renderMessageContent(msg.text)}

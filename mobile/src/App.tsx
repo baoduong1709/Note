@@ -14,7 +14,7 @@ import ShareView from "./views/ShareView";
 import AIChatPanel from "../../shared/components/AIChatPanel";
 import { initDatabase, getDatabase } from "../../shared/database/db";
 import { createNote, Note } from "../../shared/database/queries/notes";
-import { CheckCircle, Lock, ShieldCheck, Sparkles, LogIn, ArrowRight, Database, RefreshCw } from "lucide-react";
+import { CheckCircle, Lock, ShieldCheck, Sparkles, LogIn, ArrowRight, Database, RefreshCw, Bot } from "lucide-react";
 import { initNotifications, checkAndNotifyDueTasks } from "../../shared/services/notificationService";
 import { startGoogleOAuth } from "../../shared/services/authService";
 import { useShareWebSocket } from "../../shared/hooks/useShareWebSocket";
@@ -835,21 +835,21 @@ export default function App() {
             whileDrag={{ cursor: "grabbing" }}
             dragConstraints={{ top: -window.innerHeight + 150, bottom: 0, left: -window.innerWidth + 60, right: 0 }}
             onClick={() => setShowAiSidebar(true)}
-            className="sm:hidden fixed right-4 bottom-20 w-11 h-11 rounded-full bg-purple-650 text-white flex items-center justify-center shadow-xl border border-white/15 z-40 cursor-pointer ai-glow-pulse"
+            className="sm:hidden fixed right-4 bottom-24 w-14 h-14 rounded-2xl bg-[radial-gradient(circle_at_30%_20%,rgba(34,211,238,0.38),transparent_36%),linear-gradient(135deg,#1e1b4b,#6d28d9_58%,#111827)] text-white flex items-center justify-center shadow-2xl shadow-cyan-500/20 border border-cyan-200/25 z-40 cursor-pointer ai-glow-pulse"
             title="Mở trợ lý AI"
             style={{ touchAction: "none" }}
           >
-            <Sparkles className="w-4 h-4 text-white icon-glow pointer-events-none" />
+            <Bot className="w-6 h-6 text-cyan-100 icon-glow pointer-events-none" />
           </motion.button>
         )}
 
         {/* Desktop View: Vertical side handle */}
         <button 
           onClick={() => setShowAiSidebar(true)}
-          className="hidden sm:flex fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2 py-3 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
+          className="hidden sm:flex fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2.5 py-3.5 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
           title="Mở trợ lý AI"
         >
-          <Sparkles className="w-3.5 h-3.5 text-purple-200 icon-glow" />
+          <Bot className="w-5 h-5 text-cyan-100 icon-glow" />
           <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">AI Chat</span>
         </button>
       </>

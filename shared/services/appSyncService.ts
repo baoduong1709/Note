@@ -263,6 +263,35 @@ function setLastSyncTime(isoTimestamp: string): void {
   localStorage.setItem("last_sync_time", isoTimestamp);
 }
 
+async function upsertAISessionPreservingMessages(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  session: { id?: string; title?: string; created_at?: string; createdAt?: string },
+): Promise<void> {
+  if (!session.id) return;
+
+  const existing = await db.select<any[]>(
+    "SELECT id FROM ai_sessions WHERE id = ?",
+    [session.id],
+  );
+
+  if (existing.length > 0) {
+    await db.execute("UPDATE ai_sessions SET title = ? WHERE id = ?", [
+      session.title || "New Chat",
+      session.id,
+    ]);
+    return;
+  }
+
+  await db.execute(
+    "INSERT INTO ai_sessions (id, title, created_at) VALUES (?, ?, ?)",
+    [
+      session.id,
+      session.title || "New Chat",
+      session.created_at || session.createdAt || new Date().toISOString(),
+    ],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Delta Push — send only pending local changes to server
 // ---------------------------------------------------------------------------
@@ -496,15 +525,7 @@ async function pullChanges(): Promise<boolean> {
   // Upsert AI sessions
   for (const session of aiSessions) {
     const decrypted = await decryptRecord("ai_sessions", session, passphrase);
-    await db.execute(
-      `INSERT OR REPLACE INTO ai_sessions (id, title, created_at)
-       VALUES (?, ?, ?)`,
-      [
-        decrypted.id,
-        decrypted.title || "New Chat",
-        decrypted.created_at || new Date().toISOString(),
-      ],
-    );
+    await upsertAISessionPreservingMessages(db, decrypted);
     hasChanges = true;
   }
 
@@ -700,14 +721,7 @@ async function fullPull(): Promise<boolean> {
   // Insert AI sessions from cloud
   for (const session of cloudData.aiSessions || []) {
     const decrypted = await decryptRecord("ai_sessions", session, passphrase);
-    await db.execute(
-      `INSERT OR REPLACE INTO ai_sessions (id, title, created_at) VALUES (?, ?, ?)`,
-      [
-        decrypted.id,
-        decrypted.title || "New Chat",
-        decrypted.created_at || new Date().toISOString(),
-      ],
-    );
+    await upsertAISessionPreservingMessages(db, decrypted);
   }
 
   // Insert AI messages from cloud

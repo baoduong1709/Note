@@ -72,7 +72,33 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
+  position: relative;
   transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid transparent;
+  background: conic-gradient(
+    from var(--nav-gradient-angle, 0deg),
+    #8b5cf6 0%,
+    #3b82f6 25%,
+    #ec4899 50%,
+    #6366f1 75%,
+    #8b5cf6 100%
+  ) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 10;
+  animation: navSpinAngle 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Fix for IME/Browser bugs injecting styled spans or font tags in contentEditable */
@@ -85,14 +111,44 @@
 }
 
 .glass-panel:hover {
-  border-color: rgba(139, 92, 246, 0.3);
   box-shadow: var(--glass-shadow), 0 12px 35px rgba(139, 92, 246, 0.08);
   transform: translateY(-2px);
+}
+
+.glass-panel:hover::after {
+  opacity: 1;
 }
 
 .ai-chat-panel,
 .ai-chat-panel:hover {
   transform: none;
+}
+
+.rainbow-border-active {
+  position: relative;
+}
+.rainbow-border-active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid transparent;
+  background: conic-gradient(
+    from var(--nav-gradient-angle, 0deg),
+    #8b5cf6 0%,
+    #3b82f6 25%,
+    #ec4899 50%,
+    #6366f1 75%,
+    #8b5cf6 100%
+  ) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 10;
+  animation: navSpinAngle 3s linear infinite;
+  opacity: 1;
 }
 
 .ai-chat-panel {
@@ -494,19 +550,28 @@ button:active:not(:disabled) {
 }
 .menu-active-gradient {
   position: relative;
-  overflow: hidden;
 }
 .menu-active-gradient::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  border-radius: 0 4px 4px 0;
-  background: linear-gradient(180deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6);
-  background-size: 100% 300%;
-  animation: sidebarIndicatorFlow 3s ease infinite;
+  inset: 0;
+  border-radius: 8px; /* matches rounded-lg */
+  border: 1.5px solid transparent;
+  background: conic-gradient(
+    from var(--nav-gradient-angle, 0deg),
+    #8b5cf6 0%,
+    #3b82f6 25%,
+    #ec4899 50%,
+    #6366f1 75%,
+    #8b5cf6 100%
+  ) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
+  animation: navSpinAngle 3s linear infinite;
 }
 
 /* --- 8. Profile Avatar Gradient Ring --- */
@@ -660,13 +725,41 @@ button:active:not(:disabled) {
   border: none;
 }
 
-/* Hover Accent Card Glow */
+/* Hover Accent Card Glow & Rainbow Border */
 .premium-hover-glow {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+.premium-hover-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid transparent;
+  background: conic-gradient(
+    from var(--nav-gradient-angle, 0deg),
+    #8b5cf6 0%,
+    #3b82f6 25%,
+    #ec4899 50%,
+    #6366f1 75%,
+    #8b5cf6 100%
+  ) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  -webkit-mask-composite: destination-out;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0) border-box;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 10;
+  animation: navSpinAngle 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 .premium-hover-glow:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px -5px var(--primary-glow), 0 8px 10px -6px var(--primary-glow-secondary);
+}
+.premium-hover-glow:hover::after {
+  opacity: 1;
 }
 
 /* Scrollable container padding on mobile to clear floating bottom dock */

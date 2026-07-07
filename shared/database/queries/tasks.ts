@@ -178,17 +178,21 @@ export async function searchTasks(query: string): Promise<Task[]> {
   );
 }
 
-// Fetch tasks that are High priority or due within 2 days (48 hours) and not Done
+// Fetch tasks that are High priority (without far due dates) or due within 1 day and not Done
 export async function getImportantTasks(): Promise<Task[]> {
   const db = await getDatabase();
-  const twoDaysLater = new Date();
-  twoDaysLater.setDate(twoDaysLater.getDate() + 2);
-  const dateLimit = getLocalDateString(twoDaysLater);
+  const oneDayLater = new Date();
+  oneDayLater.setDate(oneDayLater.getDate() + 1);
+  const dateLimit = getLocalDateString(oneDayLater);
   
   return await db.select<Task[]>(
     `SELECT * FROM tasks 
      WHERE status != 'done' 
-       AND (priority = 'high' OR (due_date IS NOT NULL AND substr(due_date, 1, 10) <= ?))
+       AND (
+         (priority = 'high' AND due_date IS NULL)
+         OR 
+         (due_date IS NOT NULL AND substr(due_date, 1, 10) <= ?)
+       )
      ORDER BY due_date ASC, priority DESC`,
     [dateLimit]
   );

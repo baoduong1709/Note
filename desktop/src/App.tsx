@@ -14,7 +14,7 @@ import ShareView from "./views/ShareView";
 import AIChatPanel from "../../shared/components/AIChatPanel";
 import { initDatabase, getDatabase } from "../../shared/database/db";
 import { createNote, Note } from "../../shared/database/queries/notes";
-import { CheckCircle, Lock, ShieldCheck, Sparkles, LogIn, ArrowRight, Database, RefreshCw } from "lucide-react";
+import { CheckCircle, Lock, ShieldCheck, Sparkles, LogIn, ArrowRight, Database, RefreshCw, Bot } from "lucide-react";
 import { initNotifications, checkAndNotifyDueTasks } from "../../shared/services/notificationService";
 import { startGoogleOAuth } from "../../shared/services/authService";
 import { useShareWebSocket } from "../../shared/hooks/useShareWebSocket";
@@ -809,10 +809,10 @@ export default function App() {
     {!showAiSidebar && (
       <button 
         onClick={() => setShowAiSidebar(true)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2 py-3 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
+        className="fixed right-0 top-1/2 -translate-y-1/2 bg-purple-600/80 hover:bg-purple-600 backdrop-blur text-white p-2.5 py-3.5 rounded-l-lg shadow-2xl border border-r-0 border-white/10 flex flex-col items-center gap-1.5 transition-all z-40 cursor-pointer ai-glow-pulse"
         title="Mở trợ lý AI"
       >
-        <Sparkles className="w-3.5 h-3.5 text-purple-200 icon-glow" />
+        <Bot className="w-5 h-5 text-cyan-100 icon-glow" />
         <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">AI Chat</span>
       </button>
     )}

@@ -616,7 +616,7 @@ export default function SettingsView({
               onClick={() => setTheme("light")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                 theme === "light" 
-                  ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/20" 
+                  ? "bg-purple-600 text-white border-transparent shadow-md shadow-purple-500/20 rainbow-border-active"
                   : "border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300"
               }`}
             >
@@ -627,7 +627,7 @@ export default function SettingsView({
               onClick={() => setTheme("dark")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                 theme === "dark" 
-                  ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/20" 
+                  ? "bg-purple-600 text-white border-transparent shadow-md shadow-purple-500/20 rainbow-border-active"
                   : "border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-white/5"
               }`}
             >
@@ -643,7 +643,7 @@ export default function SettingsView({
                 onClick={() => setLanguage("vi")}
                 className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
                   language === "vi"
-                    ? "bg-purple-600 text-white border-purple-500 shadow-sm"
+                    ? "bg-purple-600 text-white border-transparent shadow-sm rainbow-border-active"
                     : "border-zinc-200 dark:border-white/5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
                 }`}
               >
@@ -654,7 +654,7 @@ export default function SettingsView({
                 onClick={() => setLanguage("en")}
                 className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
                   language === "en"
-                    ? "bg-purple-600 text-white border-purple-500 shadow-sm"
+                    ? "bg-purple-600 text-white border-transparent shadow-sm rainbow-border-active"
                     : "border-zinc-200 dark:border-white/5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
                 }`}
               >

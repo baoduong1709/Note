@@ -596,8 +596,8 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                       onClick={() => handleSelectDate(date)}
                       className={`min-h-[56px] sm:min-h-[96px] rounded-lg border p-1.5 sm:p-2 text-left flex flex-col justify-between sm:justify-start gap-1 transition-all overflow-hidden ${
                         isSelected
-                          ? "border-purple-500 bg-purple-500/10 shadow-sm shadow-purple-500/10"
-                          : "border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 hover:border-purple-500/30"
+                          ? "border-transparent bg-purple-500/10 shadow-sm shadow-purple-500/10 rainbow-border-active"
+                          : "border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 premium-hover-glow"
                       } ${isCurrentMonth ? "" : "opacity-45"} ${isToday ? "ring-1 ring-teal-400/50" : ""}`}
                     >
                       <div className="flex items-start justify-between gap-1 w-full shrink-0">
@@ -672,8 +672,8 @@ export default function CalendarView({ triggerToast }: CalendarViewProps) {
                     onClick={() => showDate(monthDate, "month")}
                     className={`min-h-36 rounded-lg border p-3 text-left transition-all flex flex-col gap-2 ${
                       isSelectedMonth
-                        ? "border-purple-500 bg-purple-500/10"
-                        : "border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 hover:border-purple-500/30"
+                        ? "border-transparent bg-purple-500/10 rainbow-border-active"
+                        : "border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-zinc-900/35 premium-hover-glow"
                     } ${isThisMonth ? "ring-1 ring-teal-400/50" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-2">

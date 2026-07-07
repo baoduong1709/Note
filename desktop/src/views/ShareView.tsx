@@ -752,7 +752,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
             {/* Google Sign In Card */}
-            <div className="glass-panel rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 space-y-4 text-center hover:border-purple-500/30 transition-all shadow-sm">
+            <div className="glass-panel rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 space-y-4 text-center premium-hover-glow transition-all shadow-sm">
               <div className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-full flex items-center justify-center shadow-sm mx-auto">
                 <svg className="w-7 h-7" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -777,7 +777,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
             </div>
 
             {/* Anonymous Session Card */}
-            <div className="glass-panel rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 space-y-4 text-center hover:border-purple-500/30 transition-all shadow-sm">
+            <div className="glass-panel rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 space-y-4 text-center premium-hover-glow transition-all shadow-sm">
               <div className="w-14 h-14 bg-purple-50 dark:bg-purple-500/10 rounded-full flex items-center justify-center text-purple-600 dark:text-purple-400 mx-auto">
                 <Share2 className="w-7 h-7" />
               </div>

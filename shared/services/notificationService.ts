@@ -29,7 +29,7 @@ export function sendNotification(title: string, body: string) {
   try {
     new Notification(title, {
       body,
-      icon: "/src/assets/logo.png" // fallback path
+      icon: "/logo.png"
     });
   } catch (err) {
     console.error("Failed to display notification:", err);

@@ -203,7 +203,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
         {/* Global Google login profile box */}
         {localStorage.getItem("sync_user_email") ? (
           <div 
-            className="px-3 py-2 flex items-center gap-2.5 bg-purple-500/5 border border-purple-500/10 rounded-lg select-none"
+            className="px-3 py-2 flex items-center gap-2.5 bg-purple-500/5 border border-transparent rainbow-border-active rounded-lg select-none"
           >
             <div className="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 flex items-center justify-center font-bold text-xs shrink-0 avatar-gradient-ring">
               {(localStorage.getItem("sync_user_name") || "B").charAt(0)}

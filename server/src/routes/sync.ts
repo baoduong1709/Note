@@ -77,9 +77,9 @@ router.post('/push', (req: Request, res: Response) => {
     } = req.body;
 
     const syncTransaction = db.transaction(() => {
-      // Delete all existing user data
-      db.prepare('DELETE FROM ai_messages WHERE session_id IN (SELECT id FROM ai_sessions WHERE user_id = ?)').run(userId);
-      db.prepare('DELETE FROM ai_sessions WHERE user_id = ?').run(userId);
+      // Delete replaceable user data. AI chat is merge-only here because a
+      // client full-push can be triggered from a partial local snapshot; wiping
+      // server chat first would permanently collapse conversation history.
       db.prepare('DELETE FROM tasks WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM notes WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM calendar_events WHERE user_id = ?').run(userId);
@@ -155,6 +155,10 @@ router.post('/push', (req: Request, res: Response) => {
       const insertSession = db.prepare(`
         INSERT INTO ai_sessions (id, user_id, title, created_at)
         VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          user_id = excluded.user_id,
+          title = excluded.title,
+          created_at = excluded.created_at
       `);
       for (const session of aiSessions) {
         insertSession.run(
@@ -166,7 +170,7 @@ router.post('/push', (req: Request, res: Response) => {
 
       // Re-insert AI messages
       const insertMessage = db.prepare(`
-        INSERT INTO ai_messages (id, session_id, sender, text, created_at)
+        INSERT OR REPLACE INTO ai_messages (id, session_id, sender, text, created_at)
         VALUES (?, ?, ?, ?, ?)
       `);
       for (const msg of aiMessages) {
@@ -355,7 +359,13 @@ router.post('/delta-push', (req: Request, res: Response) => {
           const placeholders = columnsToInsert.map(() => '?').join(', ');
           const values = columnsToInsert.map((col) => normalized[col] ?? null);
 
-          const sql = `INSERT OR REPLACE INTO ${tableName} (${columnsToInsert.join(', ')}) VALUES (${placeholders})`;
+          const sql = tableName === 'ai_sessions'
+            ? `INSERT INTO ${tableName} (${columnsToInsert.join(', ')}) VALUES (${placeholders})
+               ON CONFLICT(id) DO UPDATE SET
+               user_id = excluded.user_id,
+               title = excluded.title,
+               created_at = excluded.created_at`
+            : `INSERT OR REPLACE INTO ${tableName} (${columnsToInsert.join(', ')}) VALUES (${placeholders})`;
           db.prepare(sql).run(...values);
           stats.upserted++;
 

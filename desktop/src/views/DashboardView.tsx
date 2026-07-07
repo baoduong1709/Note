@@ -265,7 +265,7 @@ export default function DashboardView({
           {/* Quick Capture Panel */}
           <motion.section 
             variants={cardVariants}
-            className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "border-purple-500/40" : "border-white/5"} premium-hover-glow rounded-lg p-3 relative overflow-hidden transition-all duration-300`}
+            className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "rainbow-border-active border-transparent" : "border-white/5"} premium-hover-glow rounded-lg p-3 relative overflow-hidden transition-all duration-300`}
           >
             <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-2 flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-yellow-400 icon-glow" />
