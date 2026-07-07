@@ -28,6 +28,7 @@ export function initDatabase(): Database.Database {
       email TEXT UNIQUE NOT NULL,
       name TEXT,
       avatar_url TEXT,
+      telegram_chat_id TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -154,6 +155,14 @@ export function initDatabase(): Database.Database {
       PRIMARY KEY (id, table_name)
     );
   `);
+
+  // Safe migration to add telegram_chat_id column if it doesn't exist
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN telegram_chat_id TEXT");
+    console.log("⚡ Database migrated: added telegram_chat_id to users table.");
+  } catch (err) {
+    // Column already exists, ignore
+  }
 
   // Create indexes for query performance
   db.exec(`

@@ -4,6 +4,7 @@ import { getDatabase } from "../../../shared/database/db";
 import { createNote, getNotes, Note, updateNote } from "../../../shared/database/queries/notes";
 import { useLanguage } from "../../../shared/contexts/LanguageContext";
 import { getStoredUser, clearStoredUser } from "../../../shared/services/shareService";
+import { api } from "../../../shared/services/apiClient";
 
 interface SettingsViewProps {
   triggerToast: (message: string) => void;
@@ -41,11 +42,35 @@ export default function SettingsView({
   const [pinCode, setPinCode] = useState("");
   const [showPinInput, setShowPinInput] = useState(false);
 
+  // Telegram settings
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [systemBotUsername, setSystemBotUsername] = useState("");
+
   // User Account state
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
 
   useEffect(() => {
-    const checkUser = () => setUser(getStoredUser());
+    const fetchBotInfo = async () => {
+      try {
+        const res = await api.get("/api/auth/telegram/bot-info");
+        if (res.success && res.data) {
+          setSystemBotUsername(res.data.username);
+        }
+      } catch (err) {
+        console.warn("Failed to load Telegram system bot info:", err);
+      }
+    };
+
+    const checkUser = () => {
+      const u = getStoredUser();
+      setUser(u);
+      if (u) {
+        fetchBotInfo();
+      } else {
+        setSystemBotUsername("");
+      }
+    };
     checkUser();
     window.addEventListener("auth-state-changed", checkUser);
     return () => window.removeEventListener("auth-state-changed", checkUser);
@@ -262,19 +287,29 @@ export default function SettingsView({
       }
     }
 
+    // Load Telegram Config
+    const tgConfig = localStorage.getItem("telegram_config");
+    if (tgConfig) {
+      try {
+        const parsed = JSON.parse(tgConfig);
+        setTelegramEnabled(parsed.enabled || false);
+        setTelegramChatId(parsed.chatId || "");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";
     const code = localStorage.getItem("e2ee_passphrase") || localStorage.getItem("pin_lock_code") || "";
     setPinEnabled(enabled);
     setPinCode(code);
 
-
-
     loadAgentMemoryData();
   }, []);
 
   // Save Configs
-  const handleSaveConfigs = () => {
+  const handleSaveConfigs = async () => {
     // 1. Save AI
     const aiData = {
       apiKey: aiApiKey.trim(),
@@ -292,7 +327,59 @@ export default function SettingsView({
     };
     localStorage.setItem("search_config", JSON.stringify(searchData));
 
-    triggerToast("Đã lưu cấu hình trợ lý AI & Tìm kiếm thành công!");
+    // 3. Save Telegram Config
+    const telegramData = {
+      enabled: telegramEnabled,
+      chatId: telegramChatId.trim()
+    };
+    localStorage.setItem("telegram_config", JSON.stringify(telegramData));
+
+    // If logged in, sync to server
+    if (user) {
+      try {
+        await api.post("/api/auth/telegram", { telegramChatId: telegramChatId.trim() });
+      } catch (err) {
+        console.error("Failed to sync Telegram Chat ID to server:", err);
+      }
+    }
+
+    triggerToast("Đã lưu cấu hình trợ lý AI, Tìm kiếm & Telegram thành công!");
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramChatId) {
+      triggerToast("Vui lòng điền Chat ID trước khi test!");
+      return;
+    }
+    // Save locally and sync to server first so the test send can retrieve the Chat ID
+    const telegramData = {
+      enabled: telegramEnabled,
+      chatId: telegramChatId.trim()
+    };
+    localStorage.setItem("telegram_config", JSON.stringify(telegramData));
+
+    if (user) {
+      try {
+        await api.post("/api/auth/telegram", { telegramChatId: telegramChatId.trim() });
+      } catch (err) {
+        console.error("Failed to sync Telegram Chat ID to server:", err);
+      }
+    }
+
+    try {
+      const res = await api.post("/api/auth/telegram/send", {
+        title: "Tin nhắn thử nghiệm",
+        body: "Tích hợp Telegram của bạn đã hoạt động thành công!"
+      });
+      if (res.success) {
+        triggerToast("Đã gửi tin nhắn thử nghiệm thành công! Hãy kiểm tra Telegram.");
+      } else {
+        triggerToast("Gửi tin nhắn thất bại! Vui lòng kiểm tra lại cấu hình.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      triggerToast(`Lỗi kết nối: ${err.message || err}`);
+    }
   };
 
 
@@ -500,6 +587,90 @@ export default function SettingsView({
                 className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10 cursor-pointer"
               >
                 {language === "vi" ? "Lưu cấu hình Tìm kiếm" : "Save Search Config"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 2.5.5 Telegram Integration Card */}
+        <div className="glass-panel rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-white/5 pb-3">
+            <div className="w-8 h-8 rounded bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15.82-1.05 6.09-1.5 8.56-.19 1.04-.57 1.39-.94 1.42-.82.08-1.44-.54-2.24-1.06-1.25-.82-1.95-1.33-3.16-2.13-1.4-1.03-.49-1.58.31-2.4 2.08-2.14 3.82-3.79 5.86-5.83.23-.23.46-.08.19.14-.36.31-4.7 3.32-5.4 3.8-.68.46-1.3.7-1.8.69-.55 0-1.61-.31-2.4-.58-.97-.33-1.74-.5-1.68-1.07.03-.3.41-.6 1.15-.9 4.54-1.97 7.57-3.28 9.08-3.92 4.34-1.8 5.24-2.1 5.83-2.11.13 0 .42.03.6.18.15.12.2.29.22.42-.02.09-.01.44-.02.66z"/>
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white">{language === "vi" ? "Tích hợp Telegram" : "Telegram Integration"}</h4>
+              <p className="text-[9px] sm:text-[10px] text-zinc-605 dark:text-zinc-500">{language === "vi" ? "Cấu hình gửi nhắc nhở công việc và liên kết bot để lưu ghi chú nhanh." : "Configure reminders and bot link to save quick notes."}</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs text-zinc-750 dark:text-zinc-300">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="telegramEnabled"
+                checked={telegramEnabled}
+                onChange={(e) => setTelegramEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-zinc-300 dark:border-white/5 text-purple-600 focus:ring-purple-500 cursor-pointer"
+              />
+              <label htmlFor="telegramEnabled" className="font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer">
+                {language === "vi" ? "Kích hoạt nhắc nhở Telegram" : "Enable Telegram Reminders"}
+              </label>
+            </div>
+
+            {telegramEnabled && (
+              <div className="space-y-3 pt-1 border-t border-zinc-100 dark:border-white/5">
+                <div>
+                  <label className="block text-zinc-550 dark:text-zinc-400 font-medium mb-1">Telegram Chat ID</label>
+                  <input
+                    type="text"
+                    value={telegramChatId}
+                    onChange={(e) => setTelegramChatId(e.target.value)}
+                    placeholder={language === "vi" ? "Nhập Chat ID của bạn..." : "Enter your Chat ID..."}
+                    className="w-full p-2.5 rounded glass-input text-zinc-800 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-purple-500/20 text-xs font-mono"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTestTelegram}
+                    className="px-3 py-1.5 rounded bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer"
+                  >
+                    {language === "vi" ? "Gửi tin nhắn thử" : "Send Test Message"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {systemBotUsername && (
+              <div className="p-3 bg-sky-500/10 rounded border border-sky-500/20 text-xs space-y-1">
+                <span className="font-semibold text-sky-600 dark:text-sky-400">🤖 Telegram Bot Hệ Thống</span>
+                <p className="text-[10px] text-zinc-600 dark:text-sky-400 leading-relaxed">
+                  {language === "vi" 
+                    ? `Bạn có thể liên kết tài khoản và ghi chú nhanh bằng cách nhắn tin cho Bot:`
+                    : `You can link your account and quick note by messaging our Bot:`}
+                </p>
+                <a
+                  href={`https://t.me/${systemBotUsername}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-1 text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 font-bold underline"
+                >
+                  @{systemBotUsername}
+                </a>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <button 
+                type="button"
+                onClick={handleSaveConfigs}
+                className="px-3.5 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-all shadow-md shadow-purple-500/10 cursor-pointer"
+              >
+                {language === "vi" ? "Lưu cấu hình Telegram" : "Save Telegram Config"}
               </button>
             </div>
           </div>

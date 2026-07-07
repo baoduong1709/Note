@@ -2,6 +2,7 @@ import { getDatabase } from "../database/db";
 import { Task } from "../database/queries/tasks";
 import { CalendarEvent } from "../database/queries/calendarEvents";
 import { lunarToSolar, solarToLunar } from "../utils/lunarCalendar";
+import { api } from "./apiClient";
 
 // Request browser Notification permission
 export async function initNotifications(): Promise<boolean> {
@@ -22,8 +23,28 @@ export async function initNotifications(): Promise<boolean> {
   return false;
 }
 
+// Helper to send message to Telegram
+export async function sendTelegramNotification(title: string, body: string): Promise<void> {
+  try {
+    const configStr = localStorage.getItem("telegram_config");
+    if (!configStr) return;
+    const config = JSON.parse(configStr);
+    if (!config.enabled || !config.chatId) return;
+
+    // Send through server since we deleted client bot token
+    await api.post("/api/auth/telegram/send", { title, body });
+  } catch (err) {
+    console.error("Telegram notification error:", err);
+  }
+}
+
 // Send system notification safely
 export function sendNotification(title: string, body: string) {
+  // Trigger Telegram notification asynchronously
+  sendTelegramNotification(title, body).catch((err) =>
+    console.error("Telegram async invoke error:", err)
+  );
+
   if (!("Notification" in window) || Notification.permission !== "granted") {
     return;
   }

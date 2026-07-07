@@ -544,37 +544,6 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
     }
   };
 
-  // Handle Drag & Drop Image
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        triggerToast("Vui lòng chỉ thả tệp hình ảnh!");
-        return;
-      }
-      try {
-        triggerToast("Đang nén ảnh...");
-        const base64 = await compressImage(file);
-        setSendImage(base64);
-        triggerToast("Đã nhận ảnh kéo thả!");
-      } catch (err) {
-        console.error(err);
-        triggerToast("Lỗi xử lý ảnh!");
-      }
-    }
-  };
-
   // Clipboard Paste listener on entire view (when focused on input or body)
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;

@@ -112,7 +112,7 @@ router.post('/google', async (req: Request, res: Response) => {
 router.get('/me', authenticateToken, (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const user = db.prepare('SELECT id, email, name, avatar_url, created_at, updated_at FROM users WHERE id = ?')
+    const user = db.prepare('SELECT id, email, name, avatar_url, telegram_chat_id, created_at, updated_at FROM users WHERE id = ?')
       .get(req.user!.userId) as any;
 
     if (!user) {
@@ -124,6 +124,107 @@ router.get('/me', authenticateToken, (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get current user error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch user info.' });
+  }
+});
+
+let systemBotInfo: { username: string; first_name: string } | null = null;
+
+/**
+ * POST /telegram
+ * Update the current user's telegram_chat_id.
+ */
+router.post('/telegram', authenticateToken, (req: Request, res: Response) => {
+  try {
+    const { telegramChatId } = req.body;
+    const db = getDatabase();
+    db.prepare('UPDATE users SET telegram_chat_id = ?, updated_at = datetime(\'now\') WHERE id = ?')
+      .run(telegramChatId || null, req.user!.userId);
+    res.json({ success: true, message: 'Telegram Chat ID updated successfully.' });
+  } catch (error) {
+    console.error('Update Telegram Chat ID error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update Telegram Chat ID.' });
+  }
+});
+
+/**
+ * POST /telegram/send
+ * Send a telegram message to the authenticated user using the system bot.
+ */
+router.post('/telegram/send', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { title, body } = req.body;
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      res.status(400).json({ success: false, error: 'Telegram Bot not configured on server' });
+      return;
+    }
+
+    const db = getDatabase();
+    const user = db.prepare('SELECT telegram_chat_id FROM users WHERE id = ?')
+      .get(req.user!.userId) as { telegram_chat_id: string | null } | undefined;
+
+    if (!user || !user.telegram_chat_id) {
+      res.status(400).json({ success: false, error: 'Telegram Chat ID not linked for this user' });
+      return;
+    }
+
+    const message = `🔔 *${title}*\n\n${body}`;
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: user.telegram_chat_id,
+        text: message,
+        parse_mode: 'Markdown',
+      }),
+    });
+
+    if (response.ok) {
+      res.json({ success: true, message: 'Notification sent successfully.' });
+    } else {
+      const errText = await response.text();
+      console.error('Telegram bot send error response:', errText);
+      res.status(500).json({ success: false, error: 'Telegram API returned an error.' });
+    }
+  } catch (error) {
+    console.error('Send Telegram message error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send Telegram message.' });
+  }
+});
+
+/**
+ * GET /telegram/bot-info
+ * Fetch configured Telegram bot username and first name.
+ */
+router.get('/telegram/bot-info', async (req: Request, res: Response) => {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      res.json({ success: false, error: 'Telegram Bot not configured on server' });
+      return;
+    }
+
+    if (systemBotInfo) {
+      res.json({ success: true, data: systemBotInfo });
+      return;
+    }
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    if (response.ok) {
+      const body = await response.json() as any;
+      if (body.ok && body.result) {
+        systemBotInfo = {
+          username: body.result.username,
+          first_name: body.result.first_name,
+        };
+        res.json({ success: true, data: systemBotInfo });
+        return;
+      }
+    }
+    res.json({ success: false, error: 'Failed to fetch bot info from Telegram.' });
+  } catch (error) {
+    console.error('Get Telegram Bot Info error:', error);
+    res.json({ success: false, error: 'Failed to fetch bot info.' });
   }
 });
 

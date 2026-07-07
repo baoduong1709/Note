@@ -17,6 +17,7 @@ import shareRoutes from './routes/share.js';
 import syncRoutes from './routes/sync.js';
 import proxyRoutes from './routes/proxy.js';
 import { initWebSocket } from './websocket.js';
+import { initTelegramBot } from './telegramBot.js';
 
 // Resolve __dirname for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +26,9 @@ const __dirname = dirname(__filename);
 // Initialize the database
 initDatabase();
 console.log('✅ Database initialized successfully.');
+
+// Initialize Telegram Bot service
+initTelegramBot();
 
 // Create Express app
 const app = express();
