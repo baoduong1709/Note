@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Play, CheckCircle, Clock, X } from "lucide-react";
+import { Plus, Trash2, Play, CheckCircle, Clock, X, Calendar } from "lucide-react";
 import { getTasks, createTask, updateTaskStatus, deleteTask, Task } from "../../../shared/database/queries/tasks";
 import GenericConfirmModal from "../../../shared/components/GenericConfirmModal";
 import { useLanguage } from "../../../shared/contexts/LanguageContext";
@@ -190,14 +190,97 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                 <option value="high">{t("tasks.priorityHigh")}</option>
               </select>
             </div>
-            <div>
-              <label className="block text-zinc-400 mb-1">{t("tasks.dueDate")}</label>
-              <input
-                type="datetime-local"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none"
-              />
+            <div className="relative">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-zinc-400">{t("tasks.dueDate")}</label>
+                {dueDate && (
+                  <button
+                    type="button"
+                    onClick={() => setDueDate("")}
+                    className="text-[10px] text-red-500 hover:text-red-400 font-medium transition-colors cursor-pointer"
+                  >
+                    {t("tasks.presetClear")}
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="datetime-local"
+                  id="task-due-date-input"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full p-2 pr-8 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs hide-calendar-picker"
+                />
+                {/* Custom button to trigger default calendar/time picker */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById("task-due-date-input") as HTMLInputElement;
+                    if (el) {
+                      if (typeof el.showPicker === "function") {
+                        try {
+                          el.showPicker();
+                        } catch (err) {
+                          console.error("Failed to show picker:", err);
+                          el.focus();
+                        }
+                      } else {
+                        el.focus();
+                      }
+                    }
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 p-0.5 cursor-pointer"
+                  title={t("calendar.datePickerTitle")}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Quick preset buttons to set task due dates quickly */}
+              <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    // Set to 18:00 (end of workday)
+                    today.setHours(18, 0, 0, 0);
+                    const offset = today.getTimezoneOffset();
+                    const localDate = new Date(today.getTime() - offset * 60 * 1000);
+                    setDueDate(localDate.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-650 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 transition-all font-medium cursor-pointer"
+                >
+                  {t("tasks.presetToday")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(18, 0, 0, 0);
+                    const offset = tomorrow.getTimezoneOffset();
+                    const localDate = new Date(tomorrow.getTime() - offset * 60 * 1000);
+                    setDueDate(localDate.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-650 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 transition-all font-medium cursor-pointer"
+                >
+                  {t("tasks.presetTomorrow")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextWeek = new Date();
+                    nextWeek.setDate(nextWeek.getDate() + 7);
+                    nextWeek.setHours(9, 0, 0, 0); // Next week defaults to 9 AM
+                    const offset = nextWeek.getTimezoneOffset();
+                    const localDate = new Date(nextWeek.getTime() - offset * 60 * 1000);
+                    setDueDate(localDate.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-650 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 transition-all font-medium cursor-pointer"
+                >
+                  {t("tasks.presetNextWeek")}
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-1">

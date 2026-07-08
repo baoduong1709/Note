@@ -136,6 +136,10 @@ export const translations = {
       deleteError: "Lỗi xóa công việc!",
       createSuccess: "Đã tạo công việc!",
       createError: "Lỗi tạo công việc!",
+      presetToday: "Hôm nay",
+      presetTomorrow: "Ngày mai",
+      presetNextWeek: "Tuần sau",
+      presetClear: "Xóa",
     },
     calendar: {
       title: "Lịch âm dương",
@@ -374,6 +378,10 @@ export const translations = {
       deleteError: "Failed to delete task!",
       createSuccess: "Created task!",
       createError: "Failed to create task!",
+      presetToday: "Today",
+      presetTomorrow: "Tomorrow",
+      presetNextWeek: "Next week",
+      presetClear: "Clear",
     },
     calendar: {
       title: "Lunar Calendar",

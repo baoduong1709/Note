@@ -6,6 +6,24 @@ const activeJobs = new Map<string, NodeJS.Timeout>();
 // We keep track of the next scan time (1 hour from the last scan)
 export let nextScanTime = Date.now() + 60 * 60 * 1000;
 
+// Helper to parse due_date string to Unix timestamp, default to UTC+7 (Vietnam) if no timezone is provided
+export function parseTaskDueDate(dueDateStr: string | null): number {
+  if (!dueDateStr) return NaN;
+  let formatted = dueDateStr.trim();
+  
+  if (formatted.includes('T')) {
+    const timePart = formatted.split('T')[1];
+    const hasTz = timePart.includes('Z') || timePart.includes('+') || timePart.includes('-');
+    if (!hasTz) {
+      formatted = formatted + '+07:00';
+    }
+  } else {
+    // Treat date-only string as local midnight in Vietnam
+    formatted = formatted + 'T00:00:00+07:00';
+  }
+  return new Date(formatted).getTime();
+}
+
 // Cancel an existing job
 export function cancelTaskJob(taskId: string): void {
   const timeout = activeJobs.get(taskId);
@@ -68,13 +86,7 @@ export function scheduleTaskJob(task: { id: string; title: string; due_date: str
   }
 
   // 3. Parse due_date
-  let taskTime = 0;
-  try {
-    taskTime = new Date(task.due_date).getTime();
-  } catch {
-    return; // Invalid date
-  }
-
+  const taskTime = parseTaskDueDate(task.due_date);
   if (isNaN(taskTime)) return;
 
   const now = Date.now();
@@ -109,12 +121,7 @@ export async function scanTasksForNextHour(): Promise<void> {
 
     let scheduledCount = 0;
     for (const task of tasks) {
-      let taskTime = 0;
-      try {
-        taskTime = new Date(task.due_date).getTime();
-      } catch {
-        continue;
-      }
+      const taskTime = parseTaskDueDate(task.due_date);
       if (isNaN(taskTime)) continue;
 
       if (taskTime >= now && taskTime < nextScanTime) {

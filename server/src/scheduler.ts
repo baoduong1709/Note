@@ -46,15 +46,15 @@ export async function runScheduledCheck(): Promise<void> {
     for (const user of users) {
       const messages: string[] = [];
 
-      // 1. Check due/overdue tasks
+      // 1. Check due/overdue tasks (compare with end of day to include time part)
       const tasks = db.prepare(`
         SELECT title, due_date, priority FROM tasks 
         WHERE user_id = ? AND status != 'done' AND due_date IS NOT NULL AND due_date <= ?
-      `).all(user.id, todayStr) as { title: string; due_date: string; priority: string }[];
+      `).all(user.id, todayStr + 'T23:59:59') as { title: string; due_date: string; priority: string }[];
 
       if (tasks.length > 0) {
         const overdue = tasks.filter(t => t.due_date < todayStr);
-        const dueToday = tasks.filter(t => t.due_date === todayStr);
+        const dueToday = tasks.filter(t => t.due_date.startsWith(todayStr));
 
         if (overdue.length > 0 || dueToday.length > 0) {
           messages.push(`📋 *Nhắc nhở Công việc:*`);

@@ -841,3 +841,10 @@ button:active:not(:disabled) {
   text-decoration: line-through;
   color: #71717a;
 }
+
+/* Custom class for hiding default webkit calendar indicator */
+.hide-calendar-picker::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
