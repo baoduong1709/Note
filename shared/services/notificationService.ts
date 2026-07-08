@@ -198,8 +198,13 @@ export async function checkAndNotifyCalendarEvents(): Promise<void> {
 
 // Check database for due or overdue tasks and notify user (throttled to avoid spam)
 export async function checkAndNotifyDueTasks(): Promise<void> {
+  console.log("[Notification] Running checkAndNotifyDueTasks...");
   const isAllowed = await initNotifications();
-  if (!isAllowed) return;
+  console.log("[Notification] System permission isAllowed:", isAllowed, "permission:", Notification.permission);
+  if (!isAllowed) {
+    console.warn("[Notification] Permission is denied. Exiting.");
+    return;
+  }
 
   // Run calendar events check alongside task check
   await checkAndNotifyCalendarEvents();
@@ -207,6 +212,8 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
   try {
     const db = await getDatabase();
     const todayStr = new Date().toISOString().split("T")[0];
+    const queryTime = todayStr + 'T23:59:59';
+    console.log("[Notification] Querying active tasks due <= ", queryTime);
 
     // Fetch tasks that are active (not done) and due date is today or earlier (overdue)
     const activeDueTasks = await db.select<Task[]>(
@@ -214,27 +221,38 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
        WHERE status != 'done' 
          AND due_date IS NOT NULL 
          AND due_date <= ?`,
-      [todayStr + 'T23:59:59']
+      [queryTime]
     );
 
-    if (activeDueTasks.length === 0) return;
+    console.log("[Notification] Found due tasks in database:", activeDueTasks.length, activeDueTasks);
+
+    if (activeDueTasks.length === 0) {
+      console.log("[Notification] No due or overdue tasks found in local DB.");
+      return;
+    }
 
     // Retrieve storage logs to prevent duplicate notifications
     const today = new Date().toDateString();
     const lastNotifiedDay = localStorage.getItem("last_notified_day");
     const notifiedTaskIdsStr = localStorage.getItem("notified_task_ids") || "[]";
     const notifiedTaskIds: string[] = JSON.parse(notifiedTaskIdsStr);
+    console.log("[Notification] Today:", today, "Last notified day:", lastNotifiedDay, "Already notified task IDs:", notifiedTaskIds);
 
     // Filter out tasks we have already notified in this day
     const tasksToNotify = activeDueTasks.filter(
       (task) => !notifiedTaskIds.includes(task.id) || lastNotifiedDay !== today
     );
+    console.log("[Notification] Tasks remaining to notify (after filtering):", tasksToNotify.length, tasksToNotify);
 
-    if (tasksToNotify.length === 0) return;
+    if (tasksToNotify.length === 0) {
+      console.log("[Notification] All due tasks have already been notified today.");
+      return;
+    }
 
     // Categorize into overdue (before today) and due today
     const overdueTasks = tasksToNotify.filter((t) => t.due_date! < todayStr);
     const dueTodayTasks = tasksToNotify.filter((t) => t.due_date!.startsWith(todayStr));
+    console.log("[Notification] Overdue count:", overdueTasks.length, "Due today count:", dueTodayTasks.length);
 
     let messageTitle = "Nhắc nhở công việc!";
     let messageBody = "";
@@ -250,6 +268,7 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
       messageBody = `Bạn có ${dueTodayTasks.length} công việc cần hoàn thành trong hôm nay.`;
     }
 
+    console.log("[Notification] Triggering system notification:", messageTitle, messageBody);
     // Trigger Native Notification
     sendNotification(messageTitle, messageBody);
 
@@ -257,6 +276,7 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
     const updatedIds = Array.from(new Set([...notifiedTaskIds, ...activeDueTasks.map((t) => t.id)]));
     localStorage.setItem("last_notified_day", today);
     localStorage.setItem("notified_task_ids", JSON.stringify(updatedIds));
+    console.log("[Notification] Successfully notified. Saved state to localStorage.");
   } catch (err) {
     console.error("Error checking due tasks for notifications:", err);
   }

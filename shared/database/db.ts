@@ -506,6 +506,60 @@ export async function initDatabase(): Promise<DatabaseConnection> {
       );
     `);
 
+    // Migrate tasks table constraint if it restricts source to 'local' only
+    try {
+      const sqlResult = await db.select<{ sql: string }[]>("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'");
+      if (sqlResult.length > 0) {
+        const createSql = sqlResult[0].sql;
+        if (createSql.includes("CHECK(source IN ('local'))") || createSql.includes("CHECK (source IN ('local'))")) {
+          console.log("[DB] Migrating tasks table to support multiple sources...");
+          await db.execute("PRAGMA foreign_keys=OFF;");
+          await db.execute("ALTER TABLE tasks RENAME TO tasks_old;");
+          
+          await db.execute(`
+            CREATE TABLE tasks (
+              id TEXT PRIMARY KEY,
+              note_id TEXT,
+              title TEXT NOT NULL,
+              status TEXT CHECK(status IN ('todo', 'in_progress', 'done', 'blocked')) DEFAULT 'todo',
+              priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+              due_date DATE,
+              workspace_id TEXT,
+              project_id TEXT,
+              source TEXT CHECK(source IN ('local', 'telegram', 'jira')) DEFAULT 'local',
+              external_id TEXT,
+              external_url TEXT,
+              external_status TEXT,
+              is_pending_sync INTEGER DEFAULT 0,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL,
+              FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL,
+              FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+            );
+          `);
+          
+          await db.execute(`
+            INSERT INTO tasks (
+              id, note_id, title, status, priority, due_date, workspace_id, project_id, 
+              source, external_id, external_url, external_status, is_pending_sync, created_at, updated_at
+            )
+            SELECT 
+              id, note_id, title, status, priority, due_date, workspace_id, project_id, 
+              source, external_id, external_url, external_status, is_pending_sync, created_at, updated_at
+            FROM tasks_old;
+          `);
+          
+          await db.execute("DROP TABLE tasks_old;");
+          await db.execute("PRAGMA foreign_keys=ON;");
+          console.log("[DB] Migrating tasks table completed successfully.");
+        }
+      }
+    } catch (err) {
+      console.error("[DB] Migration of tasks table failed:", err);
+      try { await db.execute("PRAGMA foreign_keys=ON;"); } catch {}
+    }
+
     // Create tasks table
     await db.execute(`
       CREATE TABLE IF NOT EXISTS tasks (
@@ -517,7 +571,7 @@ export async function initDatabase(): Promise<DatabaseConnection> {
         due_date DATE,
         workspace_id TEXT,
         project_id TEXT,
-        source TEXT CHECK(source IN ('local')) DEFAULT 'local',
+        source TEXT CHECK(source IN ('local', 'telegram', 'jira')) DEFAULT 'local',
         external_id TEXT,
         external_url TEXT,
         external_status TEXT,
