@@ -260,7 +260,7 @@ export default function App() {
     };
   }, [authState]);
 
-  // Listen for view changes from other components
+  // Listen for view changes and AI toggle from other components
   useEffect(() => {
     const handleChangeView = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -268,8 +268,16 @@ export default function App() {
         setActiveView(customEvent.detail);
       }
     };
+    const handleToggleAiChat = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setShowAiSidebar(customEvent.detail !== undefined ? !!customEvent.detail : true);
+    };
     window.addEventListener("change-view", handleChangeView);
-    return () => window.removeEventListener("change-view", handleChangeView);
+    window.addEventListener("toggle-ai-chat", handleToggleAiChat);
+    return () => {
+      window.removeEventListener("change-view", handleChangeView);
+      window.removeEventListener("toggle-ai-chat", handleToggleAiChat);
+    };
   }, []);
 
   const triggerToast = (message: string) => {
