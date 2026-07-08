@@ -22,11 +22,6 @@ async function encryptRecord(table: string, data: Record<string, any>, passphras
     if (table === "notes") {
       cloned.title = await encryptText(cloned.title, passphrase);
       cloned.content = await encryptText(cloned.content || "", passphrase);
-    } else if (table === "tasks") {
-      cloned.title = await encryptText(cloned.title, passphrase);
-    } else if (table === "calendar_events") {
-      cloned.title = await encryptText(cloned.title, passphrase);
-      cloned.notes = await encryptText(cloned.notes || "", passphrase);
     } else if (table === "ai_sessions") {
       cloned.title = await encryptText(cloned.title || "", passphrase);
     } else if (table === "ai_messages") {
@@ -45,11 +40,6 @@ async function decryptRecord(table: string, data: Record<string, any>, passphras
     if (table === "notes") {
       cloned.title = await decryptText(cloned.title || "", passphrase);
       cloned.content = await decryptText(cloned.content || "", passphrase);
-    } else if (table === "tasks") {
-      cloned.title = await decryptText(cloned.title || "", passphrase);
-    } else if (table === "calendar_events") {
-      cloned.title = await decryptText(cloned.title || "", passphrase);
-      cloned.notes = await decryptText(cloned.notes || "", passphrase);
     } else if (table === "ai_sessions") {
       cloned.title = await decryptText(cloned.title || "", passphrase);
     } else if (table === "ai_messages") {
