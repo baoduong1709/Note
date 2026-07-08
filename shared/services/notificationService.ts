@@ -4,8 +4,24 @@ import { CalendarEvent } from "../database/queries/calendarEvents";
 import { lunarToSolar, solarToLunar } from "../utils/lunarCalendar";
 import { api } from "./apiClient";
 
-// Request browser Notification permission
+const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined;
+
+// Request browser/Tauri Notification permission
 export async function initNotifications(): Promise<boolean> {
+  if (isTauri) {
+    try {
+      const { isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        granted = permission === "granted";
+      }
+      return granted;
+    } catch (err) {
+      console.error("Tauri native notification init failed:", err);
+    }
+  }
+
   if (!("Notification" in window)) {
     console.warn("Notifications are not supported in this environment.");
     return false;
@@ -44,6 +60,18 @@ export function sendNotification(title: string, body: string) {
   sendTelegramNotification(title, body).catch((err) =>
     console.error("Telegram async invoke error:", err)
   );
+
+  if (isTauri) {
+    import("@tauri-apps/plugin-notification").then(({ sendNotification: sendTauriNotification }) => {
+      sendTauriNotification({
+        title,
+        body,
+      });
+    }).catch((err) => {
+      console.error("Failed to send Tauri native notification:", err);
+    });
+    return;
+  }
 
   if (!("Notification" in window) || Notification.permission !== "granted") {
     return;
