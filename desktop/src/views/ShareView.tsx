@@ -713,7 +713,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
   };
 
   return (
-    <div onPaste={handlePaste} className="flex-1 flex flex-col h-full overflow-hidden space-y-2 sm:space-y-4 view-enter-animate">
+    <div onPaste={handlePaste} className="flex-1 flex flex-col min-h-0 overflow-hidden space-y-2 sm:space-y-4 view-enter-animate">
       
       {/* Header View */}
       <div className="flex justify-between items-center shrink-0 border-b border-zinc-200 dark:border-white/5 pb-3">
@@ -816,11 +816,11 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
         </div>
       ) : (
         // LOGGED IN STATE
-        <div className="flex-1 flex overflow-hidden pb-4 w-full h-full max-w-[1400px] mx-auto">
-          <div className="w-full h-full lg:grid lg:grid-cols-12 lg:gap-6 flex flex-col overflow-y-auto lg:overflow-hidden">
+        <div className="flex-1 flex overflow-hidden pb-4 w-full max-w-[1400px] mx-auto">
+          <div className="w-full flex-1 lg:grid lg:grid-cols-12 lg:gap-6 flex flex-col overflow-y-auto lg:overflow-hidden">
             
             {/* LEFT COLUMN: COMPOSE & CONNECTION INFO */}
-            <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full gap-4 mt-2 overflow-y-auto lg:overflow-hidden pr-1">
+            <div className="lg:col-span-5 xl:col-span-4 flex flex-col min-h-0 gap-4 mt-2 overflow-y-auto lg:overflow-hidden pr-1">
               
               {/* Connection Info Card */}
               <div className="glass-panel bg-zinc-50/80 dark:bg-[#1a1b26]/80 rounded-2xl p-4 sm:p-5 border border-zinc-200/50 dark:border-white/5 shadow-sm flex-shrink-0">
@@ -992,7 +992,7 @@ export default function ShareView({ triggerToast }: ShareViewProps) {
             </div>
 
             {/* RIGHT COLUMN: HISTORY */}
-            <div className="lg:col-span-7 xl:col-span-8 flex flex-col h-full mt-4 lg:mt-0 pb-2 lg:overflow-hidden">
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-0 mt-4 lg:mt-0 pb-2 lg:overflow-hidden">
               <div className="flex items-center justify-between mb-3 px-1">
                 <span className="text-sm font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-2">
                   {language === "vi" ? "Lịch sử nhận" : "Received History"}

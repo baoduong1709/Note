@@ -19,6 +19,31 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   const [dueDate, setDueDate] = useState("");
   const workspace = "personal";
 
+  // Split due date into date and time parts for separate desktop inputs
+  const datePart = dueDate ? dueDate.split("T")[0] : "";
+  const timePart = dueDate && dueDate.includes("T") ? dueDate.split("T")[1] : "";
+
+  // Handle changes to date input, default to 18:00 if time is not set
+  const handleDateChange = (newDate: string) => {
+    if (!newDate) {
+      setDueDate("");
+    } else {
+      const time = timePart || "18:00";
+      setDueDate(`${newDate}T${time}`);
+    }
+  };
+
+  // Handle changes to time input, default to today if date is not set
+  const handleTimeChange = (newTime: string) => {
+    if (!newTime) {
+      const date = datePart || new Date().toISOString().slice(0, 10);
+      setDueDate(`${date}T00:00`);
+    } else {
+      const date = datePart || new Date().toISOString().slice(0, 10);
+      setDueDate(`${date}T${newTime}`);
+    }
+  };
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
@@ -203,37 +228,67 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                   </button>
                 )}
               </div>
-              <div className="relative">
-                <input
-                  type="datetime-local"
-                  id="task-due-date-input"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full p-2 pr-8 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs hide-calendar-picker"
-                />
-                {/* Custom button to trigger default calendar/time picker */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById("task-due-date-input") as HTMLInputElement;
-                    if (el) {
-                      if (typeof el.showPicker === "function") {
-                        try {
-                          el.showPicker();
-                        } catch (err) {
-                          console.error("Failed to show picker:", err);
+
+              <div className="flex gap-2">
+                {/* Date input part */}
+                <div className="relative flex-1">
+                  <input
+                    type="date"
+                    id="task-due-date-part"
+                    value={datePart}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="w-full p-2 pr-8 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs hide-calendar-picker"
+                  />
+                  {/* Custom button to trigger default calendar picker */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById("task-due-date-part") as HTMLInputElement;
+                      if (el) {
+                        if (typeof el.showPicker === "function") {
+                          try {
+                            el.showPicker();
+                          } catch (err) {
+                            console.error("Failed to show date picker:", err);
+                            el.focus();
+                          }
+                        } else {
                           el.focus();
                         }
-                      } else {
-                        el.focus();
                       }
-                    }
-                  }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 p-0.5 cursor-pointer"
-                  title={t("calendar.datePickerTitle")}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                </button>
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 p-0.5 cursor-pointer"
+                    title={t("calendar.datePickerTitle")}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Time select part */}
+                <div className="relative w-[85px] sm:w-[95px] shrink-0">
+                  <select
+                    id="task-due-time-part"
+                    value={timePart || "18:00"}
+                    onChange={(e) => handleTimeChange(e.target.value)}
+                    className="w-full p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs rounded cursor-pointer appearance-none pr-7"
+                  >
+                    {Array.from({ length: 48 }).map((_, i) => {
+                      const hour = String(Math.floor(i / 2)).padStart(2, "0");
+                      const minute = i % 2 === 0 ? "00" : "30";
+                      const val = `${hour}:${minute}`;
+                      return (
+                        <option key={val} value={val}>
+                          {val}
+                        </option>
+                      );
+                    })}
+                    <option value="23:59">23:59</option>
+                  </select>
+                  {/* Custom arrow/clock icon */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
+                    <Clock className="w-3.5 h-3.5" />
+                  </div>
+                </div>
               </div>
 
               {/* Quick preset buttons to set task due dates quickly */}
@@ -286,7 +341,7 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="submit"
-              className="bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-500 hover:to-indigo-550 text-white px-4 py-1.5 rounded font-semibold shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-500 hover:to-blue-400 text-white px-4 py-1.5 rounded font-semibold shadow-md shadow-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98]"
             >
               {t("tasks.createTask")}
             </button>

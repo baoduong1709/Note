@@ -258,41 +258,132 @@ function parseDateInput(value: unknown): string | null {
 
   const lower = raw.toLowerCase();
   const today = new Date();
-  if (lower === "hôm nay" || lower === "hom nay" || lower === "today") {
-    return toLocalDateKey(today);
-  }
-  if (lower === "ngày mai" || lower === "ngay mai" || lower === "mai" || lower === "tomorrow") {
+  
+  let datePart: Date | null = null;
+  
+  // 1. Check relative date
+  if (lower.includes("hôm nay") || lower.includes("hom nay") || lower.includes("today")) {
+    datePart = today;
+  } else if (lower.includes("ngày mai") || lower.includes("ngay mai") || lower.includes("tomorrow") || lower.startsWith("mai")) {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
-    return toLocalDateKey(tomorrow);
+    datePart = tomorrow;
   }
 
-  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (isoMatch) {
-    const [, year, month, day] = isoMatch;
-    return validateDateParts(Number(year), Number(month), Number(day));
+  // 2. Check absolute date patterns if no relative date matched
+  let year = today.getFullYear();
+  let month = today.getMonth() + 1;
+  let day = today.getDate();
+  let dateMatched = false;
+
+  if (!datePart) {
+    // Check YYYY-MM-DD
+    const isoMatch = raw.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+    if (isoMatch) {
+      year = Number(isoMatch[1]);
+      month = Number(isoMatch[2]);
+      day = Number(isoMatch[3]);
+      dateMatched = true;
+    } else {
+      // Check DD/MM/YYYY or DD-MM-YYYY
+      const vnMatch = raw.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
+      if (vnMatch) {
+        day = Number(vnMatch[1]);
+        month = Number(vnMatch[2]);
+        year = vnMatch[3] ? Number(vnMatch[3]) : today.getFullYear();
+        if (year < 100) year += 2000;
+        dateMatched = true;
+      }
+    }
+
+    if (dateMatched) {
+      // Validate date parts
+      if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const parsedDate = new Date(year, month - 1, day);
+        if (parsedDate.getFullYear() === year && parsedDate.getMonth() === month - 1 && parsedDate.getDate() === day) {
+          datePart = parsedDate;
+        }
+      }
+    }
   }
 
-  const vnMatch = raw.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
-  if (vnMatch) {
-    const day = Number(vnMatch[1]);
-    const month = Number(vnMatch[2]);
-    let year = vnMatch[3] ? Number(vnMatch[3]) : today.getFullYear();
-    if (year < 100) year += 2000;
-    return validateDateParts(year, month, day);
+  if (!datePart) {
+    return null;
   }
 
-  return null;
+  // Now, let's extract time if present in the string
+  // Match HH:mm:ss or HH:mm or H:mm
+  const timeMatch = raw.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b/);
+  let hour = 0;
+  let minute = 0;
+  let hasTime = false;
+
+  if (timeMatch) {
+    hour = Number(timeMatch[1]);
+    minute = Number(timeMatch[2]);
+    hasTime = true;
+    
+    // Handle AM/PM or sáng/tối
+    const afterTime = raw.slice(timeMatch.index! + timeMatch[0].length).toLowerCase();
+    const beforeTime = raw.slice(0, timeMatch.index).toLowerCase();
+    const isPM = afterTime.includes("pm") || afterTime.includes("tối") || afterTime.includes("chiều") ||
+                 beforeTime.includes("tối") || beforeTime.includes("chiều");
+    const isAM = afterTime.includes("am") || afterTime.includes("sáng") || beforeTime.includes("sáng");
+    
+    if (isPM && hour < 12) {
+      hour += 12;
+    } else if (isAM && hour === 12) {
+      hour = 0;
+    }
+  } else {
+    // Check for simple hour like "8h", "8h30", "8 giờ"
+    const wordTimeMatch = raw.match(/\b(\d{1,2})\s*(?:h|giờ)\s*(\d{2})?\b/i);
+    if (wordTimeMatch) {
+      hour = Number(wordTimeMatch[1]);
+      minute = wordTimeMatch[2] ? Number(wordTimeMatch[2]) : 0;
+      hasTime = true;
+
+      const afterTime = raw.slice(wordTimeMatch.index! + wordTimeMatch[0].length).toLowerCase();
+      const beforeTime = raw.slice(0, wordTimeMatch.index).toLowerCase();
+      const isPM = afterTime.includes("pm") || afterTime.includes("tối") || afterTime.includes("chiều") ||
+                   beforeTime.includes("tối") || beforeTime.includes("chiều");
+      const isAM = afterTime.includes("am") || afterTime.includes("sáng") || beforeTime.includes("sáng");
+      
+      if (isPM && hour < 12) {
+        hour += 12;
+      } else if (isAM && hour === 12) {
+        hour = 0;
+      }
+    } else {
+      // Check for standalone hour with am/pm or sáng/tối e.g., "8pm", "8 tối", "8 sáng"
+      const ampmHourMatch = raw.match(/\b(\d{1,2})\s*(am|pm|sáng|tối|chiều)\b/i);
+      if (ampmHourMatch) {
+        hour = Number(ampmHourMatch[1]);
+        minute = 0;
+        hasTime = true;
+        const period = ampmHourMatch[2].toLowerCase();
+        const isPM = period === "pm" || period === "tối" || period === "chiều";
+        const isAM = period === "am" || period === "sáng";
+
+        if (isPM && hour < 12) {
+          hour += 12;
+        } else if (isAM && hour === 12) {
+          hour = 0;
+        }
+      }
+    }
+  }
+
+  const dateStr = `${datePart.getFullYear()}-${pad2(datePart.getMonth() + 1)}-${pad2(datePart.getDate())}`;
+
+  if (hasTime && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+    return `${dateStr}T${pad2(hour)}:${pad2(minute)}`;
+  }
+
+  // If no valid time was parsed, return just the date
+  return dateStr;
 }
 
-function validateDateParts(year: number, month: number, day: number): string | null {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
-  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
-
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-  return toLocalDateKey(date);
-}
 
 function parseLunarInput(args: Record<string, any>, fallbackText = ""): { day: number; month: number; year: number; isLeap: boolean } | null {
   const todayLunar = solarToLunar(new Date());
@@ -783,6 +874,9 @@ async function createLocalNoteTool(args: Record<string, any>): Promise<string> {
   };
 
   await createNote(note);
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("notes-updated"));
+  }
   return `Đã tạo note.\nID: ${note.id}\nTiêu đề: ${note.title}\nLoại: ${note.type}\nNội dung: ${compactText(note.content || "(trống)", 900)}`;
 }
 
@@ -811,6 +905,9 @@ async function createLocalTaskTool(args: Record<string, any>): Promise<string> {
   };
 
   await createTask(task);
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("task-updated"));
+  }
   return [
     "Đã tạo task.",
     `ID: ${task.id}`,
@@ -918,6 +1015,9 @@ async function createImportantDateTool(args: Record<string, any>): Promise<strin
   };
 
   await createCalendarEvent(event);
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("calendar-updated"));
+  }
   const dateText =
     event.date_type === "lunar"
       ? `Âm lịch ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " nhuận" : ""}`
@@ -998,7 +1098,7 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
           enum: ["todo", "in_progress", "blocked", "done"],
           description: "Trạng thái, mặc định todo."
         },
-        due_date: { type: "string", description: "Ngày hạn dạng YYYY-MM-DD, DD/MM/YYYY, hôm nay hoặc ngày mai." },
+        due_date: { type: "string", description: "Ngày giờ hạn dạng YYYY-MM-DD HH:mm, YYYY-MM-DD, DD/MM/YYYY HH:mm, hôm nay hoặc ngày mai (kèm giờ nếu có)." },
         note_id: { type: "string", description: "ID note liên quan nếu có." }
       },
       required: ["title"]

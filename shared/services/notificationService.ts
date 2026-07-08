@@ -214,7 +214,7 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
        WHERE status != 'done' 
          AND due_date IS NOT NULL 
          AND due_date <= ?`,
-      [todayStr]
+      [todayStr + 'T23:59:59']
     );
 
     if (activeDueTasks.length === 0) return;
@@ -234,7 +234,7 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
 
     // Categorize into overdue (before today) and due today
     const overdueTasks = tasksToNotify.filter((t) => t.due_date! < todayStr);
-    const dueTodayTasks = tasksToNotify.filter((t) => t.due_date! === todayStr);
+    const dueTodayTasks = tasksToNotify.filter((t) => t.due_date!.startsWith(todayStr));
 
     let messageTitle = "Nhắc nhở công việc!";
     let messageBody = "";
