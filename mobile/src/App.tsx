@@ -94,7 +94,7 @@ export default function App() {
           content: "# USER.md\n*Bộ nhớ thông tin cá nhân của người dùng (Hermes Style).*\n\n- Tên của người dùng là Bảo.\n",
           type: "quick",
           is_locked: 0,
-          is_pending_sync: 0
+          is_pending_sync: 1
         };
         try {
           await createNote(newUserNote);
@@ -116,7 +116,7 @@ export default function App() {
           content: "# MEMORY.md\n*Bộ nhớ kỹ thuật và cấu hình dự án (Hermes Style).*\n\n- Dự án hiện tại là Personal Work Notebook viết bằng Tauri v2 và React.\n",
           type: "quick",
           is_locked: 0,
-          is_pending_sync: 0
+          is_pending_sync: 1
         };
         try {
           await createNote(newMemNote);
@@ -193,6 +193,9 @@ export default function App() {
         // Cloud sync data pull on startup if logged in
         const userEmail = localStorage.getItem("sync_user_email");
         if (userEmail) {
+          const { syncUserSettingsFromServer } = await import("../../shared/services/authService");
+          await syncUserSettingsFromServer();
+
           const { pullCloudDataToLocal } = await import("../../shared/services/appSyncService");
           const updated = await pullCloudDataToLocal();
           if (updated) {
@@ -224,6 +227,9 @@ export default function App() {
       try {
         const userEmail = localStorage.getItem("sync_user_email");
         if (userEmail) {
+          const { syncUserSettingsFromServer } = await import("../../shared/services/authService");
+          await syncUserSettingsFromServer();
+
           const { pullCloudDataToLocal } = await import("../../shared/services/appSyncService");
           await pullCloudDataToLocal();
         }

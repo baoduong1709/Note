@@ -94,6 +94,7 @@ export async function completeGoogleLogin(loginData: GoogleLoginPayload): Promis
     });
     if (authResult.success && authResult.token) {
       setAuthToken(authResult.token);
+      applyServerConfigsToLocal(authResult.user);
     }
   } catch (err) {
     console.error('Failed to authenticate with server:', err);
@@ -154,6 +155,7 @@ export async function startGoogleOAuth(
                 });
                 if (authResult.success && authResult.token) {
                   setAuthToken(authResult.token);
+                  applyServerConfigsToLocal(authResult.user);
                 }
               } catch (err) {
                 console.error('Failed to authenticate with server:', err);
@@ -217,6 +219,7 @@ export async function startGoogleOAuth(
                 });
                 if (authResult.success && authResult.token) {
                   setAuthToken(authResult.token);
+                  applyServerConfigsToLocal(authResult.user);
                 }
               } catch (err) {
                 console.error('Failed to authenticate with server:', err);
@@ -237,5 +240,42 @@ export async function startGoogleOAuth(
     if (triggerToast) triggerToast("Đăng nhập thất bại: " + err.message);
     if (onProgress) onProgress('accounts');
     return null;
+  }
+}
+
+export function applyServerConfigsToLocal(user: any): void {
+  if (user) {
+    if (user.ai_config) {
+      localStorage.setItem('ai_config', user.ai_config);
+    }
+    if (user.search_config) {
+      localStorage.setItem('search_config', user.search_config);
+    }
+    if (user.telegram_config) {
+      localStorage.setItem('telegram_config', user.telegram_config);
+    }
+  }
+}
+
+export async function saveUserSettingsToServer(aiConfig: any, searchConfig: any, telegramConfig: any): Promise<void> {
+  try {
+    await apiRequest('/api/auth/settings', {
+      method: 'POST',
+      body: JSON.stringify({ aiConfig, searchConfig, telegramConfig }),
+    });
+  } catch (err) {
+    console.error('Failed to save settings to server:', err);
+    throw err;
+  }
+}
+
+export async function syncUserSettingsFromServer(): Promise<void> {
+  try {
+    const res = await apiRequest<{ success: boolean; data: any }>('/api/auth/me');
+    if (res.success && res.data) {
+      applyServerConfigsToLocal(res.data);
+    }
+  } catch (err) {
+    console.error('Failed to sync settings from server:', err);
   }
 }

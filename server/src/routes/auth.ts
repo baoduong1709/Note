@@ -97,7 +97,15 @@ router.post('/google', async (req: Request, res: Response) => {
     res.json({
       success: true,
       token,
-      user: { id: userId, email: userEmail, name: userName || '' },
+      user: {
+        id: userId,
+        email: userEmail,
+        name: userName || '',
+        ai_config: existingUser ? existingUser.ai_config : null,
+        search_config: existingUser ? existingUser.search_config : null,
+        telegram_config: existingUser ? existingUser.telegram_config : null,
+        telegram_chat_id: existingUser ? existingUser.telegram_chat_id : null
+      },
     });
   } catch (error) {
     console.error('Google auth error:', error);
@@ -112,7 +120,7 @@ router.post('/google', async (req: Request, res: Response) => {
 router.get('/me', authenticateToken, (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const user = db.prepare('SELECT id, email, name, avatar_url, telegram_chat_id, created_at, updated_at FROM users WHERE id = ?')
+    const user = db.prepare('SELECT id, email, name, avatar_url, telegram_chat_id, ai_config, search_config, telegram_config, created_at, updated_at FROM users WHERE id = ?')
       .get(req.user!.userId) as any;
 
     if (!user) {
@@ -143,6 +151,60 @@ router.post('/telegram', authenticateToken, (req: Request, res: Response) => {
   } catch (error) {
     console.error('Update Telegram Chat ID error:', error);
     res.status(500).json({ success: false, error: 'Failed to update Telegram Chat ID.' });
+  }
+});
+
+/**
+ * POST /settings
+ * Update the current user's configurations (AI, Search, Telegram).
+ */
+router.post('/settings', authenticateToken, (req: Request, res: Response) => {
+  try {
+    const { aiConfig, searchConfig, telegramConfig } = req.body;
+    const db = getDatabase();
+
+    let telegramChatId: string | null = null;
+    if (telegramConfig) {
+      try {
+        const parsed = typeof telegramConfig === 'string' ? JSON.parse(telegramConfig) : telegramConfig;
+        telegramChatId = parsed.chatId || null;
+      } catch (err) {
+        // Ignore JSON parsing errors and look for direct object shape
+        if (typeof telegramConfig === 'object') {
+          telegramChatId = telegramConfig.chatId || null;
+        }
+      }
+    }
+
+    const aiStr = aiConfig ? (typeof aiConfig === 'object' ? JSON.stringify(aiConfig) : aiConfig) : null;
+    const searchStr = searchConfig ? (typeof searchConfig === 'object' ? JSON.stringify(searchConfig) : searchConfig) : null;
+    const telegramStr = telegramConfig ? (typeof telegramConfig === 'object' ? JSON.stringify(telegramConfig) : telegramConfig) : null;
+
+    if (telegramChatId) {
+      db.prepare(`
+        UPDATE users 
+        SET ai_config = COALESCE(?, ai_config), 
+            search_config = COALESCE(?, search_config), 
+            telegram_config = COALESCE(?, telegram_config), 
+            telegram_chat_id = COALESCE(?, telegram_chat_id), 
+            updated_at = datetime('now') 
+        WHERE id = ?
+      `).run(aiStr, searchStr, telegramStr, telegramChatId, req.user!.userId);
+    } else {
+      db.prepare(`
+        UPDATE users 
+        SET ai_config = COALESCE(?, ai_config), 
+            search_config = COALESCE(?, search_config), 
+            telegram_config = COALESCE(?, telegram_config), 
+            updated_at = datetime('now') 
+        WHERE id = ?
+      `).run(aiStr, searchStr, telegramStr, req.user!.userId);
+    }
+
+    res.json({ success: true, message: 'Settings saved successfully.' });
+  } catch (error) {
+    console.error('Save settings error:', error);
+    res.status(500).json({ success: false, error: 'Failed to save settings.' });
   }
 });
 

@@ -29,6 +29,9 @@ export function initDatabase(): Database.Database {
       name TEXT,
       avatar_url TEXT,
       telegram_chat_id TEXT,
+      ai_config TEXT,
+      search_config TEXT,
+      telegram_config TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -156,13 +159,28 @@ export function initDatabase(): Database.Database {
     );
   `);
 
-  // Safe migration to add telegram_chat_id column if it doesn't exist
+  // Safe migration to add new columns if they don't exist
   try {
     db.exec("ALTER TABLE users ADD COLUMN telegram_chat_id TEXT");
     console.log("⚡ Database migrated: added telegram_chat_id to users table.");
   } catch (err) {
     // Column already exists, ignore
   }
+
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN ai_config TEXT");
+    console.log("⚡ Database migrated: added ai_config to users table.");
+  } catch (err) {}
+
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN search_config TEXT");
+    console.log("⚡ Database migrated: added search_config to users table.");
+  } catch (err) {}
+
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN telegram_config TEXT");
+    console.log("⚡ Database migrated: added telegram_config to users table.");
+  } catch (err) {}
 
   // Create indexes for query performance
   db.exec(`

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Play, CheckCircle, Clock, X, Calendar } from "lucide-react";
-import { getTasks, createTask, updateTaskStatus, deleteTask, Task } from "../../../shared/database/queries/tasks";
+import { getTasks, createTask, updateTaskStatus, deleteTask, Task, updateTask } from "../../../shared/database/queries/tasks";
 import GenericConfirmModal from "../../../shared/components/GenericConfirmModal";
 import { useLanguage } from "../../../shared/contexts/LanguageContext";
 
@@ -18,6 +18,64 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [dueDate, setDueDate] = useState("");
   const workspace = "personal";
+
+  // Edit task states
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editPriority, setEditPriority] = useState<Task["priority"]>("medium");
+  const [editDueDate, setEditDueDate] = useState("");
+
+  const editDatePart = editDueDate ? editDueDate.split("T")[0] : "";
+  const editTimePart = editDueDate && editDueDate.includes("T") ? editDueDate.split("T")[1] : "";
+
+  const handleEditDateChange = (newDate: string) => {
+    if (!newDate) {
+      setEditDueDate("");
+    } else {
+      const time = editTimePart || "18:00";
+      setEditDueDate(`${newDate}T${time}`);
+    }
+  };
+
+  const handleEditTimeChange = (newTime: string) => {
+    if (!newTime) {
+      const date = editDatePart || new Date().toISOString().slice(0, 10);
+      setEditDueDate(`${date}T00:00`);
+    } else {
+      const date = editDatePart || new Date().toISOString().slice(0, 10);
+      setEditDueDate(`${date}T${newTime}`);
+    }
+  };
+
+  const handleEditClick = (task: Task) => {
+    setEditingTask(task);
+    setEditTitle(task.title);
+    setEditPriority(task.priority);
+    setEditDueDate(task.due_date || "");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask || !editTitle.trim()) return;
+    try {
+      const updated: Task = {
+        ...editingTask,
+        title: editTitle,
+        priority: editPriority,
+        due_date: editDueDate || null,
+      };
+      await updateTask(updated);
+      triggerToast(language === "vi" ? "Đã cập nhật thông tin task!" : "Task updated successfully!");
+      setEditingTask(null);
+      loadTasks();
+      window.dispatchEvent(new CustomEvent("task-updated"));
+    } catch (err) {
+      console.error("Failed to update task:", err);
+      triggerToast(language === "vi" ? "Lỗi cập nhật task!" : "Failed to update task!");
+    }
+  };
+
+  // Split due date into date and time parts for separate desktop inputs
 
   // Split due date into date and time parts for separate desktop inputs
   const datePart = dueDate ? dueDate.split("T")[0] : "";
@@ -365,13 +423,14 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
             {todoTasks.map(task => (
               <div 
                 key={task.id} 
-                className={`p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 ${
+                onClick={() => handleEditClick(task)}
+                className={`p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 cursor-pointer hover:border-purple-500/30 transition-all ${
                   isTaskOverdue(task) ? "shadow-md shadow-red-500/5 !border-red-500/20" : "premium-hover-glow"
                 }`}
               >
-                <h5 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug break-words text-left">{task.title}</h5>
-                <span className="text-[9px] text-zinc-500 block mt-1 flex items-center gap-0.5">
-                  <Clock className={`w-3.5 h-3.5 ${isTaskOverdue(task) ? "text-red-500 font-bold" : "text-zinc-400"}`} />
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug break-words text-left">{task.title}</h5>
+                <span className="text-[11px] text-zinc-500 block mt-1.5 flex items-center gap-0.5">
+                  <Clock className={`w-4 h-4 ${isTaskOverdue(task) ? "text-red-500 font-bold" : "text-zinc-400"}`} />
                   <span className={isTaskOverdue(task) ? "text-red-600 dark:text-red-400 font-bold" : ""}>
                     {getTaskTimeLabel(task)}
                   </span>
@@ -379,23 +438,23 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                 
                 <button
                   type="button"
-                  onClick={() => handleDelete(task.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all absolute right-2 top-2 cursor-pointer"
                   title={t("tasks.deleteTask")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold ${
+                <div className="flex justify-between items-center pt-2 text-[10px] text-zinc-500">
+                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold ${
                     task.priority === "high" ? "bg-red-500/10 text-red-400" : task.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
                   }`}>{task.priority === "high" ? t("tasks.priorityHighTag") : task.priority === "medium" ? t("tasks.priorityMediumTag") : t("tasks.priorityLowTag")}</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => handleStatusChange(task.id, "in_progress")}
-                      className="text-[10px] bg-purple-500/10 hover:bg-purple-500/20 active:scale-95 text-purple-650 dark:text-purple-400 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 transition-all shadow-sm shadow-purple-500/5"
+                      onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "in_progress"); }}
+                      className="text-xs bg-purple-500/10 hover:bg-purple-500/20 active:scale-95 text-purple-650 dark:text-purple-400 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm shadow-purple-500/5 cursor-pointer"
                     >
-                      <Play className="w-3 h-3" /> {t("tasks.actionStart")}
+                      <Play className="w-3.5 h-3.5" /> {t("tasks.actionStart")}
                     </button>
                   </div>
                 </div>
@@ -418,13 +477,14 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
             {inProgressTasks.map(task => (
               <div 
                 key={task.id} 
-                className={`p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 ${
+                onClick={() => handleEditClick(task)}
+                className={`p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 cursor-pointer hover:border-purple-500/30 transition-all ${
                   isTaskOverdue(task) ? "shadow-md shadow-red-500/5 !border-red-500/20" : "premium-hover-glow"
                 }`}
               >
-                <h5 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug break-words text-left">{task.title}</h5>
-                <span className="text-[9px] text-zinc-500 block mt-1 flex items-center gap-0.5">
-                  <Clock className={`w-3.5 h-3.5 ${isTaskOverdue(task) ? "text-red-500 font-bold" : "text-zinc-400"}`} />
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug break-words text-left">{task.title}</h5>
+                <span className="text-[11px] text-zinc-500 block mt-1.5 flex items-center gap-0.5">
+                  <Clock className={`w-4 h-4 ${isTaskOverdue(task) ? "text-red-500 font-bold" : "text-zinc-400"}`} />
                   <span className={isTaskOverdue(task) ? "text-red-600 dark:text-red-400 font-bold" : ""}>
                     {getTaskTimeLabel(task)}
                   </span>
@@ -432,21 +492,21 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
                 
                 <button
                   type="button"
-                  onClick={() => handleDelete(task.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all absolute right-2 top-2 cursor-pointer"
                   title={t("tasks.deleteTask")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold ${
+                <div className="flex justify-between items-center pt-2 text-[10px] text-zinc-500">
+                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold ${
                     task.priority === "high" ? "bg-red-500/10 text-red-400" : task.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400"
                   }`}>{task.priority === "high" ? t("tasks.priorityHighTag") : task.priority === "medium" ? t("tasks.priorityMediumTag") : t("tasks.priorityLowTag")}</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => handleStatusChange(task.id, "done")}
-                      className="text-[10px] bg-teal-500/10 hover:bg-teal-500/20 active:scale-95 text-teal-650 dark:text-teal-400 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 transition-all shadow-sm shadow-teal-500/5"
+                      onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "done"); }}
+                      className="text-xs bg-teal-500/10 hover:bg-teal-500/20 active:scale-95 text-teal-650 dark:text-teal-400 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm shadow-teal-500/5 cursor-pointer"
                     >
                       <CheckCircle className="w-3.5 h-3.5" /> {t("tasks.actionDone")}
                     </button>
@@ -471,28 +531,29 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
             {doneTasks.map(task => (
               <div 
                 key={task.id} 
-                className="p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 opacity-75 hover:opacity-100 transition-opacity"
+                onClick={() => handleEditClick(task)}
+                className="p-3 rounded-lg border bg-white dark:bg-zinc-950/40 relative group border-zinc-250 dark:border-white/5 opacity-75 hover:opacity-100 cursor-pointer hover:border-purple-500/30 transition-all"
               >
-                <h5 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug line-through break-words text-left">{task.title}</h5>
-                <span className="text-[9px] text-zinc-500 block mt-1 flex items-center gap-0.5">
-                  <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                <h5 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 pr-5 leading-snug line-through break-words text-left">{task.title}</h5>
+                <span className="text-[11px] text-zinc-500 block mt-1.5 flex items-center gap-0.5">
+                  <Clock className="w-4 h-4 text-zinc-400" />
                   <span>{getTaskTimeLabel(task)}</span>
                 </span>
                 
                 <button
                   type="button"
-                  onClick={() => handleDelete(task.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all absolute right-2 top-2 cursor-pointer"
                   title={t("tasks.deleteTask")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <div className="flex justify-between items-center pt-1 text-[9px] text-zinc-500">
-                  <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-500 px-1 rounded uppercase tracking-wider font-bold">{t("tasks.doneLabel")}</span>
+                <div className="flex justify-between items-center pt-2 text-[10px] text-zinc-500">
+                  <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-500 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold">{t("tasks.doneLabel")}</span>
                   <button
                     type="button"
-                    onClick={() => handleStatusChange(task.id, "todo")}
-                    className="text-[10px] bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:scale-95 text-zinc-650 dark:text-zinc-300 px-2.5 py-1 rounded-md font-bold transition-all"
+                    onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "todo"); }}
+                    className="text-xs bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:scale-95 text-zinc-650 dark:text-zinc-300 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer"
                   >
                     {t("tasks.actionReopen")}
                   </button>
@@ -502,6 +563,162 @@ export default function TasksView({ triggerToast }: TasksViewProps) {
           </div>
         </div>
       </div>
+
+      {/* EDIT TASK DIALOG MODAL */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleSaveEdit} className="glass-panel w-full max-w-md rounded-2xl p-6 border border-zinc-200/50 dark:border-white/5 shadow-2xl flex flex-col space-y-4 text-xs text-zinc-750 dark:text-zinc-300 relative animate-fade-in bg-white dark:bg-zinc-900">
+            <button
+              type="button"
+              onClick={() => setEditingTask(null)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-white cursor-pointer transition-all p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            
+            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-white pb-2 border-b border-zinc-200/50 dark:border-white/5">
+              {language === "vi" ? "Chỉnh sửa công việc" : "Edit Task"}
+            </h3>
+
+            <div>
+              <label className="block text-zinc-400 mb-1">{t("tasks.taskName")}</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full p-2.5 rounded bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-white focus:outline-none focus:border-purple-500/50 transition-all text-xs"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-zinc-400 mb-1">{t("tasks.priority")}</label>
+              <select
+                value={editPriority}
+                onChange={(e) => setEditPriority(e.target.value as Task["priority"])}
+                className="w-full p-2.5 rounded bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs cursor-pointer"
+              >
+                <option value="low">{t("tasks.priorityLow")}</option>
+                <option value="medium">{t("tasks.priorityMedium")}</option>
+                <option value="high">{t("tasks.priorityHigh")}</option>
+              </select>
+            </div>
+
+            <div className="relative">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-zinc-400">{t("tasks.dueDate")}</label>
+                {editDueDate && (
+                  <button
+                    type="button"
+                    onClick={() => setEditDueDate("")}
+                    className="text-[10px] text-red-500 hover:text-red-400 font-medium transition-colors cursor-pointer"
+                  >
+                    {t("tasks.presetClear")}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                {/* Date input part */}
+                <div className="relative flex-1">
+                  <input
+                    type="date"
+                    id="edit-task-due-date-part"
+                    value={editDatePart}
+                    onChange={(e) => handleEditDateChange(e.target.value)}
+                    className="w-full p-2.5 pr-8 rounded bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs hide-calendar-picker"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById("edit-task-due-date-part") as HTMLInputElement;
+                      if (el && typeof el.showPicker === "function") {
+                        try { el.showPicker(); } catch (err) { el.focus(); }
+                      } else if (el) { el.focus(); }
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 p-0.5 cursor-pointer"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Time select part */}
+                <div className="relative w-[95px] shrink-0">
+                  <select
+                    id="edit-task-due-time-part"
+                    value={editTimePart || "18:00"}
+                    onChange={(e) => handleEditTimeChange(e.target.value)}
+                    className="w-full p-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 text-zinc-800 dark:text-zinc-300 focus:outline-none focus:border-purple-500/50 transition-all text-xs rounded cursor-pointer appearance-none pr-7"
+                  >
+                    {Array.from({ length: 48 }).map((_, i) => {
+                      const hour = String(Math.floor(i / 2)).padStart(2, "0");
+                      const minute = i % 2 === 0 ? "00" : "30";
+                      const val = `${hour}:${minute}`;
+                      return (
+                        <option key={val} value={val}>
+                          {val}
+                        </option>
+                      );
+                    })}
+                    <option value="23:59">23:59</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
+                    <Clock className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick preset buttons */}
+              <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    today.setHours(18, 0, 0, 0);
+                    const offset = today.getTimezoneOffset();
+                    const localDate = new Date(today.getTime() - offset * 60 * 1000);
+                    setEditDueDate(localDate.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-650 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 transition-all font-medium cursor-pointer"
+                >
+                  {t("tasks.presetToday")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(18, 0, 0, 0);
+                    const offset = tomorrow.getTimezoneOffset();
+                    const localDate = new Date(tomorrow.getTime() - offset * 60 * 1000);
+                    setEditDueDate(localDate.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-650 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 hover:text-purple-400 transition-all font-medium cursor-pointer"
+                >
+                  {t("tasks.presetTomorrow")}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-zinc-200/50 dark:border-white/5">
+              <button
+                type="button"
+                onClick={() => setEditingTask(null)}
+                className="bg-transparent hover:bg-zinc-100 dark:hover:bg-white/5 border border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-zinc-300 px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer text-xs"
+              >
+                {t("common.cancel") || "Cancel"}
+              </button>
+              <button
+                type="submit"
+                className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-500 hover:to-blue-400 text-white px-4 py-2 rounded-xl font-semibold shadow-md shadow-purple-500/10 hover:shadow-lg transition-all text-xs cursor-pointer"
+              >
+                {language === "vi" ? "Lưu thay đổi" : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* CUSTOM DANGER CONFIRM MODAL FOR DELETING TASKS */}
       <GenericConfirmModal

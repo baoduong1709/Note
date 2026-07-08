@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { ShareData, mapToShareData } from '../services/shareService';
 import { pullCloudDataToLocal } from '../services/appSyncService';
+import { sendNotification } from '../services/notificationService';
 
 interface UseShareWebSocketOptions {
   syncId: string | null;
@@ -87,7 +88,6 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
           // 3. Handle Real-Time Push Notifications from Server
           if (msg.type === 'notification' && msg.title && msg.body) {
             console.log('[WS] Received notification signal from server:', msg.title, msg.body);
-            const { sendNotification } = await import('../services/notificationService');
             sendNotification(msg.title, msg.body);
           }
         } catch (err) {

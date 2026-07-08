@@ -110,7 +110,7 @@ export default function SettingsView({
         content: buildUserNoteContent(memories),
         type: "quick",
         is_locked: 0,
-        is_pending_sync: 0
+        is_pending_sync: 1
       });
     }
 
@@ -123,7 +123,7 @@ export default function SettingsView({
         content: buildTechNoteContent(memories),
         type: "quick",
         is_locked: 0,
-        is_pending_sync: 0
+        is_pending_sync: 1
       });
     }
   };
@@ -150,7 +150,7 @@ export default function SettingsView({
           userNote.title,
           `${userNote.content.trim()}\n\n${missingLines.join("\n")}\n`,
           userNote.type,
-          0
+          1
         );
       }
     }
@@ -163,7 +163,7 @@ export default function SettingsView({
           memoryNote.title,
           `${memoryNote.content.trim()}\n\n${missingLines.join("\n")}\n`,
           memoryNote.type,
-          0
+          1
         );
       }
     }
@@ -334,9 +334,10 @@ export default function SettingsView({
     // If logged in, sync to server
     if (currentUser) {
       try {
-        await api.post("/api/auth/telegram", { telegramChatId: telegramChatId.trim() });
+        const { saveUserSettingsToServer } = await import("../../../shared/services/authService");
+        await saveUserSettingsToServer(aiData, searchData, telegramData);
       } catch (err) {
-        console.error("Failed to sync Telegram Chat ID to server:", err);
+        console.error("Failed to sync settings to server:", err);
       }
     }
 

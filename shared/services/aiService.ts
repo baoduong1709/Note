@@ -1744,7 +1744,7 @@ async function appendFactToMemoryNote(category: "USER" | "TECH", fact: string): 
     const currentContent = target.content || "";
     if (currentContent.toLowerCase().includes(normalizedFact.toLowerCase())) return;
     const newContent = `${currentContent.trim()}\n\n- ${normalizedFact}\n`;
-    await updateNote(target.id, target.title, newContent, target.type, 0);
+    await updateNote(target.id, target.title, newContent, target.type, 1);
   } else {
     const isUser = category === "USER";
     const header = isUser
@@ -1759,7 +1759,7 @@ async function appendFactToMemoryNote(category: "USER" | "TECH", fact: string): 
       content: `${header}\n\n- ${normalizedFact}\n`,
       type: "quick",
       is_locked: 0,
-      is_pending_sync: 0
+      is_pending_sync: 1
     });
   }
 }
