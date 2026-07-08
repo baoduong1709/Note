@@ -19,6 +19,7 @@ import proxyRoutes from './routes/proxy.js';
 import { initWebSocket } from './websocket.js';
 import { initTelegramBot } from './telegramBot.js';
 import { initScheduler } from './scheduler.js';
+import { initTaskScheduler } from './taskScheduler.js';
 
 // Resolve __dirname for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +34,9 @@ initTelegramBot();
 
 // Initialize Scheduler service (Daily reminders)
 initScheduler();
+
+// Initialize Task Scheduler service (Time-exact task reminders)
+initTaskScheduler();
 
 // Create Express app
 const app = express();

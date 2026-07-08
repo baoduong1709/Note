@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { getDatabase } from '../database.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { broadcastSyncUpdate } from '../websocket.js';
+import { scheduleTaskJob, cancelTaskJob } from '../taskScheduler.js';
 
 // Helper to generate deterministic syncId from user email
 function generateSyncIdFromEmail(email: string): string {
@@ -77,9 +78,10 @@ router.post('/push', (req: Request, res: Response) => {
     } = req.body;
 
     const syncTransaction = db.transaction(() => {
-      // Delete replaceable user data. AI chat is merge-only here because a
-      // client full-push can be triggered from a partial local snapshot; wiping
-      // server chat first would permanently collapse conversation history.
+      // Cancel active jobs for this user's tasks before deleting
+      const existingTasks = db.prepare('SELECT id FROM tasks WHERE user_id = ?').all(userId) as { id: string }[];
+      existingTasks.forEach(t => cancelTaskJob(t.id));
+
       db.prepare('DELETE FROM tasks WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM notes WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM calendar_events WHERE user_id = ?').run(userId);
@@ -125,6 +127,13 @@ router.post('/push', (req: Request, res: Response) => {
           task.created_at || task.createdAt || new Date().toISOString(),
           task.updated_at || task.updatedAt || new Date().toISOString(),
         );
+        scheduleTaskJob({
+          id: task.id,
+          title: task.title || '',
+          due_date: task.due_date || task.dueDate || null,
+          status: task.status || 'todo',
+          user_id: userId
+        });
       }
 
       // Re-insert calendar events
@@ -367,6 +376,15 @@ router.post('/delta-push', (req: Request, res: Response) => {
                created_at = excluded.created_at`
             : `INSERT OR REPLACE INTO ${tableName} (${columnsToInsert.join(', ')}) VALUES (${placeholders})`;
           db.prepare(sql).run(...values);
+          if (tableName === 'tasks') {
+            scheduleTaskJob({
+              id: normalized.id,
+              title: normalized.title || '',
+              due_date: normalized.due_date || null,
+              status: normalized.status || 'todo',
+              user_id: userId
+            });
+          }
           stats.upserted++;
 
         } else if (change.action === 'delete') {
@@ -385,6 +403,10 @@ router.post('/delta-push', (req: Request, res: Response) => {
             db.prepare('DELETE FROM ai_sessions WHERE id = ? AND user_id = ?').run(recordId, userId);
           } else {
             db.prepare(`DELETE FROM ${tableName} WHERE id = ? AND user_id = ?`).run(recordId, userId);
+          }
+
+          if (tableName === 'tasks') {
+            cancelTaskJob(recordId);
           }
 
           // Record deletion in tombstones for other devices to pick up

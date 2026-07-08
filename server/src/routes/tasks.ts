@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../database.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { scheduleTaskJob, cancelTaskJob } from '../taskScheduler.js';
 
 const router = Router();
 
@@ -107,6 +108,9 @@ router.post('/', (req: Request, res: Response) => {
     );
 
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId);
+    if (task) {
+      scheduleTaskJob(task as any);
+    }
     res.status(201).json({ success: true, data: task });
   } catch (error) {
     console.error('Create task error:', error);
@@ -191,6 +195,9 @@ router.put('/:id', (req: Request, res: Response) => {
     );
 
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    if (task) {
+      scheduleTaskJob(task as any);
+    }
     res.json({ success: true, data: task });
   } catch (error) {
     console.error('Update task error:', error);
@@ -215,6 +222,7 @@ router.delete('/:id', (req: Request, res: Response) => {
       return;
     }
 
+    cancelTaskJob(id);
     res.json({ success: true, data: { id } });
   } catch (error) {
     console.error('Delete task error:', error);
