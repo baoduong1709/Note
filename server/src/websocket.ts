@@ -86,3 +86,21 @@ export function broadcastSyncUpdate(syncId: string): void {
     }
   });
 }
+
+// Send real-time notification to all connected clients of a specific user
+export function sendNotificationToUser(syncId: string, title: string, body: string): void {
+  const clients = channels.get(syncId);
+  if (!clients) return;
+
+  const message = JSON.stringify({
+    type: 'notification',
+    title,
+    body,
+  });
+
+  clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}

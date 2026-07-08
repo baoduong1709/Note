@@ -83,6 +83,13 @@ export function useShareWebSocket({ syncId, onNewShare, triggerToastGlobal }: Us
               window.dispatchEvent(new CustomEvent('ai-chat-updated'));
             }
           }
+
+          // 3. Handle Real-Time Push Notifications from Server
+          if (msg.type === 'notification' && msg.title && msg.body) {
+            console.log('[WS] Received notification signal from server:', msg.title, msg.body);
+            const { sendNotification } = await import('../services/notificationService');
+            sendNotification(msg.title, msg.body);
+          }
         } catch (err) {
           console.error('[WS] Parse error:', err);
         }

@@ -1,4 +1,6 @@
 import { getDatabase } from './database.js';
+import { sendNotificationToUser } from './websocket.js';
+import crypto from 'crypto';
 
 // Map taskId -> setTimeout object
 const activeJobs = new Map<string, NodeJS.Timeout>();
@@ -59,17 +61,27 @@ async function sendTelegramMessage(chatId: string, message: string): Promise<boo
 async function sendTaskNotification(userId: string, taskTitle: string): Promise<void> {
   try {
     const db = getDatabase();
-    const user = db.prepare('SELECT telegram_chat_id FROM users WHERE id = ?').get(userId) as { telegram_chat_id: string | null } | undefined;
+    const user = db.prepare('SELECT email, telegram_chat_id FROM users WHERE id = ?').get(userId) as { email: string; telegram_chat_id: string | null } | undefined;
     
-    if (!user || !user.telegram_chat_id) return;
+    if (!user) return;
 
     const title = taskTitle.startsWith('E2EE:v1:') ? '🔒 [Công việc mã hóa]' : taskTitle;
-    const message = `🔔 *NHẮC NHỞ CÔNG VIỆC ĐẾN HẠN*\n\n` +
-                    `⏱️ Hiện đã đến giờ thực hiện công việc:\n` +
-                    `- *${title}*`;
+    const plainTextTitle = `🔔 NHẮC NHỞ CÔNG VIỆC ĐẾN HẠN`;
+    const plainTextBody = `⏱️ Hiện đã đến giờ thực hiện công việc:\n- ${title}`;
 
-    await sendTelegramMessage(user.telegram_chat_id, message);
-    console.log(`[TaskScheduler] Sent Telegram notification for task "${title}" to user ${userId}`);
+    // 1. Send via WebSocket to all connected desktop/mobile clients of this user
+    const syncId = crypto.createHash('sha256').update(user.email.trim().toLowerCase()).digest('hex');
+    sendNotificationToUser(syncId, plainTextTitle, plainTextBody);
+    console.log(`[TaskScheduler] Dispatched WebSocket notification for user ${userId} / syncId ${syncId}`);
+
+    // 2. Send via Telegram if linked
+    if (user.telegram_chat_id) {
+      const message = `🔔 *NHẮC NHỞ CÔNG VIỆC ĐẾN HẠN*\n\n` +
+                      `⏱️ Hiện đã đến giờ thực hiện công việc:\n` +
+                      `- *${title}*`;
+      await sendTelegramMessage(user.telegram_chat_id, message);
+      console.log(`[TaskScheduler] Sent Telegram notification for task "${title}" to user ${userId}`);
+    }
   } catch (err) {
     console.error('[TaskScheduler] Failed to send task notification:', err);
   }

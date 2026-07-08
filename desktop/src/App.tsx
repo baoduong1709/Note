@@ -15,7 +15,7 @@ import AIChatPanel from "../../shared/components/AIChatPanel";
 import { initDatabase, getDatabase } from "../../shared/database/db";
 import { createNote, Note } from "../../shared/database/queries/notes";
 import { CheckCircle, Lock, ShieldCheck, Sparkles, LogIn, ArrowRight, Database, RefreshCw, Bot } from "lucide-react";
-import { initNotifications, checkAndNotifyDueTasks } from "../../shared/services/notificationService";
+import { initNotifications, checkAndNotifyDueTasks, initClientTaskScheduler } from "../../shared/services/notificationService";
 import { startGoogleOAuth } from "../../shared/services/authService";
 import { useShareWebSocket } from "../../shared/hooks/useShareWebSocket";
 
@@ -179,6 +179,7 @@ export default function App() {
         // Initialize and check for due task notifications
         await initNotifications();
         await checkAndNotifyDueTasks();
+        initClientTaskScheduler();
 
         // Cloud sync data pull on startup if logged in
         const userEmail = localStorage.getItem("sync_user_email");

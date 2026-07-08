@@ -309,3 +309,131 @@ export async function checkAndNotifyDueTasks(): Promise<void> {
     console.error("Error checking due tasks for notifications:", err);
   }
 }
+
+// Map taskId -> setTimeout object for exact-time notifications on client
+const activeClientJobs = new Map<string, any>();
+let nextClientScanTime = Date.now() + 60 * 60 * 1000;
+
+// Helper to parse due_date string to Unix timestamp, default to UTC+7 (Vietnam) if no timezone is provided
+export function parseTaskDueDate(dueDateStr: string | null): number {
+  if (!dueDateStr) return NaN;
+  let formatted = dueDateStr.trim();
+  
+  if (formatted.includes('T')) {
+    const timePart = formatted.split('T')[1];
+    const hasTz = timePart.includes('Z') || timePart.includes('+') || timePart.includes('-');
+    if (!hasTz) {
+      formatted = formatted + '+07:00';
+    }
+  } else {
+    // Treat date-only string as local midnight in Vietnam
+    formatted = formatted + 'T00:00:00+07:00';
+  }
+  return new Date(formatted).getTime();
+}
+
+// Cancel a scheduled client job
+export function cancelClientTaskJob(taskId: string): void {
+  const timeout = activeClientJobs.get(taskId);
+  if (timeout) {
+    clearTimeout(timeout);
+    activeClientJobs.delete(taskId);
+    console.log("[ClientScheduler] Cancelled job for task:", taskId);
+  }
+}
+
+// Schedule client task job
+export function scheduleClientTaskJob(task: Task): void {
+  cancelClientTaskJob(task.id);
+
+  if (task.status === 'done' || !task.due_date) {
+    return;
+  }
+
+  const taskTime = parseTaskDueDate(task.due_date);
+  if (isNaN(taskTime)) return;
+
+  const now = Date.now();
+  if (taskTime >= now && taskTime < nextClientScanTime) {
+    const delay = taskTime - now;
+    const timeout = setTimeout(() => {
+      activeClientJobs.delete(task.id);
+      
+      const title = "🔔 NHẮC NHỞ CÔNG VIỆC ĐẾN HẠN";
+      const body = `⏱️ Hiện đã đến giờ thực hiện công việc:\n- ${task.title}`;
+      console.log("[ClientScheduler] Triggering exact-time notification for task:", task.title);
+      sendNotification(title, body);
+
+      // Prevent duplicate notification in subsequent checkAndNotifyDueTasks calls
+      const today = new Date().toDateString();
+      const notifiedTaskIdsStr = localStorage.getItem("notified_task_ids") || "[]";
+      const notifiedTaskIds: string[] = JSON.parse(notifiedTaskIdsStr);
+      const updatedIds = Array.from(new Set([...notifiedTaskIds, task.id]));
+      localStorage.setItem("last_notified_day", today);
+      localStorage.setItem("notified_task_ids", JSON.stringify(updatedIds));
+      
+    }, delay);
+    activeClientJobs.set(task.id, timeout);
+    console.log(`[ClientScheduler] Scheduled exact-time job for task ${task.id} in ${Math.round(delay / 1000)}s`);
+  }
+}
+
+// Scan database for tasks due in the next 1 hour on client
+export async function scanClientTasksForNextHour(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const now = Date.now();
+    nextClientScanTime = now + 60 * 60 * 1000; // Look ahead 1 hour
+
+    console.log(`[ClientScheduler] Scanning tasks due between now and ${new Date(nextClientScanTime).toISOString()}...`);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const queryTime = todayStr + 'T23:59:59';
+
+    // Fetch active tasks
+    const tasks = await db.select<Task[]>(
+      `SELECT * FROM tasks 
+       WHERE status != 'done' 
+         AND due_date IS NOT NULL 
+         AND due_date <= ?`,
+      [queryTime]
+    );
+
+    let scheduledCount = 0;
+    for (const task of tasks) {
+      const taskTime = parseTaskDueDate(task.due_date);
+      if (isNaN(taskTime)) continue;
+
+      if (taskTime >= now && taskTime < nextClientScanTime) {
+        scheduleClientTaskJob(task);
+        scheduledCount++;
+      }
+    }
+
+    console.log(`[ClientScheduler] Scan complete. Scheduled ${scheduledCount} tasks.`);
+  } catch (err) {
+    console.error("[ClientScheduler] Error during scan:", err);
+  }
+}
+
+// Initialize client-side scheduler
+export function initClientTaskScheduler(): void {
+  console.log("⏰ Initializing Client-Side Task Scheduler (Time-Exact)...");
+  
+  // Run first scan immediately
+  scanClientTasksForNextHour();
+
+  // Run hourly scans
+  setInterval(() => {
+    scanClientTasksForNextHour();
+  }, 60 * 60 * 1000);
+
+  // Listen for task changes to reschedule
+  if (typeof window !== "undefined") {
+    const handleTaskUpdated = () => {
+      console.log("[ClientScheduler] task-updated event received, rescanning...");
+      scanClientTasksForNextHour();
+    };
+    window.addEventListener("task-updated", handleTaskUpdated);
+  }
+}
