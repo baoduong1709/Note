@@ -222,47 +222,52 @@ export default function SettingsView({
       containerRef.current.scrollTop = 0;
     }
 
-    // Load AI
-    const aiConfig = localStorage.getItem("ai_config");
-    if (aiConfig) {
-      try {
-        const parsed = JSON.parse(aiConfig);
-        setAiApiKey(parsed.apiKey || "");
-        setAiBaseUrl(parsed.baseUrl || "");
-        setAiModelName(parsed.modelName || "");
-      } catch (err) {
-        console.error(err);
+    const loadConfigs = () => {
+      // Load AI
+      const aiConfig = localStorage.getItem("ai_config");
+      if (aiConfig) {
+        try {
+          const parsed = JSON.parse(aiConfig);
+          setAiApiKey(parsed.apiKey || "");
+          setAiBaseUrl(parsed.baseUrl || "");
+          setAiModelName(parsed.modelName || "");
+        } catch (err) {
+          console.error(err);
+        }
+      } else {
+        setAiBaseUrl("https://api.openai.com/v1");
+        setAiModelName("gpt-4o-mini");
       }
-    } else {
-      setAiBaseUrl("https://api.openai.com/v1");
-      setAiModelName("gpt-4o-mini");
-    }
 
-    // Load Search
-    const searchConfig = localStorage.getItem("search_config");
-    if (searchConfig) {
-      try {
-        const parsed = JSON.parse(searchConfig);
-        setSearchProvider(parsed.provider || "ddg");
-        setSearchApiKey(parsed.apiKey || "");
-        setGoogleApiKey(parsed.googleApiKey || "");
-        setGoogleCx(parsed.googleCx || "");
-      } catch (err) {
-        console.error(err);
+      // Load Search
+      const searchConfig = localStorage.getItem("search_config");
+      if (searchConfig) {
+        try {
+          const parsed = JSON.parse(searchConfig);
+          setSearchProvider(parsed.provider || "ddg");
+          setSearchApiKey(parsed.apiKey || "");
+          setGoogleApiKey(parsed.googleApiKey || "");
+          setGoogleCx(parsed.googleCx || "");
+        } catch (err) {
+          console.error(err);
+        }
       }
-    }
 
-    // Load Telegram Config
-    const tgConfig = localStorage.getItem("telegram_config");
-    if (tgConfig) {
-      try {
-        const parsed = JSON.parse(tgConfig);
-        setTelegramEnabled(parsed.enabled || false);
-        setTelegramChatId(parsed.chatId || "");
-      } catch (err) {
-        console.error(err);
+      // Load Telegram Config
+      const tgConfig = localStorage.getItem("telegram_config");
+      if (tgConfig) {
+        try {
+          const parsed = JSON.parse(tgConfig);
+          setTelegramEnabled(parsed.enabled || false);
+          setTelegramChatId(parsed.chatId || "");
+        } catch (err) {
+          console.error(err);
+        }
       }
-    }
+    };
+
+    loadConfigs();
+    window.addEventListener("settings-sync-completed", loadConfigs);
 
     // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";
@@ -302,6 +307,7 @@ export default function SettingsView({
 
     return () => {
       window.removeEventListener("auth-state-changed", handleAuthChange);
+      window.removeEventListener("settings-sync-completed", loadConfigs);
     };
   }, []);
 

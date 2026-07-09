@@ -94,7 +94,7 @@ export async function completeGoogleLogin(loginData: GoogleLoginPayload): Promis
     });
     if (authResult.success && authResult.token) {
       setAuthToken(authResult.token);
-      applyServerConfigsToLocal(authResult.user);
+      await applyServerConfigsToLocal(authResult.user);
     }
   } catch (err) {
     console.error('Failed to authenticate with server:', err);
@@ -155,7 +155,7 @@ export async function startGoogleOAuth(
                 });
                 if (authResult.success && authResult.token) {
                   setAuthToken(authResult.token);
-                  applyServerConfigsToLocal(authResult.user);
+                  await applyServerConfigsToLocal(authResult.user);
                 }
               } catch (err) {
                 console.error('Failed to authenticate with server:', err);
@@ -219,7 +219,7 @@ export async function startGoogleOAuth(
                 });
                 if (authResult.success && authResult.token) {
                   setAuthToken(authResult.token);
-                  applyServerConfigsToLocal(authResult.user);
+                  await applyServerConfigsToLocal(authResult.user);
                 }
               } catch (err) {
                 console.error('Failed to authenticate with server:', err);
@@ -243,16 +243,48 @@ export async function startGoogleOAuth(
   }
 }
 
-export function applyServerConfigsToLocal(user: any): void {
+export async function applyServerConfigsToLocal(user: any): Promise<void> {
   if (user) {
+    let needsPush = false;
+
+    const localAi = localStorage.getItem('ai_config');
     if (user.ai_config) {
       localStorage.setItem('ai_config', user.ai_config);
+    } else if (localAi) {
+      needsPush = true;
     }
+
+    const localSearch = localStorage.getItem('search_config');
     if (user.search_config) {
       localStorage.setItem('search_config', user.search_config);
+    } else if (localSearch) {
+      needsPush = true;
     }
+
+    const localTg = localStorage.getItem('telegram_config');
     if (user.telegram_config) {
       localStorage.setItem('telegram_config', user.telegram_config);
+    } else if (localTg) {
+      needsPush = true;
+    }
+
+    if (needsPush) {
+      try {
+        const aiData = localStorage.getItem('ai_config');
+        const searchData = localStorage.getItem('search_config');
+        const tgData = localStorage.getItem('telegram_config');
+        await saveUserSettingsToServer(
+          aiData ? JSON.parse(aiData) : null,
+          searchData ? JSON.parse(searchData) : null,
+          tgData ? JSON.parse(tgData) : null
+        );
+      } catch (err) {
+        console.error("Failed to push local configs to server:", err);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent("settings-sync-completed"));
     }
   }
 }
@@ -273,7 +305,7 @@ export async function syncUserSettingsFromServer(): Promise<void> {
   try {
     const res = await apiRequest<{ success: boolean; data: any }>('/api/auth/me');
     if (res.success && res.data) {
-      applyServerConfigsToLocal(res.data);
+      await applyServerConfigsToLocal(res.data);
     }
   } catch (err) {
     console.error('Failed to sync settings from server:', err);
