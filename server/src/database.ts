@@ -183,6 +183,11 @@ export function initDatabase(): Database.Database {
     console.log("⚡ Database migrated: added telegram_config to users table.");
   } catch (err) {}
 
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN e2ee_enabled INTEGER DEFAULT 0");
+    console.log("⚡ Database migrated: added e2ee_enabled to users table.");
+  } catch (err) {}
+
   // Create indexes for query performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
