@@ -642,7 +642,7 @@ async function fullPull(): Promise<boolean> {
   for (const note of cloudData.notes || []) {
     const decrypted = await decryptRecord("notes", note, passphrase);
     await db.execute(
-      `INSERT INTO notes (id, workspace_id, project_id, title, content, type, is_locked, is_pending_sync, created_at, updated_at)
+      `INSERT OR REPLACE INTO notes (id, workspace_id, project_id, title, content, type, is_locked, is_pending_sync, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
         decrypted.id,
@@ -662,7 +662,7 @@ async function fullPull(): Promise<boolean> {
   for (const task of cloudData.tasks || []) {
     const decrypted = await decryptRecord("tasks", task, passphrase);
     await db.execute(
-      `INSERT INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, external_status, is_pending_sync, created_at, updated_at)
+      `INSERT OR REPLACE INTO tasks (id, note_id, title, status, priority, due_date, workspace_id, project_id, source, external_id, external_url, external_status, is_pending_sync, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
         decrypted.id,
@@ -687,7 +687,7 @@ async function fullPull(): Promise<boolean> {
   for (const event of cloudData.calendarEvents || []) {
     const decrypted = await decryptRecord("calendar_events", event, passphrase);
     await db.execute(
-      `INSERT INTO calendar_events (id, title, event_type, date_type, solar_date, lunar_day, lunar_month, lunar_year, is_lunar_leap, repeat_yearly, is_important, notes, created_at, updated_at)
+      `INSERT OR REPLACE INTO calendar_events (id, title, event_type, date_type, solar_date, lunar_day, lunar_month, lunar_year, is_lunar_leap, repeat_yearly, is_important, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         decrypted.id,
