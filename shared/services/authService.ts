@@ -268,15 +268,24 @@ export async function applyServerConfigsToLocal(user: any): Promise<void> {
       needsPush = true;
     }
 
+    const localE2ee = localStorage.getItem('e2ee_enabled');
+    if (user.e2ee_enabled !== undefined && user.e2ee_enabled !== null) {
+      localStorage.setItem('e2ee_enabled', user.e2ee_enabled ? 'true' : 'false');
+    } else if (localE2ee) {
+      needsPush = true;
+    }
+
     if (needsPush) {
       try {
         const aiData = localStorage.getItem('ai_config');
         const searchData = localStorage.getItem('search_config');
         const tgData = localStorage.getItem('telegram_config');
+        const e2eeData = localStorage.getItem('e2ee_enabled');
         await saveUserSettingsToServer(
           aiData ? JSON.parse(aiData) : null,
           searchData ? JSON.parse(searchData) : null,
-          tgData ? JSON.parse(tgData) : null
+          tgData ? JSON.parse(tgData) : null,
+          e2eeData === 'true'
         );
       } catch (err) {
         console.error("Failed to push local configs to server:", err);
@@ -289,11 +298,16 @@ export async function applyServerConfigsToLocal(user: any): Promise<void> {
   }
 }
 
-export async function saveUserSettingsToServer(aiConfig: any, searchConfig: any, telegramConfig: any): Promise<void> {
+export async function saveUserSettingsToServer(aiConfig: any, searchConfig: any, telegramConfig: any, e2eeEnabled?: boolean): Promise<void> {
   try {
+    const payload: any = { aiConfig, searchConfig, telegramConfig };
+    if (e2eeEnabled !== undefined) {
+      payload.e2eeEnabled = e2eeEnabled;
+    }
+    
     await apiRequest('/api/auth/settings', {
       method: 'POST',
-      body: JSON.stringify({ aiConfig, searchConfig, telegramConfig }),
+      body: JSON.stringify(payload),
     });
   } catch (err) {
     console.error('Failed to save settings to server:', err);

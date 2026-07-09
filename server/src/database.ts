@@ -32,6 +32,7 @@ export function initDatabase(): Database.Database {
       ai_config TEXT,
       search_config TEXT,
       telegram_config TEXT,
+      e2ee_enabled INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );

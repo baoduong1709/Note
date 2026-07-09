@@ -313,7 +313,17 @@ export default function App() {
         (msg) => triggerToast(msg)
       );
       if (account) {
-        setOnboardingStep('pin_setup');
+        // Check if user already has E2EE enabled from the server config
+        const isE2eeEnabled = localStorage.getItem("e2ee_enabled") === "true";
+        if (isE2eeEnabled) {
+          // User already has E2EE enabled, skip PIN setup
+          // They will be prompted by the DecryptionModal in the main app
+          localStorage.setItem("onboarding_completed", "true");
+          setIsOnboarded(true);
+        } else {
+          // New user or E2EE not enabled, allow them to set up a new PIN
+          setOnboardingStep('pin_setup');
+        }
       }
     } catch (err) {
       console.error(err);
@@ -372,6 +382,22 @@ export default function App() {
     localStorage.setItem("onboarding_completed", "true");
     setIsOnboarded(true);
     triggerToast("Đã kích hoạt khóa và mã hóa đầu cuối (E2EE)!");
+
+    // Save e2ee flag to server
+    try {
+      const { saveUserSettingsToServer } = await import("../../shared/services/authService");
+      const aiData = localStorage.getItem('ai_config');
+      const searchData = localStorage.getItem('search_config');
+      const tgData = localStorage.getItem('telegram_config');
+      await saveUserSettingsToServer(
+        aiData ? JSON.parse(aiData) : null,
+        searchData ? JSON.parse(searchData) : null,
+        tgData ? JSON.parse(tgData) : null,
+        true // e2eeEnabled
+      );
+    } catch (err) {
+      console.error("Failed to push e2ee_enabled to server:", err);
+    }
 
     // Trigger initial background sync
     try {

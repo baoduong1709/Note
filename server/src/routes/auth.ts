@@ -104,7 +104,8 @@ router.post('/google', async (req: Request, res: Response) => {
         ai_config: existingUser ? existingUser.ai_config : null,
         search_config: existingUser ? existingUser.search_config : null,
         telegram_config: existingUser ? existingUser.telegram_config : null,
-        telegram_chat_id: existingUser ? existingUser.telegram_chat_id : null
+        telegram_chat_id: existingUser ? existingUser.telegram_chat_id : null,
+        e2ee_enabled: existingUser ? existingUser.e2ee_enabled : 0
       },
     });
   } catch (error) {
@@ -120,7 +121,7 @@ router.post('/google', async (req: Request, res: Response) => {
 router.get('/me', authenticateToken, (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const user = db.prepare('SELECT id, email, name, avatar_url, telegram_chat_id, ai_config, search_config, telegram_config, created_at, updated_at FROM users WHERE id = ?')
+    const user = db.prepare('SELECT id, email, name, avatar_url, telegram_chat_id, ai_config, search_config, telegram_config, e2ee_enabled, created_at, updated_at FROM users WHERE id = ?')
       .get(req.user!.userId) as any;
 
     if (!user) {
@@ -160,7 +161,7 @@ router.post('/telegram', authenticateToken, (req: Request, res: Response) => {
  */
 router.post('/settings', authenticateToken, (req: Request, res: Response) => {
   try {
-    const { aiConfig, searchConfig, telegramConfig } = req.body;
+    const { aiConfig, searchConfig, telegramConfig, e2eeEnabled } = req.body;
     const db = getDatabase();
 
     let telegramChatId: string | null = null;
@@ -187,18 +188,20 @@ router.post('/settings', authenticateToken, (req: Request, res: Response) => {
             search_config = COALESCE(?, search_config), 
             telegram_config = COALESCE(?, telegram_config), 
             telegram_chat_id = COALESCE(?, telegram_chat_id), 
+            e2ee_enabled = COALESCE(?, e2ee_enabled),
             updated_at = datetime('now') 
         WHERE id = ?
-      `).run(aiStr, searchStr, telegramStr, telegramChatId, req.user!.userId);
+      `).run(aiStr, searchStr, telegramStr, telegramChatId, e2eeEnabled !== undefined ? (e2eeEnabled ? 1 : 0) : null, req.user!.userId);
     } else {
       db.prepare(`
         UPDATE users 
         SET ai_config = COALESCE(?, ai_config), 
             search_config = COALESCE(?, search_config), 
             telegram_config = COALESCE(?, telegram_config), 
+            e2ee_enabled = COALESCE(?, e2ee_enabled),
             updated_at = datetime('now') 
         WHERE id = ?
-      `).run(aiStr, searchStr, telegramStr, req.user!.userId);
+      `).run(aiStr, searchStr, telegramStr, e2eeEnabled !== undefined ? (e2eeEnabled ? 1 : 0) : null, req.user!.userId);
     }
 
     res.json({ success: true, message: 'Settings saved successfully.' });

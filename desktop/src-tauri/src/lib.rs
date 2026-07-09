@@ -96,7 +96,8 @@ fn start_auth_server(window: tauri::Window) -> Result<String, String> {
       if (payload && payload.email) {{
         const email = encodeURIComponent(payload.email);
         const name = encodeURIComponent(payload.name || payload.email.split('@')[0]);
-        window.location.href = `/callback?email=${{email}}&name=${{name}}`;
+        const credential = encodeURIComponent(response.credential);
+        window.location.href = `/callback?email=${{email}}&name=${{name}}&access_token=${{credential}}`;
       }} else {{
         const box = document.getElementById('status-box');
         box.style.display = 'block';

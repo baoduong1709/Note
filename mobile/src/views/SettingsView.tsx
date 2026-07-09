@@ -263,9 +263,9 @@ export default function SettingsView({
       if (aiConfig) {
         try {
           const parsed = JSON.parse(aiConfig);
-          setAiApiKey(parsed.apiKey || "");
-          setAiBaseUrl(parsed.baseUrl || "");
-          setAiModelName(parsed.modelName || "");
+          setAiApiKey(prev => { if (prev !== (parsed.apiKey || "")) return parsed.apiKey || ""; return prev; });
+          setAiBaseUrl(prev => { if (prev !== (parsed.baseUrl || "")) return parsed.baseUrl || ""; return prev; });
+          setAiModelName(prev => { if (prev !== (parsed.modelName || "")) return parsed.modelName || ""; return prev; });
         } catch (err) {
           console.error(err);
         }
@@ -303,6 +303,12 @@ export default function SettingsView({
 
     loadConfigs();
     window.addEventListener("settings-sync-completed", loadConfigs);
+    window.addEventListener("focus", loadConfigs);
+    
+    // Poll a few times in case of race condition with background sync
+    const poll1 = setTimeout(loadConfigs, 500);
+    const poll2 = setTimeout(loadConfigs, 1500);
+    const poll3 = setTimeout(loadConfigs, 3000);
 
     // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";
@@ -314,6 +320,10 @@ export default function SettingsView({
 
     return () => {
       window.removeEventListener("settings-sync-completed", loadConfigs);
+      window.removeEventListener("focus", loadConfigs);
+      clearTimeout(poll1);
+      clearTimeout(poll2);
+      clearTimeout(poll3);
     };
   }, []);
 
@@ -394,7 +404,7 @@ export default function SettingsView({
 
 
 
-  const handleTogglePin = () => {
+  const handleTogglePin = async () => {
     if (pinEnabled) {
       localStorage.setItem("pin_lock_enabled", "false");
       localStorage.setItem("e2ee_enabled", "false");
@@ -403,12 +413,28 @@ export default function SettingsView({
       setPinEnabled(false);
       setPinCode("");
       triggerToast("Đã tắt khóa và mã hóa đầu cuối (E2EE).");
+      
+      // Save e2ee flag to server
+      try {
+        const { saveUserSettingsToServer } = await import("../../../shared/services/authService");
+        const aiData = localStorage.getItem('ai_config');
+        const searchData = localStorage.getItem('search_config');
+        const tgData = localStorage.getItem('telegram_config');
+        await saveUserSettingsToServer(
+          aiData ? JSON.parse(aiData) : null,
+          searchData ? JSON.parse(searchData) : null,
+          tgData ? JSON.parse(tgData) : null,
+          false // e2eeEnabled
+        );
+      } catch (err) {
+        console.error("Failed to push e2ee_enabled to server:", err);
+      }
     } else {
       setShowPinInput(true);
     }
   };
 
-  const handleSavePin = () => {
+  const handleSavePin = async () => {
     if (pinCode.length < 6) {
       triggerToast("Mật khẩu mã hóa đầu cuối phải có ít nhất 6 ký tự!");
       return;
@@ -420,6 +446,22 @@ export default function SettingsView({
     setPinEnabled(true);
     setShowPinInput(false);
     triggerToast("Đã kích hoạt khóa và mã hóa đầu cuối (E2EE) thành công!");
+    
+    // Save e2ee flag to server
+    try {
+      const { saveUserSettingsToServer } = await import("../../../shared/services/authService");
+      const aiData = localStorage.getItem('ai_config');
+      const searchData = localStorage.getItem('search_config');
+      const tgData = localStorage.getItem('telegram_config');
+      await saveUserSettingsToServer(
+        aiData ? JSON.parse(aiData) : null,
+        searchData ? JSON.parse(searchData) : null,
+        tgData ? JSON.parse(tgData) : null,
+        true // e2eeEnabled
+      );
+    } catch (err) {
+      console.error("Failed to push e2ee_enabled to server:", err);
+    }
   };
 
   const handleExportJSON = async () => {

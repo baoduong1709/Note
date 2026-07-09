@@ -225,12 +225,13 @@ export default function SettingsView({
     const loadConfigs = () => {
       // Load AI
       const aiConfig = localStorage.getItem("ai_config");
+      let aiUpdated = false;
       if (aiConfig) {
         try {
           const parsed = JSON.parse(aiConfig);
-          setAiApiKey(parsed.apiKey || "");
-          setAiBaseUrl(parsed.baseUrl || "");
-          setAiModelName(parsed.modelName || "");
+          setAiApiKey(prev => { if (prev !== (parsed.apiKey || "")) aiUpdated = true; return parsed.apiKey || ""; });
+          setAiBaseUrl(prev => { if (prev !== (parsed.baseUrl || "")) aiUpdated = true; return parsed.baseUrl || ""; });
+          setAiModelName(prev => { if (prev !== (parsed.modelName || "")) aiUpdated = true; return parsed.modelName || ""; });
         } catch (err) {
           console.error(err);
         }
@@ -248,6 +249,7 @@ export default function SettingsView({
           setSearchApiKey(parsed.apiKey || "");
           setGoogleApiKey(parsed.googleApiKey || "");
           setGoogleCx(parsed.googleCx || "");
+
         } catch (err) {
           console.error(err);
         }
@@ -268,6 +270,13 @@ export default function SettingsView({
 
     loadConfigs();
     window.addEventListener("settings-sync-completed", loadConfigs);
+    window.addEventListener("focus", loadConfigs);
+    window.addEventListener("storage", loadConfigs);
+    
+    // Poll a few times in case of race condition with background sync
+    const poll1 = setTimeout(loadConfigs, 500);
+    const poll2 = setTimeout(loadConfigs, 1500);
+    const poll3 = setTimeout(loadConfigs, 3000);
 
     // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";
@@ -391,7 +400,7 @@ export default function SettingsView({
     setCurrentUser(null);
     window.dispatchEvent(new CustomEvent("auth-state-changed"));
     triggerToast(language === "vi" ? "Đã đăng xuất thành công!" : "Logged out successfully!");
-  };  const handleTogglePin = () => {
+  };  const handleTogglePin = async () => {
     if (pinEnabled) {
       localStorage.setItem("pin_lock_enabled", "false");
       localStorage.setItem("e2ee_enabled", "false");
@@ -400,12 +409,28 @@ export default function SettingsView({
       setPinEnabled(false);
       setPinCode("");
       triggerToast("Đã tắt khóa và mã hóa đầu cuối (E2EE).");
+      
+      // Save e2ee flag to server
+      try {
+        const { saveUserSettingsToServer } = await import("../../../shared/services/authService");
+        const aiData = localStorage.getItem('ai_config');
+        const searchData = localStorage.getItem('search_config');
+        const tgData = localStorage.getItem('telegram_config');
+        await saveUserSettingsToServer(
+          aiData ? JSON.parse(aiData) : null,
+          searchData ? JSON.parse(searchData) : null,
+          tgData ? JSON.parse(tgData) : null,
+          false // e2eeEnabled
+        );
+      } catch (err) {
+        console.error("Failed to push e2ee_enabled to server:", err);
+      }
     } else {
       setShowPinInput(true);
     }
   };
 
-  const handleSavePin = () => {
+  const handleSavePin = async () => {
     if (pinCode.length < 6) {
       triggerToast("Mật khẩu mã hóa đầu cuối phải có ít nhất 6 ký tự!");
       return;
@@ -417,6 +442,22 @@ export default function SettingsView({
     setPinEnabled(true);
     setShowPinInput(false);
     triggerToast("Đã kích hoạt khóa và mã hóa đầu cuối (E2EE) thành công!");
+    
+    // Save e2ee flag to server
+    try {
+      const { saveUserSettingsToServer } = await import("../../../shared/services/authService");
+      const aiData = localStorage.getItem('ai_config');
+      const searchData = localStorage.getItem('search_config');
+      const tgData = localStorage.getItem('telegram_config');
+      await saveUserSettingsToServer(
+        aiData ? JSON.parse(aiData) : null,
+        searchData ? JSON.parse(searchData) : null,
+        tgData ? JSON.parse(tgData) : null,
+        true // e2eeEnabled
+      );
+    } catch (err) {
+      console.error("Failed to push e2ee_enabled to server:", err);
+    }
   };
 
   const handleExportJSON = async () => {
