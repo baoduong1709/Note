@@ -364,7 +364,7 @@
     
     // In dev, the backend server runs on port 3001, while SPA may run on 5173 or 1420
     let apiBase = '';
-    if (window.location.host.includes('localhost:') && !window.location.host.includes('localhost:3001')) {
+    if (!window.location.host || (window.location.host.includes('localhost:') && !window.location.host.includes('localhost:3001'))) {
       apiBase = 'http://localhost:3001';
     }
     
@@ -478,7 +478,7 @@
       
       // In dev, the backend server runs on port 3001, while SPA may run on 5173 or 1420
       let host = loc.host;
-      if (host.includes('localhost:') && !host.includes('localhost:3001')) {
+      if (!host || (host.includes('localhost:') && !host.includes('localhost:3001'))) {
         host = 'localhost:3001';
       }
       
