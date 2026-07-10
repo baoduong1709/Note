@@ -286,56 +286,53 @@ export default function DashboardView({
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="flex-1 flex flex-col overflow-y-auto space-y-3 pr-1"
+      className="flex-1 flex flex-col overflow-y-auto space-y-4 pr-1 pb-20"
     >
       {/* Welcome Header */}
-      <div className="flex items-center justify-between shrink-0 mb-1">
-        <h2 className="text-base sm:text-lg font-extrabold tracking-tight gradient-text-animated">{getGreeting()}</h2>
+      <div className="flex items-center justify-between shrink-0 mt-2 mb-2">
+        <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight gradient-text-animated">{getGreeting()}</h2>
       </div>
 
       {/* Cloud Sync Reminder Banner */}
       {!isLoggedIn && showCloudBanner && (
         <motion.div
           variants={cardVariants}
-          className="relative overflow-hidden glass-panel rounded-xl p-3.5 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 dark:from-purple-500/10 dark:to-indigo-500/10 border border-purple-500/20 dark:border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+          className="relative overflow-hidden glass-panel rounded-2xl p-5 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 dark:from-purple-500/10 dark:to-indigo-500/10 border border-purple-500/20 dark:border-purple-500/30 flex flex-col gap-4"
         >
-          <div className="flex items-start gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 text-purple-650 dark:text-purple-400 flex items-center justify-center shrink-0">
-              <svg className="w-4 h-4 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17.5 19A5.5 5.5 0 0 0 22 14c0-2.5-2-4.5-4.5-4.5-.4 0-.8.05-1.2.15A7 7 0 1 0 3 11.5c0 3 .5 4.5 1.5 5.5"/>
-                <path d="M12 13v6"/>
-                <path d="m9 16 3 3 3-3"/>
-              </svg>
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+          <div className="flex items-start justify-between w-full">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-500/10 dark:bg-purple-500/20 text-purple-650 dark:text-purple-400 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.5 19A5.5 5.5 0 0 0 22 14c0-2.5-2-4.5-4.5-4.5-.4 0-.8.05-1.2.15A7 7 0 1 0 3 11.5c0 3 .5 4.5 1.5 5.5"/>
+                  <path d="M12 13v6"/>
+                  <path d="m9 16 3 3 3-3"/>
+                </svg>
+              </div>
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                 {t("dashboard.notSynced")}
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
               </h4>
-              <p className="text-[10px] text-zinc-555 dark:text-zinc-400 mt-0.5 leading-relaxed">
-                {t("dashboard.syncDescription")}
-              </p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-            <button
-              onClick={handleTriggerLogin}
-              className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] shadow-md shadow-purple-500/10 hover:shadow-purple-500/20 cursor-pointer border border-white/5 transition-all"
-            >
-              {t("dashboard.connectNow")}
-            </button>
             <button
               onClick={handleDismissBanner}
-              className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-white/5 text-zinc-555 dark:text-zinc-400 transition-all cursor-pointer"
+              className="p-2 rounded-full hover:bg-zinc-200 dark:hover:bg-white/5 text-zinc-555 dark:text-zinc-400 transition-all cursor-pointer"
               title={t("dashboard.dismiss")}
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 6 6 18"/>
                 <path d="m6 6 12 12"/>
               </svg>
             </button>
           </div>
+          <p className="text-sm text-zinc-555 dark:text-zinc-400 leading-relaxed">
+            {t("dashboard.syncDescription")}
+          </p>
+          <button
+            onClick={handleTriggerLogin}
+            className="w-full py-3.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm shadow-md shadow-purple-500/10 hover:shadow-purple-500/20 cursor-pointer border border-white/5 transition-all text-center"
+          >
+            {t("dashboard.connectNow")}
+          </button>
         </motion.div>
       )}
 
@@ -381,54 +378,54 @@ export default function DashboardView({
         {/* Quick Capture Panel */}
         <motion.section 
           variants={cardVariants}
-          className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "rainbow-border-active border-transparent" : "border-white/5"} premium-hover-glow rounded-lg p-3 relative overflow-hidden transition-all duration-300`}
+          className={`glass-panel ${(isQuickCaptureFocused || quickText.trim().length > 0) ? "rainbow-border-active border-transparent" : "border-white/5"} premium-hover-glow rounded-2xl p-4 relative overflow-hidden transition-all duration-300`}
         >
-          <h3 className="text-xs font-semibold text-zinc-800 dark:text-white mb-2 flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-yellow-400 icon-glow" />
+          <h3 className="text-sm font-semibold text-zinc-800 dark:text-white mb-3 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-400 icon-glow" />
             {t("dashboard.quickCapture")}
           </h3>
-          <div className="flex items-stretch gap-2">
+          <div className="flex flex-col gap-3">
             <textarea
               value={quickText}
               onChange={(e) => setQuickText(e.target.value)}
               onFocus={() => setIsQuickCaptureFocused(true)}
               onBlur={() => setIsQuickCaptureFocused(false)}
               placeholder={t("dashboard.quickCapturePlaceholder")}
-              className="w-full h-14 p-2.5 rounded-lg glass-input text-xs text-zinc-700 dark:text-zinc-300 resize-none"
+              className="w-full h-24 p-3.5 rounded-xl glass-input text-sm text-zinc-700 dark:text-zinc-300 resize-none"
             />
             <button 
               onClick={handleQuickSave}
               disabled={!quickText.trim()}
-              className="gradient-btn disabled:opacity-40 disabled:cursor-not-allowed text-[10px] px-3 rounded-md font-semibold shadow-md shadow-purple-500/10 shrink-0 flex items-center gap-1.5"
+              className="gradient-btn disabled:opacity-40 disabled:cursor-not-allowed w-full py-3.5 rounded-xl font-bold shadow-md shadow-purple-500/10 flex items-center justify-center gap-2 text-sm"
             >
-              <Save className="w-3 h-3" />
+              <Save className="w-5 h-5" />
               {t("common.save")}
             </button>
           </div>
         </motion.section>
 
         {/* Overview Statistics Card */}
-        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col">
-          <h3 className="text-xs font-bold text-zinc-855 dark:text-white mb-2.5 flex items-center gap-2">
-            <BarChart2 className="w-3.5 h-3.5 text-purple-400 icon-glow" />
+        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-2xl p-4 flex flex-col">
+          <h3 className="text-sm font-bold text-zinc-855 dark:text-white mb-3.5 flex items-center gap-2">
+            <BarChart2 className="w-5 h-5 text-purple-400 icon-glow" />
             {t("dashboard.statsTitle")}
           </h3>
-          <div className="grid grid-cols-2 gap-2 text-xs mb-2.5">
-            <div className="flex justify-between items-center bg-zinc-50/50 dark:bg-white/5 p-2 rounded-lg border border-zinc-200/50 dark:border-white/5">
-              <span className="text-zinc-550 dark:text-zinc-400 font-semibold">{t("dashboard.totalNotes")}</span>
-              <span className="font-extrabold text-purple-650 dark:text-purple-400 text-xs">{stats.totalNotes}</span>
+          <div className="flex flex-col gap-3 text-sm mb-3.5">
+            <div className="flex justify-between items-center bg-zinc-50/50 dark:bg-white/5 p-3.5 rounded-xl border border-zinc-200/50 dark:border-white/5">
+              <span className="text-zinc-600 dark:text-zinc-400 font-semibold">{t("dashboard.totalNotes")}</span>
+              <span className="font-extrabold text-purple-650 dark:text-purple-400 text-lg">{stats.totalNotes}</span>
             </div>
-            <div className="flex justify-between items-center bg-zinc-50/50 dark:bg-white/5 p-2 rounded-lg border border-zinc-200/50 dark:border-white/5">
-              <span className="text-zinc-550 dark:text-zinc-400 font-semibold">{t("dashboard.activeTasks")}</span>
-              <span className="font-extrabold text-teal-650 dark:text-teal-400 text-xs">{stats.activeTasks}</span>
+            <div className="flex justify-between items-center bg-zinc-50/50 dark:bg-white/5 p-3.5 rounded-xl border border-zinc-200/50 dark:border-white/5">
+              <span className="text-zinc-600 dark:text-zinc-400 font-semibold">{t("dashboard.activeTasks")}</span>
+              <span className="font-extrabold text-teal-650 dark:text-teal-400 text-lg">{stats.activeTasks}</span>
             </div>
           </div>
-          <div className="bg-zinc-50/50 dark:bg-white/5 p-2 rounded-lg border border-zinc-200/50 dark:border-white/5 flex flex-col gap-1.5 text-xs">
+          <div className="bg-zinc-50/50 dark:bg-white/5 p-4 rounded-xl border border-zinc-200/50 dark:border-white/5 flex flex-col gap-2.5 text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-zinc-550 dark:text-zinc-400 font-semibold">{t("dashboard.todayProgress")}</span>
-              <span className="font-extrabold text-indigo-650 dark:text-indigo-400">{stats.completedTasksToday}/{stats.totalTasksToday}</span>
+              <span className="text-zinc-600 dark:text-zinc-400 font-semibold">{t("dashboard.todayProgress")}</span>
+              <span className="font-extrabold text-indigo-650 dark:text-indigo-400 text-base">{stats.completedTasksToday}/{stats.totalTasksToday}</span>
             </div>
-            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden">
               <motion.div 
                 className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full rounded-full"
                 initial={{ width: 0 }}
@@ -440,85 +437,85 @@ export default function DashboardView({
         </motion.section>
 
         {/* Quick Actions Panel */}
-        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3">
-          <h3 className="text-xs font-bold text-zinc-855 dark:text-white mb-2.5 flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 icon-glow" />
+        {/* Quick Actions Panel */}
+        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-2xl p-4">
+          <h3 className="text-sm font-bold text-zinc-855 dark:text-white mb-3 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-400 icon-glow" />
             {t("dashboard.quickActionsTitle")}
           </h3>
-          <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-3 gap-3 text-sm">
             <button 
               onClick={handleCreateNoteAction}
-              className="flex items-center justify-center flex-col gap-1.5 p-3 rounded-lg border border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-white/5 hover:bg-purple-500/10 hover:border-purple-500/20 transition-all cursor-pointer group text-center"
+              className="flex items-center justify-center flex-col gap-2 p-4 rounded-xl border border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-white/5 hover:bg-purple-500/10 hover:border-purple-500/20 transition-all cursor-pointer group text-center"
             >
-              <Plus className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />
-              <span className="font-semibold text-zinc-750 dark:text-zinc-300">{t("dashboard.newNoteAction")}</span>
+              <Plus className="w-6 h-6 text-purple-500 group-hover:scale-110 transition-transform" />
+              <span className="font-semibold text-zinc-750 dark:text-zinc-300 text-xs">{t("dashboard.newNoteAction")}</span>
             </button>
             <button 
               onClick={() => setActiveView("tasks")}
-              className="flex items-center justify-center flex-col gap-1.5 p-3 rounded-lg border border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-white/5 hover:bg-teal-500/10 hover:border-teal-500/20 transition-all cursor-pointer group text-center"
+              className="flex items-center justify-center flex-col gap-2 p-4 rounded-xl border border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-white/5 hover:bg-teal-500/10 hover:border-teal-500/20 transition-all cursor-pointer group text-center"
             >
-              <CheckSquare className="w-4 h-4 text-teal-500 group-hover:scale-110 transition-transform" />
-              <span className="font-semibold text-zinc-750 dark:text-zinc-300">{t("dashboard.newTaskAction")}</span>
+              <CheckSquare className="w-6 h-6 text-teal-500 group-hover:scale-110 transition-transform" />
+              <span className="font-semibold text-zinc-750 dark:text-zinc-300 text-xs">{t("dashboard.newTaskAction")}</span>
             </button>
             <button 
               onClick={handleToggleAiChat}
-              className="flex items-center justify-center flex-col gap-1.5 p-3 rounded-lg border border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-white/5 hover:bg-indigo-500/10 hover:border-indigo-500/20 transition-all cursor-pointer group text-center"
+              className="flex items-center justify-center flex-col gap-2 p-4 rounded-xl border border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-white/5 hover:bg-indigo-500/10 hover:border-indigo-500/20 transition-all cursor-pointer group text-center"
             >
-              <Zap className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
-              <span className="font-semibold text-zinc-750 dark:text-zinc-300">{t("dashboard.chatAiAction")}</span>
+              <Zap className="w-6 h-6 text-indigo-500 group-hover:scale-110 transition-transform" />
+              <span className="font-semibold text-zinc-750 dark:text-zinc-300 text-xs">{t("dashboard.chatAiAction")}</span>
             </button>
           </div>
         </motion.section>
 
         {/* Today Tasks Widget */}
-        <motion.div variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col min-h-0">
-          <h3 className="text-xs font-bold text-zinc-850 dark:text-white mb-2.5 flex items-center gap-2">
-            <CheckSquare className="w-3.5 h-3.5 text-teal-400 icon-glow" />
+        <motion.div variants={cardVariants} className="glass-panel premium-hover-glow rounded-2xl p-4 flex flex-col min-h-0">
+          <h3 className="text-sm font-bold text-zinc-850 dark:text-white mb-3 flex items-center gap-2">
+            <CheckSquare className="w-5 h-5 text-teal-400 icon-glow" />
             {t("dashboard.todayTasks")}
           </h3>
           {todayTasks.length === 0 ? (
-            <p className="text-[10px] text-zinc-500 py-2.5 text-center">{t("dashboard.noTasksToday")}</p>
+            <p className="text-sm text-zinc-500 py-4 text-center">{t("dashboard.noTasksToday")}</p>
           ) : (
-            <div className="space-y-1.5 text-xs">
+            <div className="space-y-2">
               {todayTasks.map(task => (
                 <motion.div 
                   key={task.id}
-                  whileHover={{ x: 2 }}
+                  whileHover={{ scale: 1.01 }}
                   onClick={() => handleToggleTaskStatus(task.id, task.status)}
-                  className="flex items-center justify-between gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 px-2 py-1.5 rounded-lg border border-zinc-200/40 dark:border-white/5 bg-zinc-50/20 dark:bg-white/5 cursor-pointer transition-all group"
+                  className="flex items-center justify-between gap-3 px-3 py-3 rounded-xl border border-zinc-200/40 dark:border-white/5 bg-zinc-50/20 dark:bg-white/5 cursor-pointer transition-all group shadow-sm hover:shadow-md"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleToggleTaskStatus(task.id, task.status);
                       }}
-                      className={`w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0 cursor-pointer ${
+                      className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all shrink-0 cursor-pointer ${
                         task.status === "done"
-                          ? "bg-teal-500 border-teal-500 text-white shadow-sm"
-                          : "border-zinc-300 dark:border-zinc-700 bg-white/5 dark:bg-zinc-950/20 hover:border-teal-500 group-hover:border-teal-400"
+                          ? "bg-teal-500 border-teal-500 text-white"
+                          : "border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                       }`}
-                      title={t("sidebar.completeTask") || "Complete task"}
                     >
-                      {task.status === "done" && <Check className="w-2.5 h-2.5 stroke-[3.5]" />}
+                      {task.status === "done" && <Check className="w-4 h-4 stroke-[3]" />}
                     </button>
-                    <span className={`text-zinc-700 dark:text-zinc-300 truncate font-semibold text-xs transition-all ${
+                    <span className={`text-zinc-700 dark:text-zinc-200 truncate font-semibold text-sm transition-all ${
                       task.status === "done" ? "line-through text-zinc-400 dark:text-zinc-500 font-normal" : ""
                     }`}>
                       {task.title}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex flex-col items-end gap-1 shrink-0">
                     {task.priority === 'high' && (
-                      <span className="text-[8px] bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                      <span className="text-[10px] bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
                         {t("common.priorityHigh") || "High"}
                       </span>
                     )}
                     {task.due_date && (
-                      <span className="text-[8px] text-zinc-550 dark:text-zinc-450 flex items-center gap-0.5 font-medium">
-                        <Clock className="w-2.5 h-2.5" />
+                      <span className="text-xs text-zinc-550 dark:text-zinc-450 flex items-center gap-1 font-medium">
+                        <Clock className="w-3.5 h-3.5" />
                         {task.due_date.slice(11, 16) || task.due_date.slice(5, 10)}
                       </span>
                     )}
@@ -530,12 +527,15 @@ export default function DashboardView({
         </motion.div>
 
         {/* Recent Notes Widget */}
-        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col">
-          <h3 className="text-xs font-bold text-zinc-855 dark:text-white mb-2">{t("dashboard.recentNotes")}</h3>
+        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-2xl p-4 flex flex-col">
+          <h3 className="text-sm font-bold text-zinc-855 dark:text-white mb-3 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-400 icon-glow" />
+            {t("dashboard.recentNotes")}
+          </h3>
           {recentNotes.length === 0 ? (
-            <p className="text-[10px] text-zinc-500 py-2 text-center">{t("dashboard.noRecentNotes")}</p>
+            <p className="text-sm text-zinc-500 py-4 text-center">{t("dashboard.noRecentNotes")}</p>
           ) : (
-            <div className="space-y-1.5 text-xs">
+            <div className="space-y-2">
               {recentNotes.map((note, index) => (
                 <div 
                   key={`${note.id}-${index}`} 
@@ -543,10 +543,15 @@ export default function DashboardView({
                     setSelectedNoteId(note.id);
                     setActiveView("notes");
                   }}
-                  className="px-2 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200 dark:border-white/5 cursor-pointer transition-all flex items-center gap-2"
+                  className="px-3 py-3.5 rounded-xl border border-zinc-200/40 dark:border-white/5 bg-zinc-50/20 dark:bg-white/5 cursor-pointer transition-all flex items-center gap-3 shadow-sm hover:shadow-md"
                 >
-                  <FileText className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                  <span className="text-zinc-700 dark:text-zinc-300 truncate font-medium flex-1">{note.title}</span>
+                  <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-purple-500" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-zinc-700 dark:text-zinc-200 truncate font-semibold text-sm">{note.title}</span>
+                    <span className="text-zinc-500 text-xs truncate mt-0.5">{t("dashboard.quickCapture")}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -554,24 +559,24 @@ export default function DashboardView({
         </motion.section>
 
         {/* Recent Activities Feed */}
-        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col">
-          <h3 className="text-xs font-bold text-zinc-855 dark:text-white mb-2 flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5 text-pink-400 icon-glow" />
+        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-2xl p-4 flex flex-col">
+          <h3 className="text-sm font-bold text-zinc-855 dark:text-white mb-3 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-pink-400 icon-glow" />
             {t("dashboard.recentActivityTitle")}
           </h3>
           {activities.length === 0 ? (
-            <p className="text-[10px] text-zinc-500 py-3 text-center">{t("dashboard.noActivity")}</p>
+            <p className="text-sm text-zinc-500 py-4 text-center">{t("dashboard.noActivity")}</p>
           ) : (
-            <div className="space-y-1.5 text-[10px]">
+            <div className="space-y-3 mt-1">
               {activities.map((act) => (
-                <div key={act.id} className="flex items-center justify-between py-1 border-b border-zinc-100 dark:border-white/5 last:border-0 gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                <div key={act.id} className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-white/5 last:border-0 last:pb-0 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                       act.target_type === 'note' ? 'bg-purple-500' : 'bg-teal-500'
                     }`} />
-                    <p className="text-zinc-700 dark:text-zinc-300 truncate font-medium">{act.description}</p>
+                    <p className="text-zinc-700 dark:text-zinc-300 truncate font-medium text-sm">{act.description}</p>
                   </div>
-                  <span className="text-[8px] text-zinc-500 shrink-0">
+                  <span className="text-xs text-zinc-500 shrink-0">
                     {new Date(act.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -581,16 +586,16 @@ export default function DashboardView({
         </motion.section>
 
         {/* Motivational Quote Card */}
-        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-lg p-3 flex flex-col bg-gradient-to-br from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/10 dark:to-purple-500/10 border-indigo-500/10">
-          <h3 className="text-xs font-bold text-zinc-855 dark:text-white mb-2 flex items-center gap-1.5">
-            <Quote className="w-3.5 h-3.5 text-indigo-400 shrink-0 animate-pulse" />
+        <motion.section variants={cardVariants} className="glass-panel premium-hover-glow rounded-2xl p-5 flex flex-col bg-gradient-to-br from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/10 dark:to-purple-500/10 border-indigo-500/10">
+          <h3 className="text-sm font-bold text-zinc-855 dark:text-white mb-4 flex items-center justify-center gap-2">
+            <Quote className="w-5 h-5 text-indigo-400 shrink-0 animate-pulse" />
             {t("dashboard.inspirationTitle")}
           </h3>
-          <div className="flex-1 flex flex-col justify-center py-2 text-center text-xs">
-            <p className="text-zinc-700 dark:text-zinc-300 italic font-semibold leading-relaxed">
+          <div className="flex-1 flex flex-col justify-center py-2 text-center text-sm">
+            <p className="text-zinc-700 dark:text-zinc-200 italic font-medium leading-relaxed px-2 text-base">
               "{language === "vi" ? quote.vi : quote.en}"
             </p>
-            <p className="text-[10px] text-zinc-500 mt-2 font-bold">— {quote.author}</p>
+            <p className="text-xs text-zinc-500 mt-4 font-bold tracking-wide uppercase">— {quote.author}</p>
           </div>
         </motion.section>
 

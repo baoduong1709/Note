@@ -58,7 +58,7 @@ interface TextToolCall {
   args: Record<string, any>;
 }
 
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 15;
 const MAX_HISTORY_MESSAGES = 18;
 const MAX_TOOL_RESULT_CHARS = 7000;
 
@@ -452,28 +452,28 @@ async function buildNotebookContext(includeMemory: boolean): Promise<string> {
       : null;
 
     return [
-      "[NGỮ CẢNH NOTEBOOK CỤC BỘ - chỉ dùng các snippet đã rút gọn, secret đã được che]",
-      `Ngày hiện tại: ${today}`,
-      `Tổng quan: ${notes.length} notes, ${tasks.length} tasks, ${logs.length} activity logs.`,
+      "[LOCAL NOTEBOOK CONTEXT - redacted & minified snippets only]",
+      `Current Date: ${today}`,
+      `Overview: ${notes.length} notes, ${tasks.length} tasks, ${logs.length} activity logs.`,
       "",
       "[USER.md]",
-      userNote ? compactText(userNote.content, 1200) : "Chưa có USER.md hoặc note đang bị khóa.",
+      userNote ? compactText(userNote.content, 1200) : "No USER.md found or note is locked.",
       "",
       "[MEMORY.md]",
-      memoryNote ? compactText(memoryNote.content, 1400) : "Chưa có MEMORY.md hoặc note đang bị khóa.",
+      memoryNote ? compactText(memoryNote.content, 1400) : "No MEMORY.md found or note is locked.",
       "",
-      "[NOTES GẦN ĐÂY]",
-      formatList(recentNotes, "Chưa có note gần đây."),
+      "[RECENT NOTES]",
+      formatList(recentNotes, "No recent notes."),
       "",
-      "[TASK HÔM NAY / QUÁ HẠN]",
-      formatList(todayTasks, "Không có task mở tới hạn hôm nay."),
+      "[TODAY / OVERDUE TASKS]",
+      formatList(todayTasks, "No open overdue/today tasks."),
       "",
-      "[HOẠT ĐỘNG GẦN ĐÂY]",
-      formatList(recentActivity, "Chưa có activity log.")
+      "[RECENT ACTIVITY]",
+      formatList(recentActivity, "No recent activity log.")
     ].join("\n");
   } catch (err) {
     console.error("[AIService] Failed to build local notebook context:", err);
-    return "[NGỮ CẢNH NOTEBOOK CỤC BỘ]\nKhông thể đọc dữ liệu local trong lượt này.";
+    return "[LOCAL NOTEBOOK CONTEXT]\nFailed to load local data this turn.";
   }
 }
 
@@ -493,26 +493,28 @@ function buildSystemPrompt(localContext: string): string {
   ).join("\n");
 
   return [
-    "Bạn là Notebook Agent, trợ lý AI cao cấp chạy trong Personal AI Work Notebook.",
-    "Luôn trả lời bằng tiếng Việt, thực dụng, ngắn gọn, có bước hành động rõ ràng khi cần.",
+    "You are Notebook Agent, an advanced AI assistant running in Personal AI Work Notebook.",
+    "Always reply in Vietnamese. Be pragmatic, concise, and provide clear actionable steps when necessary.",
     "",
-    "[NGUYÊN TẮC VẬN HÀNH]",
-    "- Ưu tiên dùng dữ liệu notebook local trước khi suy đoán.",
-    "- Với thông tin có thể thay đổi theo thời gian như tin tức, giá cả, luật lệ, phiên bản phần mềm, lịch trình hoặc dữ liệu web, hãy gọi web_search/web_extract trước khi kết luận.",
-    "- Được phép tạo note, task hoặc ngày quan trọng khi người dùng yêu cầu rõ ràng. Nếu yêu cầu thiếu tên/ngày/nội dung cần thiết, hỏi tối đa một câu ngắn.",
-    "- Sau khi tạo dữ liệu bằng tool, trả lời rõ đã tạo gì, ID là gì, và các trường chính. Không tự nhận đã tạo nếu tool chưa chạy thành công.",
-    "- Không tự ý xóa hoặc sửa dữ liệu nếu người dùng chưa yêu cầu rõ.",
-    "- Không lộ API key, token, password hoặc secret; nếu thấy secret trong ngữ cảnh, hãy che lại.",
-    "- Khi đưa command nguy hiểm như rm -rf, drop database, kubectl delete, terraform destroy, git reset --hard, phải cảnh báo rõ rủi ro.",
-    "- Nếu thiếu dữ liệu để làm đúng, hỏi tối đa một câu ngắn. Nếu vẫn có thể làm bằng giả định hợp lý, nêu giả định rồi làm.",
-    "- Khi người dùng hỏi về ngày tương đối, dùng ngày cụ thể. Thời gian hệ thống hiện tại: " + now + ".",
+    "[OPERATING PRINCIPLES]",
+    "- Prioritize using local notebook data before guessing.",
+    "- For time-sensitive or factual information (news, prices, laws, software versions, schedules, or web data), use web_search/web_extract before concluding.",
+    "- You are allowed to create notes, tasks, or important dates when explicitly requested. If required fields are missing, ask at most one short question.",
+    "- After creating data via tools, clearly state what was created, the ID, and main fields. Do not claim to have created it if the tool hasn't successfully executed.",
+    "- Do not delete or modify data unless explicitly requested by the user.",
+    "- Do not leak API keys, tokens, passwords, or secrets. If you see a secret in the context, redact it.",
+    "- You are allowed to call web_search multiple times (with different keywords) if data is insufficient or errors occur, but the final result must be highly accurate, curated, and well-synthesized.",
+    "- Stop searching and conclude immediately if you are certain the data/event does not exist. STRICTLY DO NOT loop search tools uselessly if you know there are no results.",
+    "- When providing dangerous commands (rm -rf, drop database, kubectl delete, terraform destroy, git reset --hard), clearly warn about the risks.",
+    "- If lacking data to do the task correctly, ask at most one short question. If a reasonable assumption can be made, state the assumption and proceed.",
+    "- When the user asks about relative dates, use specific dates. Current system time: " + now + ".",
     "",
-    "[CÔNG CỤ NOTEBOOK CÓ SẴN]",
+    "[AVAILABLE NOTEBOOK TOOLS]",
     toolGuide,
     "",
-    "[CÁCH GỌI TOOL KHI MODEL KHÔNG HỖ TRỢ NATIVE TOOLS]",
-    'Dùng đúng định dạng XML một hoặc nhiều lần: <invoke name="tool_name"><parameter name="query">...</parameter></invoke>',
-    "Sau khi nhận kết quả tool, tổng hợp thành câu trả lời cuối cùng, không hiển thị XML tool call cho người dùng.",
+    "[HOW TO CALL TOOLS WHEN MODEL LACKS NATIVE TOOL SUPPORT]",
+    'Use exact XML format one or multiple times: <invoke name="tool_name"><parameter name="query">...</parameter></invoke>',
+    "After receiving tool results, synthesize them into the final answer. Do not show XML tool calls to the user.",
     "",
     localContext
   ].join("\n");
@@ -567,9 +569,9 @@ async function searchWebSearXNG(query: string): Promise<string> {
           .slice(0, 5)
           .map(
             (result: any, index: number) =>
-              `[Kết quả ${index + 1}]\nTiêu đề: ${compactText(result.title || "Không có tiêu đề", 180)}\nLink: ${
+              `[Result ${index + 1}]\nTitle: ${compactText(result.title || "No title", 180)}\nLink: ${
                 result.url || ""
-              }\nTóm tắt: ${compactText(result.content || "", 700)}`
+              }\nSnippet: ${compactText(result.content || "", 700)}`
           )
           .join("\n\n");
       }
@@ -594,13 +596,13 @@ async function searchWebGoogle(query: string, apiKey: string, cx: string): Promi
 
     const data = await readJsonResponse(response, "Google Search");
     const items = data.items || [];
-    if (items.length === 0) return "Không tìm thấy kết quả nào trên Google.";
+    if (items.length === 0) return "No results found on Google.";
 
     return items
       .slice(0, 5)
       .map(
         (item: any, index: number) =>
-          `[Kết quả ${index + 1}]\nTiêu đề: ${compactText(item.title, 180)}\nLink: ${item.link}\nTóm tắt: ${compactText(
+          `[Result ${index + 1}]\nTitle: ${compactText(item.title, 180)}\nLink: ${item.link}\nSnippet: ${compactText(
             item.snippet || "",
             700
           )}`
@@ -631,15 +633,15 @@ async function searchWebTavily(query: string, apiKey: string): Promise<string> {
 
     const data = await readJsonResponse(response, "Tavily");
     const results = data.results || [];
-    if (results.length === 0) return "Không tìm thấy kết quả liên quan trên Tavily.";
+    if (results.length === 0) return "No related results found on Tavily.";
 
     return results
       .slice(0, 5)
       .map(
         (result: any, index: number) =>
-          `[Kết quả ${index + 1}]\nTiêu đề: ${compactText(result.title, 180)}\nLink: ${
+          `[Result ${index + 1}]\nTitle: ${compactText(result.title, 180)}\nLink: ${
             result.url
-          }\nTóm tắt: ${compactText(result.content || "", 900)}`
+          }\nSnippet: ${compactText(result.content || "", 900)}`
       )
       .join("\n\n");
   } catch (err) {
@@ -685,13 +687,13 @@ async function searchWebDuckDuckGo(query: string): Promise<string> {
   }
 
   if (results.length === 0) {
-    return "Không tìm thấy kết quả liên quan trên DuckDuckGo.";
+    return "No related results found on DuckDuckGo.";
   }
 
   return results
     .map(
       (result, index) =>
-        `[Kết quả ${index + 1}]\nTiêu đề: ${compactText(result.title, 180)}\nLink: ${result.link}\nTóm tắt: ${compactText(
+        `[Result ${index + 1}]\nTitle: ${compactText(result.title, 180)}\nLink: ${result.link}\nSnippet: ${compactText(
           result.snippet,
           700
         )}`
@@ -735,7 +737,7 @@ async function extractWebContent(url: string): Promise<string> {
     const contentArea = mainMatch ? mainMatch[1] : cleanHtml;
     const text = decodeHtml(contentArea.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
 
-    return `URL nguồn: ${url}\nTiêu đề trang: ${compactText(title, 220)}\n\nNội dung chính:\n${compactText(text, 6000)}`;
+    return `Source URL: ${url}\nPage Title: ${compactText(title, 220)}\n\nMain Content:\n${compactText(text, 6000)}`;
   } catch (err: any) {
     console.error("[WebExtract] Failed:", err);
     return `Lỗi trích xuất nội dung trang web: ${err.message || err}`;
@@ -765,13 +767,13 @@ async function searchLocalNotesTool(args: Record<string, any>): Promise<string> 
   const visibleNotes = notes.filter((note) => note.is_locked !== 1).slice(0, limit);
 
   if (visibleNotes.length === 0) {
-    return query ? `Không tìm thấy note phù hợp với "${query}".` : "Chưa có note nào để hiển thị.";
+    return query ? `No notes found matching "${query}".` : "No notes available to display.";
   }
 
   return visibleNotes
     .map(
       (note, index) =>
-        `[Note ${index + 1}]\nID: ${note.id}\nTiêu đề: ${note.title}\nLoại: ${note.type}\nCập nhật: ${formatDateTime(
+        `[Note ${index + 1}]\nID: ${note.id}\nTitle: ${note.title}\nType: ${note.type}\nUpdated: ${formatDateTime(
           note.updated_at
         )}\nSnippet: ${compactText(note.content, 900)}`
     )
@@ -790,17 +792,17 @@ async function searchLocalTasksTool(args: Record<string, any>): Promise<string> 
 
   const visibleTasks = tasks.slice(0, limit);
   if (visibleTasks.length === 0) {
-    return query || status ? "Không tìm thấy task phù hợp." : "Chưa có task nào.";
+    return query || status ? "No matching tasks found." : "No tasks available.";
   }
 
   return visibleTasks
     .map(
       (task, index) =>
-        `[Task ${index + 1}]\nID: ${task.id}\nTiêu đề: ${task.title}\nTrạng thái: ${task.status}\nƯu tiên: ${
+        `[Task ${index + 1}]\nID: ${task.id}\nTitle: ${task.title}\nStatus: ${task.status}\nPriority: ${
           task.priority
-        }\nHạn: ${task.due_date || "không có"}\nNguồn: ${task.source}${
+        }\nDue: ${task.due_date || "none"}\nSource: ${task.source}${
           task.external_id ? ` (${task.external_id})` : ""
-        }\nCập nhật: ${formatDateTime(task.updated_at)}`
+        }\nUpdated: ${formatDateTime(task.updated_at)}`
     )
     .join("\n\n");
 }
@@ -815,24 +817,24 @@ async function getTodayBriefTool(): Promise<string> {
   const activityToday = logs.filter((log) => log.created_at?.startsWith(today)).slice(0, 20);
 
   return [
-    `Ngày: ${today}`,
+    `Date: ${today}`,
     "",
-    "[Task cần xử lý]",
+    "[Tasks to do]",
     formatList(
       dueTasks.slice(0, 12).map((task) => `${task.title} [${task.status}, ${task.priority}]`),
-      "Không có task mở tới hạn."
+      "No open overdue/today tasks."
     ),
     "",
-    "[Task đã xong hôm nay]",
+    "[Tasks done today]",
     formatList(
       doneToday.slice(0, 12).map((task) => task.title),
-      "Chưa có task hoàn thành hôm nay."
+      "No tasks completed today."
     ),
     "",
-    "[Activity hôm nay]",
+    "[Today Activity]",
     formatList(
       activityToday.map((log) => `${formatDateTime(log.created_at)} - ${log.action}: ${compactText(log.description, 220)}`),
-      "Chưa có activity hôm nay."
+      "No activity today."
     )
   ].join("\n");
 }
@@ -877,7 +879,7 @@ async function createLocalNoteTool(args: Record<string, any>): Promise<string> {
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
     window.dispatchEvent(new CustomEvent("notes-updated"));
   }
-  return `Đã tạo note.\nID: ${note.id}\nTiêu đề: ${note.title}\nLoại: ${note.type}\nNội dung: ${compactText(note.content || "(trống)", 900)}`;
+  return `Created note.\nID: ${note.id}\nTitle: ${note.title}\nType: ${note.type}\nContent: ${compactText(note.content || "(empty)", 900)}`;
 }
 
 async function createLocalTaskTool(args: Record<string, any>): Promise<string> {
@@ -909,12 +911,12 @@ async function createLocalTaskTool(args: Record<string, any>): Promise<string> {
     window.dispatchEvent(new CustomEvent("task-updated"));
   }
   return [
-    "Đã tạo task.",
+    "Created task.",
     `ID: ${task.id}`,
-    `Tiêu đề: ${task.title}`,
-    `Trạng thái: ${task.status}`,
-    `Ưu tiên: ${task.priority}`,
-    `Hạn: ${task.due_date || "không có"}`
+    `Title: ${task.title}`,
+    `Status: ${task.status}`,
+    `Priority: ${task.priority}`,
+    `Due: ${task.due_date || "none"}`
   ].join("\n");
 }
 
@@ -932,25 +934,25 @@ async function searchImportantDatesTool(args: Record<string, any>): Promise<stri
 
   const visibleEvents = events.slice(0, limit);
   if (visibleEvents.length === 0) {
-    return query ? `Không tìm thấy ngày quan trọng phù hợp với "${query}".` : "Chưa có ngày quan trọng nào do bạn tạo.";
+    return query ? `No important dates found matching "${query}".` : "No important dates created by you yet.";
   }
 
   return visibleEvents
     .map((event, index) => {
       const dateText =
         event.date_type === "lunar"
-          ? `Âm lịch ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " nhuận" : ""}`
-          : `Dương lịch ${event.solar_date || "không rõ"}`;
+          ? `Lunar ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " leap" : ""}`
+          : `Solar ${event.solar_date || "unknown"}`;
 
       return [
-        `[Ngày ${index + 1}]`,
+        `[Date ${index + 1}]`,
         `ID: ${event.id}`,
-        `Tên: ${event.title}`,
-        `Loại: ${event.event_type}`,
-        `Ngày: ${dateText}`,
-        `Lặp lại hằng năm: ${event.repeat_yearly ? "có" : "không"}`,
-        `Quan trọng: ${event.is_important ? "có" : "không"}`,
-        event.notes ? `Ghi chú: ${compactText(event.notes, 500)}` : ""
+        `Title: ${event.title}`,
+        `Type: ${event.event_type}`,
+        `Date: ${dateText}`,
+        `Yearly repeat: ${event.repeat_yearly ? "yes" : "no"}`,
+        `Important: ${event.is_important ? "yes" : "no"}`,
+        event.notes ? `Notes: ${compactText(event.notes, 500)}` : ""
       ]
         .filter(Boolean)
         .join("\n");
@@ -1020,44 +1022,44 @@ async function createImportantDateTool(args: Record<string, any>): Promise<strin
   }
   const dateText =
     event.date_type === "lunar"
-      ? `Âm lịch ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " nhuận" : ""}`
-      : `Dương lịch ${event.solar_date}`;
+      ? `Lunar ${event.lunar_day}/${event.lunar_month}${event.lunar_year ? `/${event.lunar_year}` : ""}${event.is_lunar_leap ? " leap" : ""}`
+      : `Solar ${event.solar_date}`;
 
   return [
-    "Đã tạo ngày quan trọng.",
+    "Created important date.",
     `ID: ${event.id}`,
-    `Tên: ${event.title}`,
-    `Loại: ${event.event_type}`,
-    `Ngày: ${dateText}`,
-    `Lặp lại hằng năm: ${event.repeat_yearly ? "có" : "không"}`
+    `Title: ${event.title}`,
+    `Type: ${event.event_type}`,
+    `Date: ${dateText}`,
+    `Yearly repeat: ${event.repeat_yearly ? "yes" : "no"}`
   ].join("\n");
 }
 
 const AGENT_TOOLS: AgentToolDefinition[] = [
   {
     name: "search_notes",
-    description: "Tìm kiếm note local theo tiêu đề hoặc nội dung. Dùng khi người dùng hỏi về ghi chú, command đã lưu, prompt, lỗi đã xử lý.",
+    description: "Search local notes by title or content. Use this when the user asks about saved notes, commands, prompts, or fixed errors.",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Từ khóa cần tìm. Có thể để trống để lấy note gần đây." },
-        limit: { type: "number", description: "Số kết quả tối đa, mặc định 6." }
+        query: { type: "string", description: "Search query. Leave empty to fetch recent notes." },
+        limit: { type: "number", description: "Maximum number of results, default 6." }
       }
     },
     execute: searchLocalNotesTool
   },
   {
     name: "create_note",
-    description: "Tạo note local mới khi người dùng yêu cầu rõ ràng. Không dùng tool này nếu người dùng chỉ hỏi hoặc muốn xem trước.",
+    description: "Create a new local note when explicitly requested by the user. Do not use this tool if the user is only asking a question or previewing.",
     parameters: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Tiêu đề note cần tạo." },
-        content: { type: "string", description: "Nội dung note. Có thể để trống nếu người dùng chỉ đưa tiêu đề." },
+        title: { type: "string", description: "Title of the note." },
+        content: { type: "string", description: "Content of the note. Can be empty if the user only provides a title." },
         type: {
           type: "string",
           enum: ["quick", "command", "workflow", "error_fix", "prompt"],
-          description: "Loại note, mặc định quick."
+          description: "Type of the note, default is quick."
         }
       },
       required: ["title"]
@@ -1066,40 +1068,40 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
   },
   {
     name: "search_tasks",
-    description: "Tìm kiếm task local, lọc theo trạng thái nếu cần.",
+    description: "Search local tasks, filter by status if needed.",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Từ khóa task. Có thể để trống để lấy task gần đây." },
+        query: { type: "string", description: "Task search query. Leave empty to fetch recent tasks." },
         status: {
           type: "string",
           enum: ["todo", "in_progress", "blocked", "done"],
-          description: "Trạng thái task cần lọc."
+          description: "Task status to filter."
         },
-        limit: { type: "number", description: "Số kết quả tối đa, mặc định 10." }
+        limit: { type: "number", description: "Maximum number of results, default 10." }
       }
     },
     execute: searchLocalTasksTool
   },
   {
     name: "create_task",
-    description: "Tạo task local mới khi người dùng yêu cầu rõ ràng.",
+    description: "Create a new local task when explicitly requested by the user.",
     parameters: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Tên task cần tạo." },
+        title: { type: "string", description: "Title of the task." },
         priority: {
           type: "string",
           enum: ["low", "medium", "high"],
-          description: "Độ ưu tiên, mặc định medium."
+          description: "Priority, default is medium."
         },
         status: {
           type: "string",
           enum: ["todo", "in_progress", "blocked", "done"],
-          description: "Trạng thái, mặc định todo."
+          description: "Status, default is todo."
         },
-        due_date: { type: "string", description: "Ngày giờ hạn dạng YYYY-MM-DD HH:mm, YYYY-MM-DD, DD/MM/YYYY HH:mm, hôm nay hoặc ngày mai (kèm giờ nếu có)." },
-        note_id: { type: "string", description: "ID note liên quan nếu có." }
+        due_date: { type: "string", description: "Due date in YYYY-MM-DD HH:mm, YYYY-MM-DD, DD/MM/YYYY HH:mm, today, or tomorrow." },
+        note_id: { type: "string", description: "Related note ID if any." }
       },
       required: ["title"]
     },
@@ -1107,42 +1109,42 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
   },
   {
     name: "search_important_dates",
-    description: "Đọc/tìm các ngày quan trọng người dùng đã lưu trong lịch.",
+    description: "Read/search for important dates saved in the user's calendar.",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Từ khóa tìm theo tên, loại hoặc ghi chú. Có thể để trống." },
-        limit: { type: "number", description: "Số kết quả tối đa, mặc định 12." }
+        query: { type: "string", description: "Search query by name, type, or notes. Can be empty." },
+        limit: { type: "number", description: "Maximum number of results, default 12." }
       }
     },
     execute: searchImportantDatesTool
   },
   {
     name: "create_important_date",
-    description: "Tạo ngày quan trọng trong lịch khi người dùng yêu cầu rõ ràng, ví dụ sinh nhật, ngày lễ, kỷ niệm.",
+    description: "Create an important date in the calendar when explicitly requested, e.g., birthday, holiday, anniversary.",
     parameters: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Tên ngày quan trọng." },
+        title: { type: "string", description: "Name of the important date." },
         event_type: {
           type: "string",
           enum: ["birthday", "holiday", "anniversary", "other"],
-          description: "Loại sự kiện, tự suy ra nếu không chắc."
+          description: "Event type. Infer if unsure."
         },
         date_type: {
           type: "string",
           enum: ["solar", "lunar"],
-          description: "solar cho dương lịch, lunar cho âm lịch."
+          description: "'solar' for Gregorian calendar, 'lunar' for Lunar calendar."
         },
-        date: { type: "string", description: "Ngày dạng YYYY-MM-DD hoặc DD/MM/YYYY. Với âm lịch cũng dùng DD/MM/YYYY hoặc DD/MM." },
-        solar_date: { type: "string", description: "Ngày dương lịch nếu date_type=solar." },
-        lunar_day: { type: "number", description: "Ngày âm lịch nếu date_type=lunar." },
-        lunar_month: { type: "number", description: "Tháng âm lịch nếu date_type=lunar." },
-        lunar_year: { type: "number", description: "Năm âm lịch nếu không lặp hằng năm." },
-        is_lunar_leap: { type: "boolean", description: "Có phải tháng âm nhuận không." },
-        repeat_yearly: { type: "boolean", description: "Có lặp hằng năm không, mặc định true." },
-        is_important: { type: "boolean", description: "Có đánh dấu quan trọng không, mặc định true." },
-        notes: { type: "string", description: "Ghi chú thêm nếu có." }
+        date: { type: "string", description: "Date in YYYY-MM-DD or DD/MM/YYYY. For lunar, also use DD/MM/YYYY or DD/MM." },
+        solar_date: { type: "string", description: "Solar date if date_type=solar." },
+        lunar_day: { type: "number", description: "Lunar day if date_type=lunar." },
+        lunar_month: { type: "number", description: "Lunar month if date_type=lunar." },
+        lunar_year: { type: "number", description: "Lunar year if not repeating yearly." },
+        is_lunar_leap: { type: "boolean", description: "Is it a leap lunar month." },
+        repeat_yearly: { type: "boolean", description: "Does it repeat yearly, default true." },
+        is_important: { type: "boolean", description: "Is it marked as important, default true." },
+        notes: { type: "string", description: "Additional notes if any." }
       },
       required: ["title"]
     },
@@ -1150,28 +1152,28 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
   },
   {
     name: "get_today_brief",
-    description: "Lấy task tới hạn, task đã xong và activity hôm nay từ notebook local.",
+    description: "Get today's brief including overdue tasks, completed tasks, and today's activity from local notebook.",
     parameters: { type: "object", properties: {} },
     execute: async () => await getTodayBriefTool()
   },
   {
     name: "get_recent_activity",
-    description: "Đọc activity log gần đây của notebook local.",
+    description: "Read recent activity logs from the local notebook.",
     parameters: {
       type: "object",
       properties: {
-        limit: { type: "number", description: "Số log tối đa, mặc định 20." }
+        limit: { type: "number", description: "Maximum number of logs, default 20." }
       }
     },
     execute: getRecentActivityTool
   },
   {
     name: "web_search",
-    description: "Tìm kiếm web cho dữ liệu mới, tài liệu, tin tức, giá cả, lịch trình, phiên bản phần mềm hoặc chủ đề ngoài notebook.",
+    description: "Search the web for fresh data, documents, news, prices, schedules, software versions, or any topic outside the notebook.",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Câu truy vấn tìm kiếm web." }
+        query: { type: "string", description: "Web search query." }
       },
       required: ["query"]
     },
@@ -1179,11 +1181,11 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
   },
   {
     name: "web_extract",
-    description: "Đọc nội dung chính từ một URL cụ thể sau khi người dùng đưa link hoặc sau khi web_search tìm thấy nguồn cần đọc sâu.",
+    description: "Read the main content of a specific URL after the user provides a link or after web_search finds a source that needs deep reading.",
     parameters: {
       type: "object",
       properties: {
-        url: { type: "string", description: "URL đầy đủ cần trích xuất." }
+        url: { type: "string", description: "Full URL to extract." }
       },
       required: ["url"]
     },
@@ -1191,9 +1193,9 @@ const AGENT_TOOLS: AgentToolDefinition[] = [
   },
   {
     name: "get_current_time",
-    description: "Lấy thời gian hiện tại của thiết bị.",
+    description: "Get the current system time.",
     parameters: { type: "object", properties: {} },
-    execute: async () => `Thời gian hệ thống hiện tại: ${new Date().toLocaleString("vi-VN")}`
+    execute: async () => `Current system time: ${new Date().toLocaleString("vi-VN")}`
   }
 ];
 
@@ -1299,14 +1301,14 @@ async function executeToolCall(call: AgentToolCall): Promise<ExecutedToolResult>
     return {
       id: call.id,
       name: call.name,
-      result: `Tool "${call.name}" lỗi: ${err.message || err}`
+      result: `Tool "${call.name}" lỗi: ${err.message || err}. Hãy thử dùng từ khóa tìm kiếm khác, nguồn khác, hoặc tổng hợp từ các kết quả đã có để có câu trả lời chuẩn xác và chọn lọc nhất.`
     };
   }
 }
 
 function toolResultsToPrompt(results: ExecutedToolResult[]): string {
   return results
-    .map((item) => `[KẾT QUẢ TOOL: ${item.name}]\n${item.result}`)
+    .map((item) => `[TOOL RESULT: ${item.name}]\n${item.result}`)
     .join("\n\n---\n\n");
 }
 
@@ -1653,7 +1655,7 @@ export async function askAI(
         } else {
           messages.push({
             role: "user",
-            content: `[KẾT QUẢ TOOL: ${result.name}]\n${result.result}`
+            content: `[TOOL RESULT: ${result.name}]\n${result.result}`
           });
         }
       }
@@ -1679,9 +1681,15 @@ export async function askAI(
   }
 
   const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  const lastToolMsg = [...messages].reverse().find((message) => message.role === "tool" || (message.role === "user" && message.content.includes("[TOOL RESULT")));
+  
+  let fallbackText = "Mình đã chạy nhiều vòng tool nhưng model chưa đưa ra câu trả lời cuối cùng.";
+  if (lastToolMsg) {
+    fallbackText += "\n\nKết quả tool cuối cùng:\n" + lastToolMsg.content;
+  }
+
   return sanitizeFinalContent(
-    lastAssistant?.content ||
-      "Mình đã chạy nhiều vòng tool nhưng model chưa kết thúc câu trả lời. Hãy thử hỏi cụ thể hơn hoặc tách yêu cầu thành phần nhỏ."
+    lastAssistant?.content || fallbackText
   );
 }
 

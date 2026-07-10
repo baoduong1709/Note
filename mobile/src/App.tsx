@@ -11,6 +11,9 @@ import CalendarView from "./views/CalendarView";
 import SettingsView from "./views/SettingsView";
 import ShareView from "./views/ShareView";
 
+// Import assets so Vite correctly resolves them during build and in Android
+import logoMobile from "../../public/logo-mobile.png";
+
 import AIChatPanel from "../../shared/components/AIChatPanel";
 import { initDatabase, getDatabase } from "../../shared/database/db";
 import { createNote, Note } from "../../shared/database/queries/notes";
@@ -25,7 +28,7 @@ export default function App() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [toast, setToast] = useState({ message: "", show: false });
   const [dbReady, setDbReady] = useState(false);
-  const [showAiSidebar, setShowAiSidebar] = useState(true);
+  const [showAiSidebar, setShowAiSidebar] = useState(false);
 
   // Theme settings
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -811,7 +814,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-zinc-950 dark:bg-black border border-white/10 flex items-center justify-center shadow-md shadow-purple-500/10 relative overflow-hidden group shrink-0 p-0.5">
                   <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/30 to-blue-500/30 opacity-60"></div>
-                  <img src="/logo-mobile.png" className="w-full h-full object-contain rounded z-10 relative" alt="Logo" />
+                  <img src={logoMobile} className="w-full h-full object-contain rounded z-10 relative" alt="Logo" />
                 </div>
                 <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-wide flex items-center gap-0.5">
                   AI <span className="font-extrabold bg-gradient-to-r from-purple-600 to-blue-400 bg-clip-text text-transparent">NOTEBOOK</span>
