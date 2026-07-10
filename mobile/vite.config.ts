@@ -99,11 +99,11 @@ export default defineConfig(async () => ({
       : undefined,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'https://note.baoduong.dev',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: 'wss://note.baoduong.dev',
         ws: true,
       },
     },

@@ -27,7 +27,7 @@ export default function BottomNav({ activeView, setActiveView }: BottomNavProps)
 
   return (
     <div 
-      className="md:hidden fixed left-4 right-4 z-30 h-[50px] backdrop-blur-xl bg-white/75 dark:bg-zinc-950/75 border border-zinc-200/50 dark:border-white/10 rounded-2xl flex items-center justify-around px-2 shadow-2xl shadow-zinc-300/20 dark:shadow-black/50 transition-all duration-300"
+      className="md:hidden fixed left-4 right-4 z-30 h-[60px] backdrop-blur-xl bg-white/75 dark:bg-zinc-950/75 border border-zinc-200/50 dark:border-white/10 rounded-2xl flex items-center justify-around px-2 shadow-2xl shadow-zinc-300/20 dark:shadow-black/50 transition-all duration-300"
       style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
     >
       {navItems.map((item) => {
@@ -46,13 +46,13 @@ export default function BottomNav({ activeView, setActiveView }: BottomNavProps)
                 : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
-            <Icon className={`w-[22px] h-[22px] ${isActive ? "filter drop-shadow-[0_0_6px_rgba(147,51,234,0.5)]" : ""}`} />
+            <Icon className={`w-[26px] h-[26px] ${isActive ? "filter drop-shadow-[0_0_6px_rgba(147,51,234,0.5)]" : ""}`} />
             
             {/* Sliding active pill background */}
             {isActive && (
               <motion.div
                 layoutId="mobileActivePill"
-                className="absolute w-[40px] h-[40px] rounded-xl -z-10 nav-active-gradient-border"
+                className="absolute w-[46px] h-[46px] rounded-xl -z-10 nav-active-gradient-border"
                 transition={{ type: "spring", stiffness: 380, damping: 30 }}
               />
             )}

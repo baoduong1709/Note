@@ -517,7 +517,7 @@ export default function App() {
   if (!isOnboarded) {
     if (onboardingStep === 'welcome') {
       return (
-        <div className={`h-screen w-screen flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
+        <div className={`h-full w-full flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
           <div className="aurora-orb aurora-orb-1"></div>
           <div className="aurora-orb aurora-orb-2"></div>
           <div className="aurora-orb aurora-orb-3"></div>
@@ -598,7 +598,7 @@ export default function App() {
 
     if (onboardingStep === 'pin_setup') {
       return (
-        <div className={`h-screen w-screen flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
+        <div className={`h-full w-full relative flex items-center justify-center font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
           <div className="aurora-orb aurora-orb-1"></div>
           <div className="aurora-orb aurora-orb-2"></div>
           <div className="aurora-orb aurora-orb-3"></div>
@@ -671,7 +671,7 @@ export default function App() {
   // Lock Screen Overlay UI
   if (isLocked) {
     return (
-      <div className={`h-screen w-screen flex items-center justify-center relative font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
+      <div className={`h-full w-full relative flex items-center justify-center font-sans text-zinc-700 dark:text-zinc-300 transition-colors duration-200 ${theme === 'dark' ? 'lockscreen-aurora' : 'lockscreen-aurora-light'}`}>
         {/* Animated aurora orbs on lock screen */}
         <div className="aurora-orb aurora-orb-1"></div>
         <div className="aurora-orb aurora-orb-2"></div>
@@ -741,7 +741,7 @@ export default function App() {
 
     {/* E2EE Decryption Modal */}
     {showDecryptionModal && (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div className="bg-[#121214] border border-white/5 rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
           <div className="flex items-center gap-3 border-b border-white/5 pb-3">
             <div className="w-8 h-8 rounded bg-red-600/20 text-red-400 flex items-center justify-center shrink-0">
@@ -788,7 +788,10 @@ export default function App() {
       </div>
     )}
 
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
+    <div 
+      className="w-full h-full relative flex flex-col overflow-hidden bg-zinc-200 dark:bg-[#0b0b0d] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       {/* Animated Aurora Floating Orbs - wrapped in absolute container to stay out of flex flow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="aurora-orb aurora-orb-1"></div>

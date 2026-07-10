@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "opener:default",
@@ -16,14 +18,38 @@
     {
       "identifier": "http:allow-fetch",
       "allow": [
-        { "url": "https://**" },
-        { "url": "http://**" },
-        { "url": "http://localhost:3001/*" },
-        { "url": "http://localhost:3001/**" },
-        { "url": "http://127.0.0.1:3001/*" },
-        { "url": "http://127.0.0.1:3001/**" }
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        },
+        {
+          "url": "http://localhost:3001/*"
+        },
+        {
+          "url": "http://localhost:3001/**"
+        },
+        {
+          "url": "http://127.0.0.1:3001/*"
+        },
+        {
+          "url": "http://127.0.0.1:3001/**"
+        },
+        {
+          "url": "https://note.baoduong.dev/*"
+        },
+        {
+          "url": "https://note.baoduong.dev/**"
+        },
+        {
+          "url": "wss://note.baoduong.dev/*"
+        },
+        {
+          "url": "wss://note.baoduong.dev/**"
+        }
       ]
-    }
+    },
+    "notification:default"
   ]
 }
-

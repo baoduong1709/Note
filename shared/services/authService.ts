@@ -118,11 +118,11 @@ export async function startGoogleOAuth(
       return await completeGoogleLogin(nativeAccount);
     }
 
-    if (isAndroidRuntime()) {
-      if (onProgress) onProgress('accounts');
-      if (triggerToast) triggerToast("Đăng nhập trên điện thoại chưa sẵn sàng. Hãy dừng và chạy lại npm run tauri android dev để rebuild.");
-      return null;
-    }
+    // if (isAndroidRuntime()) {
+    //   if (onProgress) onProgress('accounts');
+    //   if (triggerToast) triggerToast("Đăng nhập trên điện thoại chưa sẵn sàng. Hãy dừng và chạy lại npm run tauri android dev để rebuild.");
+    //   return null;
+    // }
 
     if (isTauri) {
       const { invoke } = await import("@tauri-apps/api/core");

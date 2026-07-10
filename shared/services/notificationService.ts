@@ -228,7 +228,8 @@ export async function checkAndNotifyCalendarEvents(): Promise<void> {
 export async function checkAndNotifyDueTasks(): Promise<void> {
   console.log("[Notification] Running checkAndNotifyDueTasks...");
   const isAllowed = await initNotifications();
-  console.log("[Notification] System permission isAllowed:", isAllowed, "permission:", Notification.permission);
+  const permissionStatus = typeof Notification !== "undefined" ? Notification.permission : "unknown (tauri/mobile)";
+  console.log("[Notification] System permission isAllowed:", isAllowed, "permission:", permissionStatus);
   if (!isAllowed) {
     console.warn("[Notification] Permission is denied. Exiting.");
     return;

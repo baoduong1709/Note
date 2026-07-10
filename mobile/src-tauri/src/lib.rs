@@ -9,8 +9,9 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn start_auth_server(window: tauri::Window) -> Result<String, String> {
-    let client_id = "113610150516-jo77q0pv19qso8qg84a2h30hug4jga5s.apps.googleusercontent.com".to_string();
-    
+    let client_id =
+        "113610150516-jo77q0pv19qso8qg84a2h30hug4jga5s.apps.googleusercontent.com".to_string();
+
     std::thread::spawn(move || {
         let listener = std::net::TcpListener::bind("127.0.0.1:3000");
         match listener {
@@ -20,9 +21,10 @@ fn start_auth_server(window: tauri::Window) -> Result<String, String> {
                         let mut buffer = [0; 2048];
                         if let Ok(_) = stream.read(&mut buffer) {
                             let request = String::from_utf8_lossy(&buffer[..]);
-                            
+
                             if request.contains("GET /login") {
-                                let html_content = format!(r#"<!DOCTYPE html>
+                                let html_content = format!(
+                                    r#"<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
@@ -107,16 +109,18 @@ fn start_auth_server(window: tauri::Window) -> Result<String, String> {
     }}
   </script>
 </body>
-</html>"#);
-                                
+</html>"#
+                                );
+
                                 let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{}", html_content.len(), html_content);
                                 let _ = stream.write_all(response.as_bytes());
                                 let _ = stream.flush();
-                            } 
-                            else if request.contains("GET /callback?") {
+                            } else if request.contains("GET /callback?") {
                                 if let Some(query_start) = request.find("GET /callback?") {
-                                    let query_end = request[query_start..].find(" HTTP/1.1").unwrap_or(0);
-                                    let query_string = &request[query_start + 14..query_start + query_end];
+                                    let query_end =
+                                        request[query_start..].find(" HTTP/1.1").unwrap_or(0);
+                                    let query_string =
+                                        &request[query_start + 14..query_start + query_end];
                                     let _ = window.emit("oauth-response", query_string.to_string());
                                 }
 
@@ -138,8 +142,7 @@ fn start_auth_server(window: tauri::Window) -> Result<String, String> {
                                 let _ = stream.write_all(response.as_bytes());
                                 let _ = stream.flush();
                                 break;
-                            }
-                            else {
+                            } else {
                                 let response = "HTTP/1.1 404 NOT FOUND\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
                                 let _ = stream.write_all(response.as_bytes());
                                 let _ = stream.flush();
@@ -156,10 +159,10 @@ fn start_auth_server(window: tauri::Window) -> Result<String, String> {
     Ok("Server started".to_string())
 }
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_sql::Builder::default().build())

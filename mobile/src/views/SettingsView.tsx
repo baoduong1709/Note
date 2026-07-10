@@ -263,9 +263,9 @@ export default function SettingsView({
       if (aiConfig) {
         try {
           const parsed = JSON.parse(aiConfig);
-          setAiApiKey(prev => { if (prev !== (parsed.apiKey || "")) return parsed.apiKey || ""; return prev; });
-          setAiBaseUrl(prev => { if (prev !== (parsed.baseUrl || "")) return parsed.baseUrl || ""; return prev; });
-          setAiModelName(prev => { if (prev !== (parsed.modelName || "")) return parsed.modelName || ""; return prev; });
+          setAiApiKey(parsed.apiKey || "");
+          setAiBaseUrl(parsed.baseUrl || "");
+          setAiModelName(parsed.modelName || "");
         } catch (err) {
           console.error(err);
         }
@@ -302,13 +302,11 @@ export default function SettingsView({
     };
 
     loadConfigs();
-    window.addEventListener("settings-sync-completed", loadConfigs);
-    window.addEventListener("focus", loadConfigs);
     
-    // Poll a few times in case of race condition with background sync
-    const poll1 = setTimeout(loadConfigs, 500);
-    const poll2 = setTimeout(loadConfigs, 1500);
-    const poll3 = setTimeout(loadConfigs, 3000);
+    const handleFocus = () => loadConfigs();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("storage", loadConfigs);
+    window.addEventListener("settings-sync-completed", loadConfigs);
 
     // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";
@@ -321,9 +319,6 @@ export default function SettingsView({
     return () => {
       window.removeEventListener("settings-sync-completed", loadConfigs);
       window.removeEventListener("focus", loadConfigs);
-      clearTimeout(poll1);
-      clearTimeout(poll2);
-      clearTimeout(poll3);
     };
   }, []);
 

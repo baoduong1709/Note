@@ -225,13 +225,12 @@ export default function SettingsView({
     const loadConfigs = () => {
       // Load AI
       const aiConfig = localStorage.getItem("ai_config");
-      let aiUpdated = false;
       if (aiConfig) {
         try {
           const parsed = JSON.parse(aiConfig);
-          setAiApiKey(prev => { if (prev !== (parsed.apiKey || "")) aiUpdated = true; return parsed.apiKey || ""; });
-          setAiBaseUrl(prev => { if (prev !== (parsed.baseUrl || "")) aiUpdated = true; return parsed.baseUrl || ""; });
-          setAiModelName(prev => { if (prev !== (parsed.modelName || "")) aiUpdated = true; return parsed.modelName || ""; });
+          setAiApiKey(parsed.apiKey || "");
+          setAiBaseUrl(parsed.baseUrl || "");
+          setAiModelName(parsed.modelName || "");
         } catch (err) {
           console.error(err);
         }
@@ -272,11 +271,6 @@ export default function SettingsView({
     window.addEventListener("settings-sync-completed", loadConfigs);
     window.addEventListener("focus", loadConfigs);
     window.addEventListener("storage", loadConfigs);
-    
-    // Poll a few times in case of race condition with background sync
-    const poll1 = setTimeout(loadConfigs, 500);
-    const poll2 = setTimeout(loadConfigs, 1500);
-    const poll3 = setTimeout(loadConfigs, 3000);
 
     // Load PIN/E2EE lock
     const enabled = localStorage.getItem("pin_lock_enabled") === "true";

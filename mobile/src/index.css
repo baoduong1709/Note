@@ -34,6 +34,9 @@
 }
 
 @layer base {
+  html {
+    font-size: 18px; /* Scale up entire UI by 112.5% for better mobile touch targets */
+  }
   html,
   body,
   #root {
